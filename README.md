@@ -49,11 +49,14 @@ The output is plain HTML + CSS + JavaScript + images. No framework, no database,
 
 - **Smart WebP conversion** via Sharp — 4K-aware sizing based on grid position
 - **Editorial grid** — 3-column layout with alternating 2×2 / 1×1 tiles, all square-cropped
-- **Full-screen lightbox** — keyboard navigation (← →), multi-level ESC, touch swipe on mobile
+- **Full-screen lightbox** — keyboard navigation (← →), multi-level ESC, touch swipe on mobile, fullscreen on Android & desktop
+- **Slideshow mode** — auto-advance with configurable interval, fullscreen, animated progress bar, pause/resume, loops, swipe resets the countdown
+- **iOS PWA support** — `apple-mobile-web-app-capable` meta tag: add to Home Screen for a true fullscreen experience on iPhone/iPad
 - **EXIF metadata overlay** — camera, lens, aperture, shutter speed, ISO, focal length
 - **Thumbnail filmstrip** — scrollable strip synced with the active slide
 - **Adaptive title colour** — light or dark text computed from image brightness at build time
-- **Download originals** — per-image button + one-click ZIP of all originals (client-side, no server)
+- **Download originals** — per-image button (Web Share API on iOS → saves directly to Photos) + one-click ZIP of all originals (client-side, no server)
+- **Configurable download permissions** — `allowDownloadImage` / `allowDownloadGallery` flags to disable buttons per gallery
 - **Multilingual legal notice** — popup auto-translated to the visitor's browser language (EN · FR · DE · IT · ES · PT), with customisable per-gallery templates
 - **Poppins font served locally** — fully offline, no external font requests at runtime
 - **Consistent file naming** — source files are renamed at build time using an `author_title_date_NNN` convention
@@ -139,39 +142,45 @@ Or to work with your own photos:
 
 ### `src/<gallery>/gallery.config.json` — gallery metadata
 
-Create one config file per gallery. All fields except `title` and `author` are optional.
+Create one config file per gallery. All fields are optional — sensible defaults are used for anything omitted.
 
 ```json
 {
   "project": {
-    "name":        "summer-zurich-2025",
-    "title":       "Summer in Zürich — Portraits & Landscapes",
-    "subtitle":    "Documentary series, spring 2025",
-    "author":      "Jane Smith",
-    "authorEmail": "jane@example.com",
-    "date":        "2025-04-15",
-    "location":    "Zürich, Enge District",
-    "description": "A cross-perspective look at neighbourhood life.",
-    "locale":      "en",
-    "private":     false,
-    "standalone":  false
+    "name":               "summer-zurich-2025",
+    "title":              "Summer in Zürich — Portraits & Landscapes",
+    "subtitle":           "Documentary series, spring 2025",
+    "author":             "Jane Smith",
+    "authorEmail":        "jane@example.com",
+    "date":               "2025-04-15",
+    "location":           "Zürich, Enge District",
+    "description":        "A cross-perspective look at neighbourhood life.",
+    "locale":             "en",
+    "private":            false,
+    "standalone":         false,
+    "allowDownloadImage":   true,
+    "allowDownloadGallery": true,
+    "slideshowInterval":    5
   }
 }
 ```
 
-| Field          | Required | Description |
-|----------------|----------|-------------|
-| `title`        | yes | Gallery title — shown in the header and used to derive the output folder name |
-| `author`       | yes | Photographer name — shown in the copyright label and legal notice |
-| `name`         | | URL-friendly output folder name under `dist/` (overrides the auto-derived slug) |
-| `subtitle`     | | Short subtitle displayed under the title |
-| `authorEmail`  | | Contact email shown in the legal notice popup and in the ZIP |
-| `date`         | | Shoot date `YYYY-MM-DD` — used in the header and as the copyright year |
-| `location`     | | Shooting location shown in the header |
-| `description`  | | Free-text description (used in legal templates; not displayed in the gallery UI) |
-| `locale`       | | Force the UI and legal notice language: `en`, `fr`, `de`, `it`, `es`, `pt`. Defaults to the visitor's browser language. |
-| `private`      | | `true` → output folder gets a SHA-256 hash name (unguessable URL); gallery is excluded from the index |
-| `standalone`   | | `true` → vendor JS/CSS and fonts are embedded in the gallery folder (fully self-contained, no shared assets needed) |
+| Field                  | Default | Description |
+|------------------------|---------|-------------|
+| `title`                | `"My Gallery"` | Gallery title — shown in the header and used to derive the output folder name |
+| `author`               | `"Unknown"` | Photographer name — shown in the copyright label and legal notice |
+| `name`                 | _(slug from title)_ | URL-friendly output folder name under `dist/` (overrides the auto-derived slug) |
+| `subtitle`             | — | Short subtitle displayed under the title |
+| `authorEmail`          | — | Contact email shown in the legal notice popup and in the ZIP |
+| `date`                 | _(build date)_ | Shoot date `YYYY-MM-DD` — used in the header and as the copyright year |
+| `location`             | — | Shooting location shown in the header |
+| `description`          | — | Free-text description — also injected as `<meta name="description">` for SEO |
+| `locale`               | `"en"` | Force the UI language and HTML `lang` attribute: `en`, `fr`, `de`, `it`, `es`, `pt`. The legal notice popup additionally respects the visitor's browser language. |
+| `private`              | `false` | `true` → output folder gets a SHA-256 hash name (unguessable URL); gallery is excluded from the index |
+| `standalone`           | `false` | `true` → vendor JS/CSS and fonts are embedded in the gallery folder (fully self-contained, no shared assets needed) |
+| `allowDownloadImage`   | `true` | `false` → hides the per-photo download button. When both download flags are `false`, the `originals/` folder is not generated at build time. |
+| `allowDownloadGallery` | `true` | `false` → hides the "Download all" ZIP button |
+| `slideshowInterval`    | `5` | Slideshow auto-advance interval in seconds |
 
 #### How the output folder name is chosen
 
@@ -189,23 +198,28 @@ This file sits at the project root and applies to all galleries. Sensible defaul
 
 ```json
 {
-  "gridSizeSmall": 1280,
-  "gridSizeBig":   2560,
-  "fullSize":      3840,
+  "gridSizeSmall":  800,
+  "gridSizeBig":    1400,
+  "gridSizeMobile": 600,
+  "fullSize":       3840,
   "quality": {
-    "grid": 85,
+    "grid": 78,
     "full": 90
   }
 }
 ```
 
-| Field           | Default | Description |
-|-----------------|---------|-------------|
-| `gridSizeSmall` | 1280    | WebP size for 1×1 grid tiles (px on the longest side) — suitable for standard 4K screens at 3 columns |
-| `gridSizeBig`   | 2560    | WebP size for 2×2 grid tiles — twice the unit size |
-| `fullSize`      | 3840    | Max dimension for the full-resolution WebP shown in the lightbox — covers 4K displays |
-| `quality.grid`  | 85      | WebP compression quality for thumbnails (0–100) |
-| `quality.full`  | 90      | WebP compression quality for lightbox images (0–100) |
+| Field            | Default | Description |
+|------------------|---------|-------------|
+| `gridSizeSmall`  | `800`   | WebP size (px) for 1×1 grid tiles — covers iPad Pro 13" retina at full resolution |
+| `gridSizeBig`    | `1400`  | WebP size (px) for 2×2 grid tiles — covers iPad Pro 13" retina pixel-perfect |
+| `gridSizeMobile` | `600`   | WebP size (px) for the `img/grid-sm/` mobile variants used in `srcset` — served to phones instead of the full 800/1400 px tiles, reducing bandwidth by ~5× on slow connections |
+| `fullSize`       | `3840`  | Max dimension for the full-resolution WebP shown in the lightbox — covers 4K displays |
+| `quality.grid`   | `78`    | WebP compression quality for thumbnails (0–100). 78 is visually identical to 85 at these sizes, ~25% lighter. |
+| `quality.full`   | `90`    | WebP compression quality for lightbox images (0–100) |
+| `preloadCount`   | `6`     | Number of grid thumbnails preloaded in `<head>` via `<link rel="preload">` for fastest LCP |
+
+> **Changing grid sizes requires `--force`** to reconvert existing images: `node build/index.js my-gallery --force`
 
 ---
 
@@ -225,16 +239,18 @@ After running either command, follow the printed instructions: edit the generate
 
 ### Building and previewing
 
-| Command                       | Description |
-|-------------------------------|-------------|
-| `npm run build`               | Incremental build — prompts to pick a gallery when several exist |
-| `npm run build:all`           | Build every gallery found in `src/` |
-| `npm run build:force`         | Reconvert all images from scratch (keeps downloaded vendors/fonts) |
-| `npm run build:clean`         | Wipe `dist/` entirely, then rebuild everything |
-| `npm run serve`               | Start a local HTTP server at `http://localhost:3000` |
-| `npm run setup:example`       | Generate 15 sample photos + config for the example gallery (skip existing) |
-| `npm run setup:example:force` | Regenerate all 15 sample photos, overwriting existing ones |
-| `npm run clean`               | Delete `dist/` |
+| Command                         | Description |
+|---------------------------------|-------------|
+| `npm run build`                 | Incremental build — prompts to pick a gallery when several exist |
+| `npm run build:all`             | Build every gallery found in `src/` |
+| `npm run build:force`           | Reconvert all images from scratch for all galleries (keeps downloaded vendors/fonts) |
+| `npm run build:clean`           | Wipe `dist/` entirely, then rebuild everything |
+| `npm run clean`                 | Delete `dist/` without rebuilding |
+| `npm run serve`                 | Start a local HTTP server at `http://localhost:3000` |
+| `npm run new-gallery <slug>`    | Scaffold a new gallery folder with a minimal config |
+| `npm run new-gallery:wizard`    | Interactive wizard to create a fully configured gallery |
+| `npm run setup:example`         | Generate 15 sample photos + config for the example gallery (skip existing) |
+| `npm run setup:example:force`   | Regenerate all 15 sample photos, overwriting existing ones |
 
 You can also target a specific gallery or pass flags directly:
 
@@ -269,9 +285,10 @@ dist/
 │   ├── LEGAL.md            ← plain-text copyright notice
 │   ├── photos.json         ← build manifest (used for incremental builds)
 │   ├── img/
-│   │   ├── grid/           ← square-cropped WebP thumbnails
+│   │   ├── grid/           ← square-cropped WebP thumbnails (desktop)
+│   │   ├── grid-sm/        ← smaller WebP thumbnails for mobile srcset
 │   │   └── full/           ← full-resolution WebP for the lightbox
-│   └── originals/          ← JPEG copies for per-image download
+│   └── originals/          ← JPEG copies for per-image download (omitted when both download flags are false)
 │
 └── another-gallery/
     └── …
@@ -295,6 +312,7 @@ dist/
     ├── fonts/              ← copy of dist/fonts/
     ├── img/
     │   ├── grid/
+    │   ├── grid-sm/
     │   └── full/
     └── originals/
 ```
@@ -428,9 +446,10 @@ The pattern repeats every 12 photos. Galleries with fewer than 12 photos show a 
 | `←` / `→` | Previous / next photo |
 | `Escape` | EXIF overlay open → close EXIF; otherwise → close lightbox |
 | `i` button | Toggle EXIF metadata overlay (camera, lens, aperture, shutter, ISO…) |
-| `↓` button | Download current photo as original JPEG |
-| `⤢` button | Toggle fullscreen (desktop only, requires Fullscreen API support) |
-| Swipe left/right | Previous / next photo (touch devices) |
+| `↓` button | Download current photo — on iOS 15+ opens the native share sheet (tap **Save to Photos**); on other platforms saves the JPEG directly |
+| `⤢` button | Toggle fullscreen — available on Android and desktop (the Fullscreen API is not supported by iOS Safari; use "Add to Home Screen" for a fullscreen-like PWA experience) |
+| `▶` / `⏸` button | Start / pause the slideshow — auto-advances every `slideshowInterval` seconds, enters fullscreen automatically, loops back to the first photo |
+| Swipe left/right | Previous / next photo (touch devices); also resets the slideshow countdown when the slideshow is active |
 
 ---
 
@@ -484,16 +503,18 @@ Conditional blocks are also supported — the block is rendered only when the fi
 
 ### ZIP legal notice
 
-The **Download all** ZIP includes a `LEGAL_NOTICE.txt` file. When `locale` is set, the file contains that language + English. Otherwise all 6 languages are included.
+The **Download all** ZIP includes a `LEGAL_NOTICE.txt` file in the gallery's locale (English fallback if the locale is not among the 6 supported languages).
 
 ---
 
 ## ZIP download
 
-The **Download all** button (top right of the gallery) creates a ZIP archive entirely in the browser using JSZip — no server request is needed. The ZIP contains:
+The **Download all** button (top right of the gallery) creates a ZIP archive entirely in the browser — no server request is needed. JSZip is loaded on-demand only when the button is clicked (not at page load). The ZIP contains:
 
 - All original JPEG files (full resolution)
-- `LEGAL_NOTICE.txt` — the copyright notice in the gallery's language(s)
+- `LEGAL_NOTICE.txt` — the copyright notice in the gallery's locale
+
+Both download buttons can be disabled per gallery via `allowDownloadImage` and `allowDownloadGallery` in the config.
 
 > **Note:** `fetch()` is blocked by browsers on `file://` URLs. Use `npm run serve` or any local HTTP server to test ZIP downloads locally.
 
