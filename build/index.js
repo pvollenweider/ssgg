@@ -445,8 +445,11 @@ async function convertOne(photo, cfg, idx, cachedIsDark = null, paths) {
   const gridSmOut = path.join(paths.distImg, 'grid-sm', `${name}.webp`);
   const fullOut   = path.join(paths.distImg, 'full',    `${name}.webp`);
   const origOut   = path.join(paths.distOri, `${name}.jpg`);
-  const { gridSizeSmall, gridSizeBig, gridSizeMobile = 600, fullSize, quality } = cfg.build;
-  const gridSize = isBig ? gridSizeBig : gridSizeSmall;
+  const { gridSizeSmall, gridSizeBig,
+          gridSizeMobileSmall = 400, gridSizeMobileBig = 600,
+          fullSize, quality } = cfg.build;
+  const gridSize    = isBig ? gridSizeBig    : gridSizeSmall;
+  const gridSizeMob = isBig ? gridSizeMobileBig : gridSizeMobileSmall;
   // Originals are skipped when neither image nor gallery download is allowed.
   const skipOriginals = cfg.project.allowDownloadImage === false
                      && cfg.project.allowDownloadGallery === false;
@@ -473,13 +476,13 @@ async function convertOne(photo, cfg, idx, cachedIsDark = null, paths) {
     .toFile(gridOut);
   ok(`grid  ${gridSize}×${gridSize}`);
 
-  // Mobile grid thumbnail: same crop, smaller dimensions for srcset.
+  // Mobile grid thumbnail: size depends on tile role (big tiles need more pixels).
   await sharp(photo.full)
     .rotate()
-    .resize(gridSizeMobile, gridSizeMobile, { fit: 'cover', position: 'centre' })
+    .resize(gridSizeMob, gridSizeMob, { fit: 'cover', position: 'centre' })
     .webp({ quality: quality.grid })
     .toFile(gridSmOut);
-  ok(`grid-sm  ${gridSizeMobile}×${gridSizeMobile}`);
+  ok(`grid-sm  ${gridSizeMob}×${gridSizeMob}`);
 
   // Full-size WebP: fit inside fullSize×fullSize, never enlarge smaller originals.
   await sharp(photo.full)
@@ -663,6 +666,13 @@ function buildHTML(cfg, photos, fontCss = '', standalone = false, customLegal = 
   const slideEffect = VALID_EFFECTS.has(cfg.build.slideEffect) ? cfg.build.slideEffect : 'fade';
   const slideSpeed  = Math.max(50, Math.min(2000, Number(cfg.build.slideSpeed) || 400));
 
+  // Mobile srcset sizes — injected into the JS template so the browser gets
+  // the correct width descriptor for each tile role.
+  const gridMobSmall = cfg.build.gridSizeMobileSmall || 400;
+  const gridMobBig   = cfg.build.gridSizeMobileBig   || 600;
+  // Font path prefix (mirrors vp but for the fonts/ directory).
+  const fp = standalone ? 'fonts/' : '../fonts/';
+
   // Embed optional custom legal templates as PROJECT properties so the browser
   // can use them directly without any multilingual fallback logic.
   const projectWithLegal = { ...project };
@@ -679,8 +689,9 @@ function buildHTML(cfg, photos, fontCss = '', standalone = false, customLegal = 
   const PRELOAD_COUNT = (cfg.build && cfg.build.preloadCount) || 6;
   const preloadLinks = photos.slice(0, PRELOAD_COUNT).map((p, i) => {
     const isBig    = BIG_POSITIONS.has(i % 12);
+    const mobSz    = isBig ? gridMobBig : gridMobSmall;
     const deskSz   = isBig ? 1400 : 800;
-    const srcset   = `img/grid-sm/${p.name}.webp 600w, img/grid/${p.name}.webp ${deskSz}w`;
+    const srcset   = `img/grid-sm/${p.name}.webp ${mobSz}w, img/grid/${p.name}.webp ${deskSz}w`;
     const sizes    = isBig ? '(max-width: 767px) 66vw, 1400px' : '(max-width: 767px) 33vw, 800px';
     const priority = i === 0 ? ' fetchpriority="high"' : '';
     return `<link rel="preload" as="image" href="img/grid/${p.name}.webp" imagesrcset="${srcset}" imagesizes="${sizes}"${priority}>`;
@@ -699,6 +710,9 @@ function buildHTML(cfg, photos, fontCss = '', standalone = false, customLegal = 
 ${project.description ? `<meta name="description" content="${escHtml(project.description)}">` : ''}
 <script>const _p=location.pathname;const _s=_p.slice(_p.lastIndexOf('/')+1);if(!_p.endsWith('/')&&_s.indexOf('.')<0)location.replace(_p+'/'+location.search+location.hash)</script>
 ${preloadLinks}
+<link rel="preload" as="font" href="${fp}poppins-400.woff2" type="font/woff2" crossorigin>
+<link rel="preload" as="font" href="${fp}poppins-600.woff2" type="font/woff2" crossorigin>
+<link rel="preload" as="font" href="${fp}poppins-500.woff2" type="font/woff2" crossorigin>
 <link rel="preload" as="style" href="${vp}glightbox.min.css" onload="this.rel='stylesheet'">
 <link rel="preload" as="style" href="${vp}tiny-slider.css" onload="this.rel='stylesheet'">
 <noscript><link rel="stylesheet" href="${vp}glightbox.min.css"><link rel="stylesheet" href="${vp}tiny-slider.css"></noscript>
@@ -1303,7 +1317,7 @@ function makeTile(photo, idx) {
   const isBig = photo.role === 'big';
   const img = document.createElement('img');
   img.src     = 'img/grid/' + photo.name + '.webp';
-  img.srcset  = 'img/grid-sm/' + photo.name + '.webp 600w, img/grid/' + photo.name + '.webp ' + (isBig ? '1400' : '800') + 'w';
+  img.srcset  = 'img/grid-sm/' + photo.name + '.webp ' + (isBig ? ${gridMobBig} : ${gridMobSmall}) + 'w, img/grid/' + photo.name + '.webp ' + (isBig ? '1400' : '800') + 'w';
   img.sizes   = isBig
     ? '(max-width: 767px) 66vw, 1400px'
     : '(max-width: 767px) 33vw, 800px';
