@@ -370,37 +370,45 @@
         </div>
       </div>
 
-      <p class="section-divider" style="margin-top:16px">SMTP (optional)</p>
-      <div class="row">
-        <div class="field">
-          <label for="s-smtp-host">SMTP host</label>
-          <input type="text" id="s-smtp-host" placeholder="smtp.example.com">
-        </div>
-        <div class="field">
-          <label for="s-smtp-port">Port</label>
-          <input type="text" id="s-smtp-port" placeholder="587">
-        </div>
-      </div>
-      <div class="row">
-        <div class="field">
-          <label for="s-smtp-user">Username</label>
-          <input type="text" id="s-smtp-user" placeholder="user@example.com" autocomplete="off">
-        </div>
-        <div class="field">
-          <label for="s-smtp-pass">Password</label>
-          <input type="password" id="s-smtp-pass" placeholder="••••••••" autocomplete="off">
-        </div>
-      </div>
-      <div class="field">
-        <label for="s-smtp-from">From address</label>
-        <input type="text" id="s-smtp-from" placeholder="GalleryPack &lt;noreply@example.com&gt;">
-      </div>
-      <div class="toggle-row" style="margin-top:4px">
-        <span>Use TLS/SSL (port 465)</span>
+      <div class="toggle-row" style="margin-top:16px;margin-bottom:8px">
+        <span style="font-size:13px;font-weight:600">Enable email notifications (SMTP)</span>
         <label class="toggle">
-          <input type="checkbox" id="s-smtp-secure">
+          <input type="checkbox" id="s-smtp-enabled">
           <span class="slider"></span>
         </label>
+      </div>
+      <div id="smtp-fields" style="display:none">
+        <div class="row">
+          <div class="field">
+            <label for="s-smtp-host">SMTP host</label>
+            <input type="text" id="s-smtp-host" placeholder="smtp.example.com">
+          </div>
+          <div class="field">
+            <label for="s-smtp-port">Port</label>
+            <input type="text" id="s-smtp-port" placeholder="587">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="s-smtp-user">Username</label>
+            <input type="text" id="s-smtp-user" placeholder="user@example.com" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="s-smtp-pass">Password</label>
+            <input type="password" id="s-smtp-pass" placeholder="••••••••" autocomplete="off">
+          </div>
+        </div>
+        <div class="field">
+          <label for="s-smtp-from">From address</label>
+          <input type="text" id="s-smtp-from" placeholder="noreply@example.com">
+        </div>
+        <div class="toggle-row" style="margin-top:4px">
+          <span>Direct SSL/TLS — only for port 465 (not 587)</span>
+          <label class="toggle">
+            <input type="checkbox" id="s-smtp-secure">
+            <span class="slider"></span>
+          </label>
+        </div>
       </div>
     </div>
 
@@ -897,18 +905,26 @@ document.getElementById('invite-create-btn').addEventListener('click', async () 
 });
 
 // ── Settings ──────────────────────────────────────────────
+function syncSmtpFields() {
+  const enabled = document.getElementById('s-smtp-enabled').checked;
+  document.getElementById('smtp-fields').style.display = enabled ? '' : 'none';
+}
+document.getElementById('s-smtp-enabled').addEventListener('change', syncSmtpFields);
+
 async function loadSettings() {
   try {
     const data = await api('GET', '/api/admin/settings');
     const s = data.settings || {};
     document.getElementById('s-appname').value     = s.appName    || '';
     document.getElementById('s-admin-email').value = s.adminEmail || '';
+    document.getElementById('s-smtp-enabled').checked = !!s.smtpEnabled;
     document.getElementById('s-smtp-host').value   = s.smtpHost   || '';
     document.getElementById('s-smtp-port').value   = s.smtpPort   || '';
     document.getElementById('s-smtp-user').value   = s.smtpUser   || '';
     document.getElementById('s-smtp-pass').value   = s.smtpPass   || '';
     document.getElementById('s-smtp-from').value   = s.smtpFrom   || '';
     document.getElementById('s-smtp-secure').checked = !!s.smtpSecure;
+    syncSmtpFields();
   } catch (_) {}
 }
 
@@ -918,15 +934,17 @@ document.getElementById('settings-save-btn').addEventListener('click', async () 
   const btn = document.getElementById('settings-save-btn');
   btn.disabled = true;
   try {
+    const smtpEnabled = document.getElementById('s-smtp-enabled').checked;
     await api('PATCH', '/api/admin/settings', {
-      appName:     document.getElementById('s-appname').value.trim()     || undefined,
-      adminEmail:  document.getElementById('s-admin-email').value.trim() || undefined,
-      smtpHost:    document.getElementById('s-smtp-host').value.trim()   || undefined,
-      smtpPort:    parseInt(document.getElementById('s-smtp-port').value) || 587,
-      smtpUser:    document.getElementById('s-smtp-user').value.trim()   || undefined,
-      smtpPass:    document.getElementById('s-smtp-pass').value          || undefined,
-      smtpFrom:    document.getElementById('s-smtp-from').value.trim()   || undefined,
-      smtpSecure:  document.getElementById('s-smtp-secure').checked,
+      appName:      document.getElementById('s-appname').value.trim()     || undefined,
+      adminEmail:   document.getElementById('s-admin-email').value.trim() || undefined,
+      smtpEnabled,
+      smtpHost:     smtpEnabled ? (document.getElementById('s-smtp-host').value.trim()   || undefined) : undefined,
+      smtpPort:     smtpEnabled ? (parseInt(document.getElementById('s-smtp-port').value) || 587)       : undefined,
+      smtpUser:     smtpEnabled ? (document.getElementById('s-smtp-user').value.trim()   || undefined) : undefined,
+      smtpPass:     smtpEnabled ? (document.getElementById('s-smtp-pass').value          || undefined) : undefined,
+      smtpFrom:     smtpEnabled ? (document.getElementById('s-smtp-from').value.trim()   || undefined) : undefined,
+      smtpSecure:   smtpEnabled ? document.getElementById('s-smtp-secure').checked        : false,
     });
     toast('Settings saved');
   } catch (err) {
