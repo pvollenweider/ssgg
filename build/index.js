@@ -79,6 +79,52 @@ function titleFromSlug(slug) {
     .join(' ');
 }
 
+// ── Access / protection helpers ───────────────────────────────────────────────
+
+const PASSWORD_WORDS = [
+  'maple','cedar','birch','oak','pine','fern',
+  'amber','coral','ivory','jade','onyx','ruby',
+  'cloud','river','stone','field','brook','grove',
+  'solar','lunar','polar','delta','sigma','kappa',
+];
+
+/** Generate a memorable password: two-words + two-digit number. */
+function generatePassword() {
+  const w1 = PASSWORD_WORDS[Math.floor(Math.random() * PASSWORD_WORDS.length)];
+  let w2;
+  do { w2 = PASSWORD_WORDS[Math.floor(Math.random() * PASSWORD_WORDS.length)]; } while (w2 === w1);
+  const num = Math.floor(Math.random() * 90) + 10;
+  return `${w1}-${w2}-${num}`;
+}
+
+/**
+ * Generate .htaccess and .htpasswd content for basic-auth protection.
+ * Uses {SHA} password encoding (Apache mod_authn_file compatible).
+ * Returns { htaccess: string, htpasswd: string, username: string, password: string }
+ */
+function buildBasicAuth(project, distPath) {
+  const username = 'gallery';
+  const password = project.password || generatePassword();
+  const sha1     = crypto.createHash('sha1').update(password, 'binary').digest('base64');
+  const htpasswd = `${username}:{SHA}${sha1}\n`;
+
+  // AuthUserFile needs the absolute server path.
+  // __HTPASSWD_PATH__ is replaced by the publish script when remotePath is known.
+  const htaccess = [
+    'AuthType Basic',
+    `AuthName "${project.title || 'Gallery'}"`,
+    'AuthUserFile __HTPASSWD_PATH__',
+    'Require valid-user',
+    '',
+    '# Protect all assets (images, JS, JSON)',
+    '<FilesMatch "\\.(webp|js|json|zip|md)$">',
+    '  Require valid-user',
+    '</FilesMatch>',
+  ].join('\n') + '\n';
+
+  return { htaccess, htpasswd, username, password };
+}
+
 /**
  * Resolve per-gallery paths for a given source name and (optional) dist name.
  * For private galleries the dist name is a content hash rather than the src name.
@@ -2531,6 +2577,71 @@ function escHtml(s) {
 // ── Main entry point ──────────────────────────────────────────────────────────
 
 /**
+ * Generate a ready-to-send delivery message in the gallery's locale.
+ * Saved as dist/<slug>/DELIVERY.md and shown after publish.
+ */
+function buildDeliveryMessage(project, summary, authInfo) {
+  const isFr  = (project.locale || 'fr').startsWith('fr');
+  const date  = summary.builtAt.slice(0, 10);
+  const url   = summary.url || '(URL à renseigner — voir npm run publish)';
+
+  const lines = [];
+
+  if (isFr) {
+    lines.push(`# Livraison — ${project.title}`);
+    lines.push('');
+    lines.push(`**Galerie :** ${project.title}`);
+    if (project.subtitle)    lines.push(`**Sous-titre :** ${project.subtitle}`);
+    if (project.author)      lines.push(`**Photographe :** ${project.author}`);
+    if (project.date && project.date !== 'auto') lines.push(`**Date de prise de vue :** ${project.date}`);
+    lines.push(`**Nombre de photos :** ${summary.photos}`);
+    lines.push(`**URL :** ${url}`);
+    lines.push(`**Généré le :** ${date}`);
+    if (authInfo) {
+      lines.push('');
+      lines.push('## Accès');
+      lines.push(`**Identifiant :** \`${authInfo.username}\``);
+      lines.push(`**Mot de passe :** \`${authInfo.password}\``);
+    }
+    lines.push('');
+    lines.push('## Instructions');
+    if (authInfo) lines.push('Entrez le mot de passe ci-dessus pour accéder à la galerie.');
+    lines.push('- Naviguez entre les photos avec les flèches ou en swipant');
+    lines.push('- Cliquez sur ⛶ pour passer en plein écran');
+    if (project.allowDownloadImage !== false) lines.push('- Téléchargez une photo avec le bouton ↓');
+    if (project.allowDownloadGallery !== false) lines.push('- Téléchargez toutes les photos (ZIP) avec le bouton ZIP');
+  } else {
+    lines.push(`# Delivery — ${project.title}`);
+    lines.push('');
+    lines.push(`**Gallery:** ${project.title}`);
+    if (project.subtitle)    lines.push(`**Subtitle:** ${project.subtitle}`);
+    if (project.author)      lines.push(`**Photographer:** ${project.author}`);
+    if (project.date && project.date !== 'auto') lines.push(`**Shoot date:** ${project.date}`);
+    lines.push(`**Photos:** ${summary.photos}`);
+    lines.push(`**URL:** ${url}`);
+    lines.push(`**Generated:** ${date}`);
+    if (authInfo) {
+      lines.push('');
+      lines.push('## Access');
+      lines.push(`**Username:** \`${authInfo.username}\``);
+      lines.push(`**Password:** \`${authInfo.password}\``);
+    }
+    lines.push('');
+    lines.push('## How to use');
+    if (authInfo) lines.push('Enter the password above to access the gallery.');
+    lines.push('- Navigate with arrow keys or swipe');
+    lines.push('- Click ⛶ for fullscreen');
+    if (project.allowDownloadImage !== false) lines.push('- Download a single photo with the ↓ button');
+    if (project.allowDownloadGallery !== false) lines.push('- Download all photos (ZIP) with the ZIP button');
+  }
+
+  lines.push('');
+  lines.push('---');
+  lines.push(`*${isFr ? 'Généré' : 'Generated'} by [SSGG](https://github.com/pvollenweider/ssgg) v${VERSION}*`);
+  return lines.join('\n') + '\n';
+}
+
+/**
  * Build a single gallery by name.
  * Returns gallery metadata used to populate the site index page.
  *
@@ -2658,6 +2769,16 @@ async function buildGallery(srcName, { build }, fontCss) {
     }
   }
 
+  // ── Basic-auth protection ─────────────────────────────────────────────────
+  let authInfo = null;
+  if (!WEBP_ONLY && galCfg.project.access === 'password') {
+    authInfo = buildBasicAuth(galCfg.project, paths.dist);
+    fs.writeFileSync(path.join(paths.dist, '.htaccess'),  authInfo.htaccess, 'utf8');
+    fs.writeFileSync(path.join(paths.dist, '.htpasswd'), authInfo.htpasswd, 'utf8');
+    ok(`.htaccess + .htpasswd → generated (user: ${authInfo.username} / pwd: ${authInfo.password})`);
+    log(`\n  \x1b[33m🔒  Password: ${authInfo.password}\x1b[0m\n`);
+  }
+
   // ── Build summary ─────────────────────────────────────────────────────────────
   const durationSec = ((Date.now() - buildStart) / 1000).toFixed(1);
   const srcBytes    = photos.reduce((sum, p) => { try { return sum + fs.statSync(p.full).size; } catch { return sum; } }, 0);
@@ -2672,12 +2793,22 @@ async function buildGallery(srcName, { build }, fontCss) {
     sourceSizeMB: parseFloat(srcMB),
     locale:       galCfg.project.locale || 'fr',
     date:         galCfg.project.date   || '',
+    access:       galCfg.project.access || 'public',
+    ...(authInfo ? { authUser: authInfo.username, authPassword: authInfo.password } : {}),
     builtAt:      new Date().toISOString(),
     durationSec:  parseFloat(durationSec),
   };
   if (!WEBP_ONLY) {
     fs.writeFileSync(path.join(paths.dist, 'build-summary.json'), JSON.stringify(summary, null, 2), 'utf8');
   }
+
+  // ── Delivery message ──────────────────────────────────────────────────────
+  if (!WEBP_ONLY) {
+    const deliveryMd = buildDeliveryMessage(galCfg.project, summary, authInfo);
+    fs.writeFileSync(path.join(paths.dist, 'DELIVERY.md'), deliveryMd, 'utf8');
+    ok('DELIVERY.md → dist/');
+  }
+
   log(`\n\x1b[1m📋  Summary\x1b[0m`);
   ok(`${results.length} photo(s)  ·  ${srcMB} MB source  ·  built in ${durationSec}s`);
   ok(`dist/ → ${paths.dist}`);
