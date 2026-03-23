@@ -31,6 +31,13 @@ const piexif  = require('piexifjs');
 
 // ── Local modules ─────────────────────────────────────────────────────────────
 import { extractExif } from './exif.js';
+import {
+  slugify, titleFromSlug, toCamelCase,
+  galleryDistName,
+  generatePassword,
+  validateConfig,
+  MANIFEST_SCHEMA_VERSION,
+} from './utils.js';
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
 const WEBP_ONLY  = process.argv.includes('--webp-only');
@@ -69,33 +76,9 @@ function discoverGalleries() {
     });
 }
 
-/**
- * Convert a folder slug to a readable title.
- * "my-gallery" → "My Gallery", "ete_a_zurich" → "Ete A Zurich"
- */
-function titleFromSlug(slug) {
-  return String(slug || '').split(/[-_]+/)
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
-}
 
 // ── Access / protection helpers ───────────────────────────────────────────────
 
-const PASSWORD_WORDS = [
-  'maple','cedar','birch','oak','pine','fern',
-  'amber','coral','ivory','jade','onyx','ruby',
-  'cloud','river','stone','field','brook','grove',
-  'solar','lunar','polar','delta','sigma','kappa',
-];
-
-/** Generate a memorable password: two-words + two-digit number. */
-function generatePassword() {
-  const w1 = PASSWORD_WORDS[Math.floor(Math.random() * PASSWORD_WORDS.length)];
-  let w2;
-  do { w2 = PASSWORD_WORDS[Math.floor(Math.random() * PASSWORD_WORDS.length)]; } while (w2 === w1);
-  const num = Math.floor(Math.random() * 90) + 10;
-  return `${w1}-${w2}-${num}`;
-}
 
 /**
  * Generate .htaccess and .htpasswd content for basic-auth protection.
@@ -156,37 +139,8 @@ function galleryPaths(srcName, distName) {
  * @param {string} str - Input string (title, name, etc.).
  * @returns {string}   - Lowercase hyphenated slug (e.g. "ete-a-zurich-2025").
  */
-function slugify(str) {
-  return String(str || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip accent marks
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')   // non-alphanumeric runs → single hyphen
-    .replace(/^-+|-+$/g, '');      // trim leading / trailing hyphens
-}
 
-/**
- * Compute the dist folder name for a gallery.
- *
- * Priority (public galleries):
- *   1. project.name  — explicit slug set in gallery.config.json
- *   2. project.title — auto-slugified (e.g. "Été à Zürich" → "ete-a-zurich")
- *   3. srcName       — source folder name as last resort
- *
- * Private galleries always use a 16-char SHA-256 hash of author|title|date,
- * making the URL unguessable. The hash is deterministic: same config = same folder.
- *
- * @param {object} project - Gallery project config.
- * @param {string} srcName - Source folder name under src/.
- * @returns {string}       - Folder name to use under dist/.
- */
-function galleryDistName(project, srcName) {
-  if (project.private) {
-    const seed = [project.author || '', project.title || '', project.date || ''].join('|');
-    return crypto.createHash('sha256').update(seed).digest('hex').slice(0, 16);
-  }
-  const slug = slugify(project.name || project.title || '');
-  return slug || srcName;
-}
+
 
 // ── Supported source-image extensions ────────────────────────────────────────
 const EXTS = new Set(['.jpg','.jpeg','.png','.tiff','.tif','.heic','.heif','.avif']);
@@ -266,6 +220,10 @@ function readConfig(cfgPath, srcName) {
   if (!project.title)  project.title  = titleFromSlug(srcName || 'gallery');
   if (!project.date)   project.date   = 'auto';
   if (!project.locale) project.locale = 'fr';
+
+  // Validate config and print any warnings.
+  const warns = validateConfig(project);
+  for (const w of warns) process.stdout.write(`  \x1b[33m⚠\x1b[0m  ${w}\n`);
 
   return { project, build };
 }
@@ -419,23 +377,6 @@ async function downloadVendors() {
 // Output files follow the convention: author_title_date_NNN
 // where each segment is camelCase and NNN is a zero-padded sequence number.
 
-/**
- * Convert an arbitrary string to camelCase, stripping diacritics and
- * replacing non-alphanumeric characters with spaces.
- *
- * @param {string} str - Input string (e.g. a name or title with accents).
- * @returns {string}   - camelCase identifier safe for use in file names.
- */
-function toCamelCase(str) {
-  return String(str || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')  // strip accent marks
-    .replace(/[^a-zA-Z0-9 ]/g, ' ')                    // special chars → space
-    .trim().split(/\s+/).filter(Boolean)
-    .map((w, i) => i === 0
-      ? w[0].toLowerCase() + w.slice(1)
-      : w[0].toUpperCase() + w.slice(1).toLowerCase())
-    .join('');
-}
 
 /**
  * Build the output base-name for photo number idx (0-based).
@@ -779,6 +720,7 @@ async function processPhotos(photos, cfg, paths) {
     if (!current.has(k)) delete manifest.photos[k];
   }
 
+  manifest.schemaVersion = MANIFEST_SCHEMA_VERSION;
   manifest.generated = new Date().toISOString();
   manifest.project   = cfg.project;
   fs.writeFileSync(paths.manifest, JSON.stringify(manifest, null, 2), 'utf8');
