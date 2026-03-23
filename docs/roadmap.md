@@ -48,7 +48,7 @@ These features are shipped, stable, and covered by tests or real-world use.
 - `npm run new-gallery:wizard` — interactive wizard
 - `npm run build <name>` / `build:all` / `build:clean` / `build:force`
 - `npm run serve` — local preview server
-- `npm run publish -- <name>` / `publish:all` — rsync upload, `.htaccess` path patching
+- `npm run publish` / `publish:all` — rsync upload, `.htaccess` path patching, interactive menu if several galleries
 - `npm run deploy` — GitHub Pages via safe isolated git worktree
 - `npm run test` — pure-function invariant tests (46 cases)
 
@@ -94,7 +94,7 @@ npm run build my-shoot
 npm run serve
 
 # 5. Publish (requires publish.config.json)
-npm run publish -- my-shoot
+npm run publish
 
 # 6. Send to client
 #    → copy-paste DELIVERY.md
