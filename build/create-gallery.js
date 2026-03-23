@@ -97,6 +97,8 @@ function buildConfig(fields) {
   // Booleans — only written when non-default
   if (fields.private)    project.private    = true;
   if (fields.standalone) project.standalone = true;
+  if (fields.access && fields.access !== 'public') project.access = fields.access;
+  if (fields.password) project.password = fields.password;
   // Download permissions — only written when explicitly disabled (default is true)
   if (fields.allowDownloadImage   === false) project.allowDownloadImage   = false;
   if (fields.allowDownloadGallery === false) project.allowDownloadGallery = false;
@@ -165,6 +167,12 @@ async function runWizard(presetSlug) {
   const allowDownloadImage   = await askBool(rl, '  Allow individual photo download?', true);
   const allowDownloadGallery = await askBool(rl, '  Allow full gallery ZIP download?', true);
 
+  const accessMode = await ask(rl, '  Access mode (public / password)', 'public');
+  let accessPassword = '';
+  if (accessMode === 'password') {
+    accessPassword = await ask(rl, '  Password (leave empty to auto-generate)', '');
+  }
+
   rl.close();
 
   const config = buildConfig({
@@ -172,6 +180,8 @@ async function runWizard(presetSlug) {
     date, location: loc, description: desc,
     locale, private: isPrivate, standalone: isStandalone,
     allowDownloadImage, allowDownloadGallery,
+    access: accessMode !== 'public' ? accessMode : undefined,
+    password: accessPassword || undefined,
   });
 
   scaffold(slug, config);
