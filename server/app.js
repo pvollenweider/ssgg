@@ -131,8 +131,21 @@ app.use('/my-gallery', express.static(path.join(__DIR, 'public', 'my-gallery')))
 app.get('/my-gallery/:jobId', (req, res) =>
   res.sendFile(path.join(__DIR, 'public', 'my-gallery', 'index.html')));
 
-// ── Upload form (admin shortcut) ──────────────────────────────────────────────
-app.use('/new', express.static(path.join(__DIR, 'public', 'new')));
+// ── Upload form (admin shortcut — Basic Auth protected) ──────────────────────
+function requireBasicAuth(req, res, next) {
+  const pw = process.env.ADMIN_PASSWORD;
+  if (!pw) return next(); // no password set → dev mode, allow
+  const auth = req.headers.authorization || '';
+  if (auth.startsWith('Basic ')) {
+    const creds    = Buffer.from(auth.slice(6), 'base64').toString();
+    const colonIdx = creds.indexOf(':');
+    const pass     = colonIdx >= 0 ? creds.slice(colonIdx + 1) : creds;
+    if (checkPassword(pass)) return next();
+  }
+  res.set('WWW-Authenticate', 'Basic realm="GalleryPack"');
+  res.status(401).send('Unauthorized');
+}
+app.use('/new', requireBasicAuth, express.static(path.join(__DIR, 'public', 'new')));
 
 // ── Status page ───────────────────────────────────────────────────────────────
 app.use('/status', express.static(path.join(__DIR, 'public', 'status')));
@@ -412,7 +425,7 @@ app.post('/api/upload/:token', upload.array('photos'), async (req, res) => {
 });
 
 // ── API: create gallery (direct / admin) ──────────────────────────────────────
-app.post('/api/galleries', upload.array('photos'), async (req, res) => {
+app.post('/api/galleries', requireAdmin, upload.array('photos'), async (req, res) => {
   return handleGalleryCreate(req, res, {});
 });
 
@@ -452,7 +465,8 @@ async function handleGalleryCreate(req, res, extra = {}) {
 
   // Write gallery.config.json
   const project = { name: slug, title: title.trim() };
-  if (author?.trim())  project.author = author.trim();
+  const effectiveAuthor = author?.trim() || extra.photographerName?.trim();
+  if (effectiveAuthor) project.author = effectiveAuthor;
   if (location?.trim()) project.location = location.trim();
   if (date?.trim() && date !== 'auto') project.date = date.trim();
   else project.date = 'auto';

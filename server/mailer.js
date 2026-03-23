@@ -16,6 +16,7 @@ try {
 
 function createTransport() {
   if (!nodemailer) return null;
+  if (!getSetting('smtpEnabled', true)) return null;
   const host = getSetting('smtpHost');
   const user = getSetting('smtpUser');
   if (!host) return null;
@@ -35,7 +36,7 @@ export async function sendMail({ to, subject, html, text }) {
   if (!to) return false;
   const transport = createTransport();
   if (!transport) return false;
-  const from = getSetting('smtpFrom', 'GalleryPack <noreply@gallerypack.local>');
+  const from = getSetting('smtpFrom') || getSetting('smtpUser') || '';
   try {
     await transport.sendMail({ from, to, subject, html, text });
     return true;
