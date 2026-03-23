@@ -8,8 +8,8 @@
  * Configuration: publish.config.json at project root.
  *
  * Usage:
- *   npm run publish -- <gallery-name>
- *   npm run publish:all
+ *   npm run publish        — interactive menu if multiple galleries
+ *   npm run publish:all    — upload all galleries
  *
  * publish.config.json:
  * {
@@ -20,8 +20,9 @@
  * }
  */
 
-import fs   from 'fs';
-import path from 'path';
+import fs       from 'fs';
+import path     from 'path';
+import readline from 'readline';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
@@ -92,16 +93,37 @@ if (BUILD_ALL) {
     }
   }
 } else {
-  // Auto: single gallery or prompt
+  // Auto: single gallery → pick it; multiple → interactive menu
   const distEntries = fs.readdirSync(DIST)
     .filter(n => fs.statSync(path.join(DIST, n)).isDirectory()
               && n !== 'vendor' && n !== 'fonts' && n !== 'covers');
-  if (distEntries.length === 1) {
+
+  if (distEntries.length === 0) {
+    fail('No built gallery found in dist/. Run npm run build first.');
+    process.exit(1);
+  } else if (distEntries.length === 1) {
     targets = distEntries;
   } else {
-    fail('Multiple galleries found. Specify one or use --all.');
-    log(`  Available: ${distEntries.join(', ')}`);
-    process.exit(1);
+    // Interactive menu
+    console.log('\n\x1b[1m  Select a gallery to publish:\x1b[0m\n');
+    distEntries.forEach((name, i) => console.log(`    \x1b[2m${i + 1}.\x1b[0m  ${name}`));
+    console.log(`    \x1b[2m${distEntries.length + 1}.\x1b[0m  \x1b[1mall\x1b[0m`);
+    console.log('');
+
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const answer = await new Promise(resolve => {
+      rl.question('  Choice: ', ans => { rl.close(); resolve(ans.trim()); });
+    });
+
+    const idx = parseInt(answer, 10);
+    if (idx === distEntries.length + 1) {
+      targets = distEntries;
+    } else if (idx >= 1 && idx <= distEntries.length) {
+      targets = [distEntries[idx - 1]];
+    } else {
+      fail(`Invalid choice "${answer}".`);
+      process.exit(1);
+    }
   }
 }
 
