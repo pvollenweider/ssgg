@@ -56,7 +56,7 @@ The output is plain HTML + CSS + JavaScript + images. No framework, no database,
 - **Full-screen lightbox** — keyboard navigation (← →), multi-level ESC, touch swipe on mobile, fullscreen on Android & desktop
 - **Slideshow mode** — auto-advance with configurable interval, fullscreen, animated progress bar, pause/resume, loops, swipe resets the countdown
 - **iOS PWA support** — `apple-mobile-web-app-capable` meta tag: add to Home Screen for a true fullscreen experience on iPhone/iPad
-- **EXIF metadata overlay** — camera, lens, aperture, shutter speed, ISO, focal length
+- **EXIF metadata overlay** — camera, lens, aperture, shutter speed, ISO, focal length, date taken, and GPS location (reverse-geocoded to a place name at build time via Nominatim/OpenStreetMap — no API key required, results cached in the build manifest)
 - **Thumbnail filmstrip** — scrollable strip synced with the active slide
 - **Adaptive title colour** — light or dark text computed from image brightness at build time
 - **Download originals** — per-image button (Web Share API on iOS → saves directly to Photos) + one-click ZIP of all originals (client-side, no server)
@@ -68,6 +68,8 @@ The output is plain HTML + CSS + JavaScript + images. No framework, no database,
 - **Private galleries** — SHA-256-hashed output folder name makes the URL unguessable
 - **Standalone mode** — vendor and font assets copied directly into the gallery folder for fully portable distribution
 - **Incremental builds** — skips already-converted images; `--force` to reconvert all
+- **Auto date from EXIF** — set `"date": "auto"` in the config to derive the shoot date automatically from the earliest `DateTimeOriginal` across all photos
+- **Clean ZIP filenames** — the downloaded archive is slugified from the gallery title (e.g. `summer-in-zurich.zip` instead of `Summer_in_Z_rich.zip`)
 
 ---
 
