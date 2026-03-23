@@ -65,7 +65,7 @@ npm run serve
 # → open http://localhost:3000/my-shoot/
 
 # 6. Publish  (requires publish.config.json — see docs/reference.md)
-npm run publish -- my-shoot
+npm run publish
 # → patches .htaccess, uploads, writes DELIVERY.md with the live URL
 
 # 7. Send to your client
@@ -159,7 +159,7 @@ See [docs/reference.md](docs/reference.md) for all fields.
 | `npm run new-gallery <slug>` | Create gallery scaffold |
 | `npm run new-gallery:wizard` | Interactive wizard with all options |
 | `npm run serve` | Local preview at http://localhost:3000 |
-| `npm run publish -- <name>` | Upload one gallery via rsync |
+| `npm run publish` | Upload one gallery (interactive menu if several) |
 | `npm run publish:all` | Upload all galleries |
 | `npm run deploy` | Deploy `dist/` to GitHub Pages |
 | `npm run test` | Run invariant tests |
