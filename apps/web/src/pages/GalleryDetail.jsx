@@ -191,7 +191,8 @@ export default function GalleryDetail() {
     try {
       const inv = await api.createInvitation({ email: inviteEmail.trim(), role: inviteRole });
       setInvitations(is => [inv, ...is]);
-      setInviteLink(`${window.location.origin}/accept/${inv.token}`);
+      const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+      setInviteLink(`${window.location.origin}${base}/invite/${inv.token}`);
       setInviteEmail('');
       setToast(t('access_invite_sent'));
     } catch (e) { setToast(`${t('error')}: ${e.message}`); }
