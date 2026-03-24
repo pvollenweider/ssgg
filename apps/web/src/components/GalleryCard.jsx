@@ -16,7 +16,7 @@ export function GalleryCard({ gallery, onBuild, onDelete }) {
     <div style={s.card} onClick={() => navigate(`/galleries/${gallery.id}`)}>
       <div style={s.cover}>
         {gallery.firstPhoto
-          ? <img src={`/${gallery.slug}/img/grid/${gallery.firstPhoto}.webp`} style={s.img} alt="" />
+          ? <img src={`/api/galleries/${gallery.id}/photos/${encodeURIComponent(gallery.firstPhoto)}/preview`} style={s.img} alt="" />
           : <div style={s.placeholder}>📷</div>}
       </div>
       <div style={s.body}>

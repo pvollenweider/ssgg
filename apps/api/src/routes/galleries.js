@@ -1,8 +1,22 @@
 // apps/api/src/routes/galleries.js — Gallery CRUD
 import { Router } from 'express';
+import fs   from 'fs';
+import path from 'path';
 import { getDb }  from '../db/database.js';
 import { genId, hashPassword } from '../db/helpers.js';
 import { requireAdmin } from '../middleware/auth.js';
+import { ROOT } from '../../../../packages/engine/src/fs.js';
+
+const IMG_EXTS = new Set(['.jpg','.jpeg','.png','.tiff','.tif','.heic','.heif','.avif']);
+
+function getFirstPhoto(slug) {
+  try {
+    const dir = path.join(ROOT, 'src', slug, 'photos');
+    if (!fs.existsSync(dir)) return null;
+    const files = fs.readdirSync(dir).filter(f => IMG_EXTS.has(path.extname(f).toLowerCase())).sort();
+    return files[0] || null;
+  } catch { return null; }
+}
 
 const router = Router();
 router.use(requireAdmin);
@@ -34,6 +48,7 @@ function rowToGallery(row) {
     builtAt:              row.built_at,
     createdAt:            row.created_at,
     updatedAt:            row.updated_at,
+    firstPhoto:           row.cover_photo || getFirstPhoto(row.slug),
   };
 }
 
