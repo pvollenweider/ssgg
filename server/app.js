@@ -97,6 +97,9 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ── Shared static assets ──────────────────────────────────────────────────────
+app.use('/js', express.static(path.join(__DIR, 'public', 'js')));
+
 // ── Admin static pages ────────────────────────────────────────────────────────
 app.use('/admin', express.static(path.join(__DIR, 'public', 'admin')));
 app.get('/admin', (req, res) =>
@@ -205,6 +208,27 @@ app.post('/api/admin/galleries/:jobId/revoke-access', requireAdmin, (req, res) =
   res.json({ ok: true, manageUrl });
 });
 
+app.get('/api/admin/galleries/:jobId/photos', requireAdmin, (req, res) => {
+  const job = getJob(req.params.jobId);
+  if (!job) return res.status(404).json({ error: 'Job not found' });
+
+  const photosDir = path.join(SRC, job.slug, 'photos');
+  const cfgPath   = path.join(SRC, job.slug, 'gallery.config.json');
+
+  let photos = [], coverPhoto = null;
+  try {
+    photos = fs.readdirSync(photosDir)
+      .filter(f => /\.(jpe?g|png|tiff?|heic|heif|avif|webp)$/i.test(f))
+      .sort();
+  } catch (_) {}
+  try {
+    const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+    coverPhoto = cfg.project?.coverPhoto || null;
+  } catch (_) {}
+
+  res.json({ photos, coverPhoto, slug: job.slug, status: job.status });
+});
+
 app.post('/api/admin/galleries/:jobId/send-access', requireAdmin, async (req, res) => {
   const job = getJob(req.params.jobId);
   if (!job) return res.status(404).json({ error: 'Job not found' });
@@ -275,6 +299,7 @@ app.patch('/api/admin/galleries/:jobId', requireAdmin, (req, res) => {
     title, photographerName, photographerEmail,
     locale, access, password,
     allowDownloadImage, allowDownloadGallery,
+    coverPhoto,
   } = req.body;
 
   // 1. Update job metadata
@@ -306,6 +331,11 @@ app.patch('/api/admin/galleries/:jobId', requireAdmin, (req, res) => {
     }
     if (allowDownloadGallery !== undefined) {
       cfg.project.allowDownloadGallery = allowDownloadGallery === true || allowDownloadGallery === 'true';
+      needsRebuild = true;
+    }
+    if (coverPhoto !== undefined) {
+      if (coverPhoto) cfg.project.coverPhoto = coverPhoto;
+      else delete cfg.project.coverPhoto;
       needsRebuild = true;
     }
     fs.writeFileSync(cfgPath, JSON.stringify(cfg, null, 2) + '\n', 'utf8');
