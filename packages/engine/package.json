@@ -4,6 +4,9 @@
   "description": "Core build engine — image processing, HTML generation, config resolution",
   "type": "module",
   "main": "src/index.js",
+  "scripts": {
+    "test": "node --test test/"
+  },
   "exports": {
     ".": "./src/index.js",
     "./images": "./src/images.js",
