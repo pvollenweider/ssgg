@@ -13,5 +13,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    // Assets are served under /admin/ in production (Dockerfile serves from /admin)
+    // VITE_BASE env var allows overriding for local dev (leave empty = /)
   },
+  base: process.env.VITE_BASE ?? '/admin/',
 });
