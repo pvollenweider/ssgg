@@ -61,6 +61,30 @@ const upload = multer({
   },
 });
 
+// GET /api/galleries/:id/photos/:filename/preview — serve original photo resized to 800px
+router.get('/:id/photos/:filename/preview', async (req, res) => {
+  const gallery = ensureGalleryBelongsToStudio(req, res);
+  if (!gallery) return;
+
+  const safe     = path.basename(req.params.filename);
+  const filePath = path.join(photosDir(gallery.slug), safe);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+
+  try {
+    const { default: sharp } = await import('sharp');
+    const buf = await sharp(filePath)
+      .rotate()               // auto-orient via EXIF
+      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 75 })
+      .toBuffer();
+    res.set('Content-Type', 'image/jpeg');
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.send(buf);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // GET /api/galleries/:id/photos
 router.get('/:id/photos', async (req, res) => {
   const gallery = ensureGalleryBelongsToStudio(req, res);
