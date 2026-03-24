@@ -105,9 +105,15 @@ export function buildDeliveryMessage(project, summary, authInfo) {
  * @param {string} srcName    - Gallery folder name under src/.
  * @param {{ build: object }} cfg - Shared build config.
  * @param {string} fontCss    - Inlinable @font-face CSS from downloadFonts().
- * @returns {Promise<{srcName, distName, project, photoCount, firstPhoto}|null>}
+ * @param {import('@gallerypack/shared').BuildOptions} [options]
+ * @returns {Promise<import('@gallerypack/shared').BuildOutput|null>}
  */
-export async function buildGallery(srcName, { build }, fontCss) {
+export async function buildGallery(srcName, { build }, fontCss, options = {}) {
+  const {
+    force             = FORCE,
+    generateApacheAuth = false,
+    geocoder          = undefined,  // undefined = use default Nominatim; null = skip
+  } = options;
   const buildStart = Date.now();
   const cfgPath = path.join(SRC_ROOT, srcName, 'gallery.config.json');
   const galCfg  = readConfig(cfgPath, srcName);
@@ -143,9 +149,9 @@ export async function buildGallery(srcName, { build }, fontCss) {
 
   log(`\n\x1b[1m🖼   Conversion (${photos.length} photo(s))\x1b[0m`);
 
-  const results = await processPhotos(photos, galCfg, paths, FORCE);
+  const results = await processPhotos(photos, galCfg, paths, force);
 
-  await resolveGpsLocations(results, paths.manifest, galCfg.project.locale || 'en', VERSION);
+  await resolveGpsLocations(results, paths.manifest, galCfg.project.locale || 'en', VERSION, geocoder);
 
   // Resolve date:'auto' — pick the earliest EXIF DateTimeOriginal across all photos.
   if (galCfg.project.date === 'auto') {
@@ -217,13 +223,20 @@ export async function buildGallery(srcName, { build }, fontCss) {
   }
 
   // ── Basic-auth protection ─────────────────────────────────────────────────
+  // authInfo is always computed for password galleries so callers can act on it,
+  // but .htaccess/.htpasswd are only written when generateApacheAuth = true.
   let authInfo = null;
   if (!WEBP_ONLY && galCfg.project.access === 'password') {
     authInfo = buildBasicAuth(galCfg.project, paths.dist);
-    fs.writeFileSync(path.join(paths.dist, '.htaccess'),  authInfo.htaccess, 'utf8');
-    fs.writeFileSync(path.join(paths.dist, '.htpasswd'), authInfo.htpasswd, 'utf8');
-    ok(`.htaccess + .htpasswd → generated (user: ${authInfo.username} / pwd: ${authInfo.password})`);
-    log(`\n  \x1b[33m🔒  Password: ${authInfo.password}\x1b[0m\n`);
+    if (generateApacheAuth) {
+      fs.writeFileSync(path.join(paths.dist, '.htaccess'),  authInfo.htaccess, 'utf8');
+      fs.writeFileSync(path.join(paths.dist, '.htpasswd'), authInfo.htpasswd, 'utf8');
+      ok(`.htaccess + .htpasswd → generated (user: ${authInfo.username} / pwd: ${authInfo.password})`);
+      log(`\n  \x1b[33m🔒  Password: ${authInfo.password}\x1b[0m\n`);
+    } else {
+      ok(`password gallery (user: ${authInfo.username} / pwd: ${authInfo.password}) — .htaccess skipped`);
+      log(`\n  \x1b[33m🔒  Password: ${authInfo.password}\x1b[0m\n`);
+    }
 
     if (results[0]?.name) {
       const coversDir = path.join(DIST_ROOT, 'covers');
@@ -276,6 +289,8 @@ export async function buildGallery(srcName, { build }, fontCss) {
     project:    galCfg.project,
     photoCount: results.length,
     firstPhoto: results[0]?.name || null,
+    durationMs: Date.now() - buildStart,
+    authInfo,
   };
 }
 
@@ -318,7 +333,7 @@ export async function main() {
   }
 
   for (const name of targets) {
-    await buildGallery(name, { build }, fontCss);
+    await buildGallery(name, { build }, fontCss, { generateApacheAuth: true });
   }
 
   if (!WEBP_ONLY) {
