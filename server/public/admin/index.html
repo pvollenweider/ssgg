@@ -166,6 +166,18 @@
       display: flex; align-items: center; gap: 12px;
     }
     .gallery-card-top { display: flex; align-items: center; gap: 12px; width: 100%; }
+
+    /* ── Cover photo picker ─────────────────────────────── */
+    .cover-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 5px; max-height: 220px; overflow-y: auto; margin-top: 8px; }
+    .cover-thumb { cursor: pointer; border: 2px solid transparent; border-radius: 6px; overflow: hidden; aspect-ratio: 1; background: var(--surface2); position: relative; }
+    .cover-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cover-thumb.selected { border-color: var(--accent); }
+    .cover-thumb:hover:not(.selected) { border-color: var(--border); }
+    .cover-thumb .cover-check { position: absolute; top: 3px; right: 3px; background: var(--accent); color: #fff; border-radius: 50%; width: 16px; height: 16px; font-size: 10px; display: none; align-items: center; justify-content: center; }
+    .cover-thumb.selected .cover-check { display: flex; }
+    .cover-default { cursor: pointer; font-size: 12px; color: var(--muted); padding: 5px 8px; border: 2px solid transparent; border-radius: 6px; display: inline-flex; align-items: center; gap: 5px; }
+    .cover-default.selected { border-color: var(--accent); color: var(--accent); }
+    .cover-default:not(.selected):hover { border-color: var(--border); }
     .gallery-card-main { flex: 1; min-width: 0; }
     .gallery-card-title {
       font-size: 14px; font-weight: 600;
@@ -500,6 +512,16 @@
       </label>
     </div>
 
+    <p class="section-divider" style="margin-top:16px" data-i18n="admin.edit.section.cover">Cover photo</p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:6px" data-i18n="admin.edit.cover.hint">Click a photo to use it as the gallery thumbnail</p>
+    <div id="cover-loading" style="font-size:12px;color:var(--muted)">…</div>
+    <div id="cover-picker" style="display:none">
+      <div class="cover-default selected" id="cover-default-btn">
+        <span>⊞</span> <span data-i18n="admin.edit.cover.default">Default (first photo)</span>
+      </div>
+      <div class="cover-grid" id="cover-grid"></div>
+    </div>
+
     <div class="error-banner" id="edit-error"></div>
 
     <div class="modal-footer">
@@ -772,12 +794,14 @@ async function confirmDeleteGallery(id, title) {
 }
 
 // ── Edit modal ────────────────────────────────────────────
-let editingId = null;
+let editingId     = null;
+let editingCover  = null; // null = default
 
 function openEditModal(id) {
   const g = galleries.find(g => g.id === id);
   if (!g) return;
-  editingId = id;
+  editingId    = id;
+  editingCover = null;
   const cfg = g.config || {};
   document.getElementById('edit-title').value    = g.title              || '';
   document.getElementById('edit-name').value     = g.photographerName  || '';
@@ -790,6 +814,51 @@ function openEditModal(id) {
   document.getElementById('edit-error').classList.remove('show');
   syncPasswordField();
   document.getElementById('edit-modal').classList.add('show');
+  loadCoverPicker(id);
+}
+
+async function loadCoverPicker(id) {
+  const loadEl  = document.getElementById('cover-loading');
+  const pickEl  = document.getElementById('cover-picker');
+  const gridEl  = document.getElementById('cover-grid');
+  loadEl.style.display = '';
+  pickEl.style.display = 'none';
+  gridEl.innerHTML     = '';
+
+  try {
+    const data = await api('GET', `/api/admin/galleries/${id}/photos`);
+    const { photos, coverPhoto, slug } = data;
+
+    editingCover = coverPhoto || null;
+
+    const defaultBtn = document.getElementById('cover-default-btn');
+    defaultBtn.classList.toggle('selected', !editingCover);
+    defaultBtn.onclick = () => selectCover(null);
+
+    for (const filename of photos) {
+      const base  = filename.replace(/\.[^.]+$/, '');
+      const thumb = document.createElement('div');
+      thumb.className = `cover-thumb${editingCover === filename ? ' selected' : ''}`;
+      thumb.dataset.filename = filename;
+      thumb.innerHTML = `<img src="/${esc(slug)}/img/grid/${esc(base)}.webp" loading="lazy" onerror="this.parentElement.style.opacity='.5'">
+                         <span class="cover-check">✓</span>`;
+      thumb.addEventListener('click', () => selectCover(filename));
+      gridEl.appendChild(thumb);
+    }
+
+    loadEl.style.display = 'none';
+    pickEl.style.display = '';
+  } catch (_) {
+    loadEl.textContent = '';
+  }
+}
+
+function selectCover(filename) {
+  editingCover = filename;
+  document.getElementById('cover-default-btn').classList.toggle('selected', !filename);
+  document.querySelectorAll('.cover-thumb').forEach(el => {
+    el.classList.toggle('selected', el.dataset.filename === filename);
+  });
 }
 
 function syncPasswordField() {
@@ -819,6 +888,7 @@ document.getElementById('edit-save-btn').addEventListener('click', async () => {
       access:              document.getElementById('edit-access').value,
       allowDownloadImage:  document.getElementById('edit-dl-image').checked,
       allowDownloadGallery: document.getElementById('edit-dl-gallery').checked,
+      coverPhoto:          editingCover || '',
     };
     const pw = document.getElementById('edit-password').value.trim();
     if (body.access === 'password' && pw) body.password = pw;

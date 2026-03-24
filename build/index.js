@@ -2674,6 +2674,13 @@ async function buildGallery(srcName, { build }, fontCss) {
   // Convert photos.
   const photos = listPhotos(paths.srcDir);
   if (photos.length === 0) { fail(`No photos found in ${paths.srcDir}`); return null; }
+
+  // Move cover photo to front if specified in config
+  if (galCfg.project.coverPhoto) {
+    const idx = photos.findIndex(p => p.file === galCfg.project.coverPhoto);
+    if (idx > 0) photos.unshift(photos.splice(idx, 1)[0]);
+  }
+
   log(`\n\x1b[1m🖼   Conversion (${photos.length} photo(s))\x1b[0m`);
 
   const results = await processPhotos(photos, galCfg, paths);

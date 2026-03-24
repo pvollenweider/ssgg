@@ -125,7 +125,7 @@ const KNOWN_PROJECT_FIELDS = new Set([
   'date','location','description','locale',
   'private','standalone','access','password',
   'allowDownloadImage','allowDownloadGallery','autoplay',
-  'legal',
+  'coverPhoto','legal',
 ]);
 
 /**
