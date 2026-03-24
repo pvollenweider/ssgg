@@ -104,9 +104,11 @@ export default function GalleryDetail() {
             <div style={s.photoGrid}>
               {photos.map(p => (
                 <div key={p.file} style={s.photoCard}>
-                  {p.thumb
-                    ? <img src={`/${gallery.slug}/img/grid/${p.thumb}.webp`} style={s.thumb} alt={p.file} />
-                    : <div style={s.thumbPlaceholder}>📷</div>}
+                  <img
+                    src={p.thumb
+                      ? `/${gallery.slug}/img/grid/${p.thumb}.webp`
+                      : `/api/galleries/${id}/photos/${encodeURIComponent(p.file)}/preview`}
+                    style={s.thumb} alt={p.file} />
                   <div style={s.photoName}>{p.file}</div>
                   <button style={s.deleteBtn} onClick={() => handleDeletePhoto(p.file)}>✕</button>
                 </div>
@@ -130,8 +132,8 @@ export default function GalleryDetail() {
             <Row label="Author email">
               <input style={s.input} type="email" value={form.authorEmail} onChange={e => setForm(f => ({ ...f, authorEmail: e.target.value }))} />
             </Row>
-            <Row label="Date (YYYY-MM-DD)">
-              <input style={s.input} value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+            <Row label="Date">
+              <input style={s.input} type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
             </Row>
             <Row label="Location">
               <input style={s.input} value={form.location} onChange={e => setForm(f => ({ ...f, location: e.target.value }))} />
@@ -151,9 +153,30 @@ export default function GalleryDetail() {
                 <input style={s.input} value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
               </Row>
             )}
-            <Row label="Cover photo (filename)">
-              <input style={s.input} value={form.coverPhoto} onChange={e => setForm(f => ({ ...f, coverPhoto: e.target.value }))} />
-            </Row>
+            <div style={{ marginBottom:'0.6rem' }}>
+              <label style={{ display:'block', fontSize:'0.85rem', color:'#555', marginBottom:'0.4rem' }}>Cover photo</label>
+              {photos.length === 0
+                ? <p style={s.dim}>Upload photos first.</p>
+                : <div style={s.coverGrid}>
+                    {photos.map(p => (
+                      <div
+                        key={p.file}
+                        onClick={() => setForm(f => ({ ...f, coverPhoto: p.file }))}
+                        style={{
+                          ...s.coverThumb,
+                          ...(form.coverPhoto === p.file ? s.coverThumbSelected : {}),
+                        }}
+                      >
+                        <img
+                          src={p.thumb
+                            ? `/${gallery.slug}/img/grid/${p.thumb}.webp`
+                            : `/api/galleries/${id}/photos/${encodeURIComponent(p.file)}/preview`}
+                          style={s.coverThumbImg} alt={p.file} />
+                        {form.coverPhoto === p.file && <div style={s.coverCheck}>✓</div>}
+                      </div>
+                    ))}
+                  </div>}
+            </div>
             <Row label="Allow image download">
               <input type="checkbox" checked={form.allowDownloadImage} onChange={e => setForm(f => ({ ...f, allowDownloadImage: e.target.checked }))} />
             </Row>
@@ -224,6 +247,11 @@ const s = {
   primaryBtn:   { marginTop:'0.75rem', padding:'0.55rem 1.5rem', background:'#111', color:'#fff', border:'none', borderRadius:6, fontWeight:600, cursor:'pointer', fontSize:'0.875rem' },
   outlineBtn:   { padding:'0.4rem 0.85rem', background:'none', border:'1px solid #ddd', borderRadius:5, cursor:'pointer', fontSize:'0.8rem' },
   viewBtn:      { padding:'0.4rem 0.85rem', background:'#16a34a', color:'#fff', border:'none', borderRadius:5, cursor:'pointer', fontSize:'0.8rem', textDecoration:'none', fontWeight:600 },
+  coverGrid:    { display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(80px,1fr))', gap:'0.5rem', maxWidth:560 },
+  coverThumb:   { position:'relative', cursor:'pointer', borderRadius:5, overflow:'hidden', border:'2px solid transparent', boxSizing:'border-box' },
+  coverThumbSelected: { border:'2px solid #111' },
+  coverThumbImg:{ width:'100%', aspectRatio:'1', objectFit:'cover', display:'block' },
+  coverCheck:   { position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.45)', color:'#fff', fontWeight:700, fontSize:'1.1rem' },
   dim:          { color:'#888', fontSize:'0.875rem' },
   jobList:      { display:'flex', flexDirection:'column', gap:'0.4rem' },
   jobRow:       { display:'flex', gap:'1rem', alignItems:'center', padding:'0.6rem 0.85rem', background:'#fff', borderRadius:6, textDecoration:'none', color:'#111', fontSize:'0.875rem', boxShadow:'0 1px 3px #0001' },
