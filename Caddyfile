@@ -31,9 +31,11 @@
     encode gzip
 
     header {
-        X-Content-Type-Options    "nosniff"
-        X-Frame-Options           "SAMEORIGIN"
-        Referrer-Policy           "strict-origin-when-cross-origin"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options        "SAMEORIGIN"
+        Referrer-Policy        "strict-origin-when-cross-origin"
         -Server
+        # Note: no Content-Security-Policy header here — Vite bundles inline scripts
+        # that require 'unsafe-inline'. CSP can be added once the app uses nonces.
     }
 }
