@@ -14,18 +14,9 @@ Your photos, your server, your rules.
 
 ---
 
-## Branches
+## SaaS / hosted stack
 
-| Branch | Description |
-|--------|-------------|
-| `v2` | **Primary branch** — full SaaS admin stack (React + Express + background worker + Caddy) |
-| `main` | Stable CLI tool |
-
----
-
-## v2 — SaaS / hosted stack
-
-The `v2` branch is the primary branch. It runs a multi-service stack managed by Docker Compose. Galleries are created and managed from a React admin panel; builds run in a background worker; Caddy handles HTTPS and static file serving.
+`main` is the primary branch. It runs a multi-service stack managed by Docker Compose. Galleries are created and managed from a React admin panel; builds run in a background worker; Caddy handles HTTPS and static file serving.
 
 ### Stack
 
