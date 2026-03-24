@@ -123,14 +123,23 @@ function _loadManifest(manifestPath) {
 /**
  * Resolve GPS coordinates in photo EXIF to human-readable place names.
  *
- * @param {Array}  results      - Photo metadata array (mutated in place).
- * @param {string} manifestPath - Path to dist/photos.json.
- * @param {string} locale       - Gallery locale.
- * @param {string} [version]    - GalleryPack version string.
+ * @param {Array}          results      - Photo metadata array (mutated in place).
+ * @param {string}         manifestPath - Path to dist/photos.json.
+ * @param {string}         locale       - Gallery locale.
+ * @param {string}         [version]    - GalleryPack version string.
+ * @param {Function|null}  [geocoder]   - Injectable geocoder (lat,lng,locale)=>Promise<string|null>.
+ *                                        Pass null to skip geocoding entirely.
+ *                                        Omit to use the default Nominatim implementation.
  */
-export async function resolveGpsLocations(results, manifestPath, locale = 'en', version = '0.0.0') {
+export async function resolveGpsLocations(results, manifestPath, locale = 'en', version = '0.0.0', geocoder = undefined) {
+  // null = caller explicitly opted out of geocoding
+  if (geocoder === null) return;
+
   const toResolve = results.filter(p => p.exif?.location && typeof p.exif.location === 'object');
   if (!toResolve.length) return;
+
+  // Resolve the geocoder: use injected function or fall back to Nominatim.
+  const resolveOne = geocoder ?? ((lat, lng, loc) => reverseGeocode(lat, lng, loc, version));
 
   log('\n\x1b[1m🌍  Reverse geocoding\x1b[0m');
 
@@ -144,8 +153,8 @@ export async function resolveGpsLocations(results, manifestPath, locale = 'en', 
     const key = `${lat.toFixed(2)},${lng.toFixed(2)}`;
 
     if (!cache.has(key)) {
-      if (cache.size > 0) await new Promise(r => setTimeout(r, 1100));
-      const place = await reverseGeocode(lat, lng, locale, version);
+      if (cache.size > 0 && !geocoder) await new Promise(r => setTimeout(r, 1100)); // Nominatim rate limit
+      const place = await resolveOne(lat, lng, locale);
       cache.set(key, place ?? `${Math.abs(lat).toFixed(4)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lng).toFixed(4)}°${lng >= 0 ? 'E' : 'W'}`);
       ok(`GPS (${key}) → ${cache.get(key)}`);
     }
