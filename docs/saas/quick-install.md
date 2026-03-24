@@ -9,12 +9,11 @@
 
 ---
 
-## 1. Clone and switch to the v2 branch
+## 1. Clone the repository
 
 ```bash
 git clone https://github.com/pvollenweider/gallerypack.git
 cd gallerypack
-git checkout v2
 ```
 
 ---
