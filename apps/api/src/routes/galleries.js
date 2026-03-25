@@ -3,7 +3,10 @@ import { Router } from 'express';
 import fs   from 'fs';
 import path from 'path';
 import { query }  from '../db/database.js';
-import { genId, hashPassword, getSettings, listGalleryMembers, upsertGalleryMembership, removeGalleryMembership, GALLERY_ROLE_HIERARCHY, getUserById, getGalleryRole, createViewerTokenDb, listViewerTokens, deleteViewerToken, audit } from '../db/helpers.js';
+import { genId, hashPassword, getSettings, getProject,
+  listGalleryMembers, upsertGalleryMembership, removeGalleryMembership, GALLERY_ROLE_HIERARCHY,
+  listGalleryRoleAssignments, upsertGalleryRoleAssignment, removeGalleryRoleAssignment, GALLERY_ROLE_HIERARCHY_V2,
+  getUserById, getGalleryRole, createViewerTokenDb, listViewerTokens, deleteViewerToken, audit } from '../db/helpers.js';
 import { requireAdmin, requireStudioRole, requireAuth } from '../middleware/auth.js';
 import { sendPhotosReadyEmail } from '../services/email.js';
 import { can } from '../authorization/index.js';
@@ -79,6 +82,7 @@ function rowToGallery(row, { dateRange = null } = {}) {
   return {
     id:                   row.id,
     studioId:             row.studio_id,
+    projectId:            row.project_id ?? null,
     slug:                 row.slug,
     title:                row.title,
     subtitle:             row.subtitle,
@@ -115,12 +119,21 @@ async function rowToGalleryAsync(row) {
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 
-// GET /api/galleries
+// GET /api/galleries — list, optionally filtered by ?projectId=
 router.get('/', async (req, res) => {
-  const [rows] = await query(
-    'SELECT * FROM galleries WHERE studio_id = ? ORDER BY created_at DESC',
-    [req.studioId]
-  );
+  const { projectId } = req.query;
+  let rows;
+  if (projectId) {
+    [rows] = await query(
+      'SELECT * FROM galleries WHERE studio_id = ? AND project_id = ? ORDER BY created_at DESC',
+      [req.studioId, projectId]
+    );
+  } else {
+    [rows] = await query(
+      'SELECT * FROM galleries WHERE studio_id = ? ORDER BY created_at DESC',
+      [req.studioId]
+    );
+  }
   res.json(await Promise.all(rows.map(rowToGalleryAsync)));
 });
 
@@ -153,6 +166,7 @@ router.post('/', async (req, res) => {
 
   const {
     slug, title, description, subtitle,
+    projectId = null,
     author      = st.default_author       || null,
     authorEmail = st.default_author_email || null,
     date, location,
@@ -162,6 +176,14 @@ router.post('/', async (req, res) => {
   } = req.body || {};
 
   if (!slug) return res.status(400).json({ error: 'slug is required' });
+
+  // Validate project if provided — must belong to the resolved studio
+  if (projectId) {
+    const project = await getProject(projectId);
+    if (!project || project.studio_id !== req.studioId) {
+      return res.status(400).json({ error: 'Invalid projectId: project not found or does not belong to this studio' });
+    }
+  }
 
   const [existingRows] = await query(
     'SELECT id FROM galleries WHERE studio_id = ? AND slug = ?',
@@ -175,13 +197,13 @@ router.post('/', async (req, res) => {
 
   await query(`
     INSERT INTO galleries
-      (id, studio_id, slug, title, description, subtitle, author, author_email, date, location,
+      (id, studio_id, project_id, slug, title, description, subtitle, author, author_email, date, location,
        locale, access, password_hash, private, standalone,
        allow_download_image, allow_download_gallery, cover_photo,
        slideshow_interval, copyright, build_status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
   `, [
-    id, req.studioId, slug, title ?? slug, description ?? null, subtitle ?? null, author ?? null,
+    id, req.studioId, projectId ?? null, slug, title ?? slug, description ?? null, subtitle ?? null, author ?? null,
     authorEmail ?? null, date ?? null, location ?? null,
     locale, access, passwordHash, priv ? 1 : 0, standalone ? 1 : 0,
     allowDownloadImage ? 1 : 0, allowDownloadGallery ? 1 : 0,
