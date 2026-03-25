@@ -12,6 +12,7 @@ import path from 'path';
 import { query }                                                from '../../../apps/api/src/db/database.js';
 import { getJob, updateJobStatus, appendEvent, getSettings }   from '../../../apps/api/src/db/helpers.js';
 import { sendGalleryReadyEmail }                               from '../../../apps/api/src/services/email.js';
+import { emit, EVENTS }                                        from '../../../apps/api/src/services/events.js';
 import { buildGallery }                                        from '../../../packages/engine/src/gallery.js';
 import { downloadVendors, downloadFonts }                      from '../../../packages/engine/src/network.js';
 import { ROOT }                                                from '../../../packages/engine/src/fs.js';
@@ -93,6 +94,22 @@ export async function runJob(jobId) {
   try {
     await appendEvent(jobId, 'log', `Starting build for gallery: ${gallery.slug}`);
 
+    // Sprint 11: write photo_order.json with only validated (or published) photos.
+    // The engine's listPhotos() respects this file and treats it as the full ordered list.
+    // This excludes 'uploaded' photos that are still pending review.
+    const [validatedRows] = await query(
+      `SELECT filename FROM photos
+       WHERE gallery_id = ? AND status IN ('validated', 'published')
+       ORDER BY sort_order ASC, created_at ASC`,
+      [gallery.id]
+    );
+    if (validatedRows.length > 0) {
+      const orderFile = path.join(ROOT, 'src', gallery.slug, 'photo_order.json');
+      fs.mkdirSync(path.dirname(orderFile), { recursive: true });
+      fs.writeFileSync(orderFile, JSON.stringify(validatedRows.map(r => r.filename)));
+      await appendEvent(jobId, 'log', `Photo filter: ${validatedRows.length} validated photo(s) will be built`);
+    }
+
     // Load build config
     const buildCfgPath = path.join(ROOT, 'build.config.json');
     if (!fs.existsSync(buildCfgPath)) throw new Error('build.config.json not found');
@@ -139,9 +156,17 @@ export async function runJob(jobId) {
       }
     }
 
+    // Sprint 13: mark validated photos as published, count newly published ones
+    const [newlyPublished] = await query(
+      `UPDATE photos SET status = 'published' WHERE gallery_id = ? AND status = 'validated'`,
+      [gallery.id]
+    );
+    const newPhotoCount = newlyPublished.affectedRows || 0;
+    await appendEvent(jobId, 'log', `Published ${newPhotoCount} new photo(s)`);
+
     // Persist artifact metadata back to the gallery row
     await query(
-      'UPDATE galleries SET build_status = ?, built_at = ?, needs_rebuild = 0, updated_at = ? WHERE id = ?',
+      'UPDATE galleries SET build_status = ?, built_at = ?, needs_rebuild = 0, workflow_status = \'published\', updated_at = ? WHERE id = ?',
       ['done', Date.now(), Date.now(), gallery.id]
     );
 
@@ -152,11 +177,21 @@ export async function runJob(jobId) {
       durationMs: result?.durationMs,
     }));
 
-    // Send gallery-ready email to the author if configured
+    // Sprint 13: smart notification — only fire if new photos were published
+    const studioId = gallery.studio_id || gallery.organization_id;
+    emit(EVENTS.GALLERY_PUBLISHED, {
+      studioId,
+      galleryId:    gallery.id,
+      galleryTitle: gallery.title || gallery.slug,
+      gallerySlug:  result?.distName || gallery.slug,
+      newPhotoCount,
+    });
+
+    // Legacy: send gallery-ready email to the author if configured
     if (gallery.author_email) {
       const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 4000}`;
       sendGalleryReadyEmail({
-        studioId:     gallery.studio_id,
+        studioId,
         to:           gallery.author_email,
         galleryTitle: gallery.title || gallery.slug,
         galleryUrl:   `${baseUrl}/${result?.distName || gallery.slug}/`,
@@ -169,6 +204,13 @@ export async function runJob(jobId) {
     );
     await updateJobStatus(jobId, 'error', { error_msg: err.message, finished_at: Date.now() });
     await appendEvent(jobId, 'error', err.message);
+    emit(EVENTS.GALLERY_BUILD_FAILED, {
+      studioId:          gallery.studio_id || gallery.organization_id,
+      galleryId:         gallery.id,
+      galleryTitle:      gallery.title || gallery.slug,
+      triggeredByUserId: job.triggered_by_user_id || null,
+      errorMsg:          err.message,
+    });
   } finally {
     // Restore stdout
     process.stdout.write = originalWrite;

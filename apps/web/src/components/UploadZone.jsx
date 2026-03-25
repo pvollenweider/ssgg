@@ -5,16 +5,23 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-import { useState, useRef } from 'react';
+// apps/web/src/components/UploadZone.jsx — robust upload queue (Sprint 15)
+// - Per-file state machine: queued → uploading → done / error
+// - Max 3 concurrent uploads
+// - Auto-retry once on error
+// - Client-side thumbnail preview
+// - Files added while upload is in progress are queued automatically
+
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { api } from '../lib/api.js';
 
 const IMG_EXTS = new Set(['jpg','jpeg','png','tiff','tif','heic','heif','avif','webp']);
+const MAX_CONCURRENT = 3;
 
-function isImage(filename) {
-  return IMG_EXTS.has(filename.split('.').pop().toLowerCase());
+function isImage(name) {
+  return IMG_EXTS.has(name.split('.').pop().toLowerCase());
 }
 
-/** Recursively collect all image File objects from a DataTransferItem (may be a directory). */
 function collectEntry(entry) {
   return new Promise(resolve => {
     if (entry.isFile) {
@@ -25,10 +32,7 @@ function collectEntry(entry) {
       const read = () => {
         reader.readEntries(async entries => {
           if (!entries.length) { resolve(all); return; }
-          for (const e of entries) {
-            const files = await collectEntry(e);
-            all.push(...files);
-          }
+          for (const e of entries) all.push(...await collectEntry(e));
           read();
         }, () => resolve(all));
       };
@@ -39,33 +43,84 @@ function collectEntry(entry) {
   });
 }
 
+const STATUS_BADGE = {
+  queued:    { bg: '#1c1c1c', color: '#888',    label: 'Queued' },
+  uploading: { bg: '#1e3a5f', color: '#60a5fa', label: 'Uploading…' },
+  done:      { bg: '#14532d', color: '#4ade80', label: '✓ Done' },
+  error:     { bg: '#450a0a', color: '#f87171', label: '✕ Failed' },
+};
+
 export function UploadZone({ galleryId, onDone }) {
-  const [dragging,  setDragging]  = useState(false);
-  const [files,     setFiles]     = useState([]);
-  const [uploading, setUploading] = useState(false);
-  const [notified,  setNotified]  = useState(false);
+  const [items,    setItems]    = useState([]);
+  const [dragging, setDragging] = useState(false);
+  const [notified, setNotified] = useState(false);
   const fileRef   = useRef();
   const folderRef = useRef();
+  const running   = useRef(0);
+  const queueRef  = useRef([]);
 
-  function addFiles(newFiles) {
-    const images = Array.from(newFiles).filter(f => isImage(f.name));
-    const items  = images.map(f => ({ file: f, progress: 0, status: 'pending' }));
-    setFiles(prev => {
+  useEffect(() => { queueRef.current = items; }, [items]);
+
+  const addFiles = useCallback(async (fileList) => {
+    const images = Array.from(fileList).filter(f => isImage(f.name));
+    const newItems = images.map(f => ({
+      id:       Math.random().toString(36).slice(2),
+      file:     f,
+      status:   'queued',
+      progress: 0,
+      preview:  URL.createObjectURL(f),
+      retries:  0,
+    }));
+    setItems(prev => {
       const existing = new Set(prev.map(x => x.file.name));
-      return [...prev, ...items.filter(x => !existing.has(x.file.name))];
+      return [...prev, ...newItems.filter(x => !existing.has(x.file.name))];
     });
+  }, []);
+
+  const drainQueue = useCallback(() => {
+    const tick = () => {
+      if (running.current >= MAX_CONCURRENT) return;
+      const next = queueRef.current.find(x => x.status === 'queued');
+      if (!next) return;
+      running.current += 1;
+      setItems(prev => prev.map(x => x.id === next.id ? { ...x, status: 'uploading' } : x));
+      api.uploadPhotos(galleryId, [next.file], (pct) => {
+        setItems(prev => prev.map(x => x.id === next.id ? { ...x, progress: pct } : x));
+      }).then(() => {
+        running.current -= 1;
+        setItems(prev => prev.map(x => x.id === next.id ? { ...x, status: 'done', progress: 1 } : x));
+        if (onDone) onDone();
+        tick();
+      }).catch(() => {
+        running.current -= 1;
+        const retries = queueRef.current.find(x => x.id === next.id)?.retries || 0;
+        if (retries < 1) {
+          setItems(prev => prev.map(x => x.id === next.id ? { ...x, status: 'queued', retries: retries + 1, progress: 0 } : x));
+        } else {
+          setItems(prev => prev.map(x => x.id === next.id ? { ...x, status: 'error' } : x));
+        }
+        tick();
+      });
+      if (running.current < MAX_CONCURRENT) tick();
+    };
+    tick();
+  }, [galleryId, onDone]);
+
+  useEffect(() => { drainQueue(); }, [items.length, drainQueue]);
+
+  function retryFailed() {
+    setItems(prev => prev.map(x => x.status === 'error' ? { ...x, status: 'queued', progress: 0, retries: 0 } : x));
   }
 
   async function onDrop(e) {
     e.preventDefault();
     setDragging(false);
-    // Support folders via DataTransferItem API
-    const items = Array.from(e.dataTransfer.items || []);
-    if (items.length && items[0].webkitGetAsEntry) {
+    const dataItems = Array.from(e.dataTransfer.items || []);
+    if (dataItems.length && dataItems[0].webkitGetAsEntry) {
       const all = [];
-      for (const item of items) {
+      for (const item of dataItems) {
         const entry = item.webkitGetAsEntry();
-        if (entry) all.push(...(await collectEntry(entry)));
+        if (entry) all.push(...await collectEntry(entry));
       }
       addFiles(all);
     } else {
@@ -73,40 +128,22 @@ export function UploadZone({ galleryId, onDone }) {
     }
   }
 
-  async function upload() {
-    if (!files.length || uploading) return;
-    setUploading(true);
-    const toUpload = files.filter(f => f.status === 'pending');
-
-    for (const item of toUpload) {
-      setFiles(prev => prev.map(f => f.file === item.file ? { ...f, status: 'uploading' } : f));
-      try {
-        await api.uploadPhotos(galleryId, [item.file], (pct) => {
-          setFiles(prev => prev.map(f => f.file === item.file ? { ...f, progress: pct } : f));
-        });
-        setFiles(prev => prev.map(f => f.file === item.file ? { ...f, status: 'done', progress: 1 } : f));
-      } catch {
-        setFiles(prev => prev.map(f => f.file === item.file ? { ...f, status: 'error' } : f));
-      }
-    }
-    setUploading(false);
-    if (onDone) onDone();
-  }
-
   async function handleDone() {
-    try {
-      const r = await api.uploadDone(galleryId);
-      setNotified(true);
-      if (onDone) onDone();
-      return r;
-    } catch {
-      if (onDone) onDone();
-    }
+    try { await api.uploadDone(galleryId); setNotified(true); } catch {}
   }
 
-  const pendingCount  = files.filter(f => f.status === 'pending').length;
-  const doneCount     = files.filter(f => f.status === 'done').length;
-  const hasUploaded   = doneCount > 0 && !uploading;
+  function clearDone() {
+    setItems(prev => {
+      prev.filter(x => x.status === 'done').forEach(x => URL.revokeObjectURL(x.preview));
+      return prev.filter(x => x.status !== 'done');
+    });
+  }
+
+  const queued    = items.filter(x => x.status === 'queued').length;
+  const uploading = items.filter(x => x.status === 'uploading').length;
+  const done      = items.filter(x => x.status === 'done').length;
+  const errors    = items.filter(x => x.status === 'error').length;
+  const hasActive = queued > 0 || uploading > 0;
 
   return (
     <div style={s.root}>
@@ -127,71 +164,77 @@ export function UploadZone({ galleryId, onDone }) {
           <div style={s.zoneActions}>
             <span style={s.zoneText}>Drag photos or folders here</span>
             <div style={s.zoneBtns}>
-              <button type="button" style={s.zoneBtn} onClick={() => fileRef.current?.click()}>
-                + Photos
-              </button>
-              <button type="button" style={s.zoneBtn} onClick={() => folderRef.current?.click()}>
-                + Folder
-              </button>
+              <button type="button" style={s.zoneBtn} onClick={() => fileRef.current?.click()}>+ Photos</button>
+              <button type="button" style={s.zoneBtn} onClick={() => folderRef.current?.click()}>+ Folder</button>
             </div>
           </div>
         )}
       </div>
 
-      {files.length > 0 && (
-        <div style={s.list}>
-          {files.map((item, i) => (
-            <div key={i} style={s.row}>
-              <span style={s.fname}>{item.file.name}</span>
-              <span style={{ ...s.status, color: STATUS_COLOR[item.status] }}>
-                {item.status === 'uploading'
-                  ? `${Math.round(item.progress * 100)}%`
-                  : item.status}
-              </span>
+      {items.length > 0 && (
+        <div style={s.statsBar}>
+          {uploading > 0 && <span style={{ color: '#60a5fa' }}>{uploading} uploading</span>}
+          {queued    > 0 && <span style={{ color: '#888' }}>{queued} queued</span>}
+          {done      > 0 && <span style={{ color: '#4ade80' }}>{done} done</span>}
+          {errors    > 0 && <span style={{ color: '#f87171' }}>{errors} failed</span>}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
+            {errors > 0 && <button style={s.smallBtn} onClick={retryFailed}>Retry failed</button>}
+            {done > 0 && !hasActive && <button style={s.smallBtn} onClick={clearDone}>Clear done</button>}
+          </div>
+        </div>
+      )}
+
+      {items.length > 0 && (
+        <div style={s.grid}>
+          {items.map(item => (
+            <div key={item.id} style={s.card}>
+              <div style={s.thumbWrap}>
+                <img src={item.preview} style={s.thumb} alt={item.file.name} />
+                {item.status === 'uploading' && (
+                  <div style={{ ...s.progressBar, width: `${Math.round(item.progress * 100)}%` }} />
+                )}
+              </div>
+              <div style={s.cardMeta}>
+                <span style={{ ...s.badge, background: STATUS_BADGE[item.status].bg, color: STATUS_BADGE[item.status].color }}>
+                  {item.status === 'uploading' ? `${Math.round(item.progress * 100)}%` : STATUS_BADGE[item.status].label}
+                </span>
+              </div>
+              <div style={s.cardName} title={item.file.name}>{item.file.name}</div>
             </div>
           ))}
         </div>
       )}
 
-      <div style={s.actions}>
-        {pendingCount > 0 && (
-          <button style={s.btn} onClick={upload} disabled={uploading}>
-            {uploading ? 'Upload en cours…' : `Uploader ${pendingCount} photo${pendingCount > 1 ? 's' : ''}`}
-          </button>
-        )}
-        {doneCount > 0 && <span style={s.dim}>{doneCount} photo{doneCount > 1 ? 's' : ''} uploadée{doneCount > 1 ? 's' : ''}</span>}
-        {hasUploaded && !notified && (
+      {done > 0 && !hasActive && !notified && (
+        <div>
           <button style={s.doneBtn} onClick={handleDone}>
             ✓ J'ai terminé — notifier les éditeurs
           </button>
-        )}
-        {notified && (
-          <span style={{ fontSize: '0.82rem', color: '#059669', fontWeight: 500 }}>
-            ✓ Éditeurs notifiés
-          </span>
-        )}
-      </div>
+        </div>
+      )}
+      {notified && <p style={{ fontSize: '0.82rem', color: '#059669', fontWeight: 500, margin: 0 }}>✓ Éditeurs notifiés</p>}
     </div>
   );
 }
 
-const STATUS_COLOR = { pending: '#888', uploading: '#2563eb', done: '#16a34a', error: '#dc2626' };
-
 const s = {
-  root:       { display:'flex', flexDirection:'column', gap:'0.75rem' },
-  zone:       { border:'2px dashed #ccc', borderRadius:8, padding:'1.5rem', textAlign:'center', background:'#fafafa', transition:'border-color 0.15s, background 0.15s' },
-  zoneActive: { borderColor:'#2563eb', background:'#eff6ff' },
-  zoneActions:{ display:'flex', flexDirection:'column', alignItems:'center', gap:'0.75rem' },
-  zoneText:   { color:'#888', fontSize:'0.875rem', userSelect:'none' },
-  zoneBtns:   { display:'flex', gap:'0.5rem' },
-  zoneBtn:    { padding:'0.35rem 0.85rem', background:'none', border:'1px solid #ddd', borderRadius:5, cursor:'pointer', fontSize:'0.82rem', color:'#555', fontWeight:500 },
-  hidden:     { display:'none' },
-  list:       { display:'flex', flexDirection:'column', gap:'0.3rem', maxHeight:200, overflowY:'auto' },
-  row:        { display:'flex', justifyContent:'space-between', fontSize:'0.82rem', padding:'0.2rem 0', borderBottom:'1px solid #f0f0f0' },
-  fname:      { overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'70%' },
-  status:     { fontWeight:500, fontSize:'0.78rem' },
-  actions:    { display:'flex', alignItems:'center', gap:'1rem', flexWrap:'wrap' },
-  btn:        { padding:'0.5rem 1.25rem', background:'#111', color:'#fff', border:'none', borderRadius:6, fontWeight:600, cursor:'pointer', fontSize:'0.875rem' },
-  doneBtn:    { padding:'0.5rem 1.25rem', background:'#059669', color:'#fff', border:'none', borderRadius:6, fontWeight:600, cursor:'pointer', fontSize:'0.875rem' },
-  dim:        { color:'#888', fontSize:'0.82rem' },
+  root:        { display: 'flex', flexDirection: 'column', gap: '0.75rem' },
+  zone:        { border: '2px dashed #333', borderRadius: 8, padding: '1.5rem', textAlign: 'center', background: '#111', transition: 'border-color 0.15s' },
+  zoneActive:  { borderColor: '#4ade80', background: '#0a1a0a' },
+  zoneActions: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' },
+  zoneText:    { color: '#666', fontSize: '0.875rem', userSelect: 'none' },
+  zoneBtns:    { display: 'flex', gap: '0.5rem' },
+  zoneBtn:     { padding: '0.35rem 0.85rem', background: 'none', border: '1px solid #333', borderRadius: 5, cursor: 'pointer', fontSize: '0.82rem', color: '#888', fontWeight: 500 },
+  hidden:      { display: 'none' },
+  statsBar:    { display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.82rem', flexWrap: 'wrap' },
+  smallBtn:    { padding: '0.25rem 0.6rem', background: 'none', border: '1px solid #333', borderRadius: 4, cursor: 'pointer', fontSize: '0.78rem', color: '#888' },
+  grid:        { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '0.5rem' },
+  card:        { position: 'relative', borderRadius: 6, overflow: 'hidden', background: '#111', border: '1px solid #1e1e1e' },
+  thumbWrap:   { position: 'relative', aspectRatio: '1', overflow: 'hidden' },
+  thumb:       { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
+  progressBar: { position: 'absolute', bottom: 0, left: 0, height: 3, background: '#60a5fa', transition: 'width 0.2s' },
+  cardMeta:    { padding: '0.25rem 0.35rem 0' },
+  badge:       { display: 'inline-block', fontSize: '0.65rem', fontWeight: 600, padding: '0.1rem 0.35rem', borderRadius: 3 },
+  cardName:    { padding: '0.15rem 0.35rem 0.35rem', fontSize: '0.65rem', color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  doneBtn:     { padding: '0.5rem 1.25rem', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' },
 };
