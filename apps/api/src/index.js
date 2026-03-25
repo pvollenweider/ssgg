@@ -22,8 +22,9 @@ import invitesRoutes     from './routes/invites.js';
 import invitationsRouter from './routes/invitations.js';
 import publicRoutes, { getPublicGalleries } from './routes/public.js';
 import { renderLanding } from './views/landing.js';
-import settingsRoutes from './routes/settings.js';
-import studiosRoutes  from './routes/studios.js';
+import settingsRoutes  from './routes/settings.js';
+import studiosRoutes   from './routes/studios.js';
+import projectsRoutes  from './routes/projects.js';
 
 const __DIR      = path.dirname(fileURLToPath(import.meta.url));
 const PORT       = process.env.PORT || 4000;
@@ -90,6 +91,7 @@ app.use('/api/jobs',                jobsRoutes); // for /api/jobs/:jobId and /ap
 app.use('/api/invites',             invitesRoutes);
 app.use('/api/invitations',         invitationsRouter);
 app.use('/api/studios',             studiosRoutes);
+app.use('/api/projects',            projectsRoutes);
 
 // ── Built galleries — static files (fallback when no reverse proxy in front) ──
 app.use(express.static(DIST_DIR, { index: 'index.html' }));
