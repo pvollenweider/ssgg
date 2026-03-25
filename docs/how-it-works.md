@@ -90,3 +90,38 @@ Photos and build artifacts are stored either:
 - **S3-compatible** (`STORAGE_DRIVER=s3`) — in a bucket with `src/` and `dist/` prefixes
 
 The engine and worker both use the same storage abstraction so they work identically in both modes.
+
+---
+
+## Two distinct upload flows (Sprint 12)
+
+There are two clearly separate operations. They share no code paths.
+
+### Flow A — Admin creates a gallery and uploads their own photos
+
+**Actor:** authenticated studio member (collaborator, admin, or owner)
+
+1. Admin creates gallery via `POST /api/galleries` — sets title, metadata
+2. Admin uploads photos via `POST /api/galleries/:id/photos` (multipart)
+3. Photos are inserted into the `photos` table with `status = 'validated'`
+4. Admin triggers a build — all validated photos are published
+
+### Flow B — Photographer contributes photos via upload link
+
+**Actor:** anyone with a valid upload link token (no account required)
+
+1. Admin creates an upload link via `POST /api/galleries/:id/upload-links`
+2. Admin shares the link URL (e.g. `https://your-domain/upload/<token>`)
+3. Photographer opens the link in a browser — no login needed
+4. Photographer uploads photos via `POST /upload/:token/photos` (multipart)
+5. Photos are inserted with `status = 'uploaded'` — they are **not** immediately visible
+6. Studio editors are notified by email
+7. Admin reviews photos in the **Inbox** tab, accepts or rejects them
+8. Accepted photos get `status = 'validated'` and become eligible for the next build
+
+### Key rules
+
+- `POST /api/galleries` requires authentication — photographers cannot create galleries
+- `POST /upload/:token/photos` has **no side effects** beyond inserting photo rows and updating `gallery.updated_at`
+- Upload link tokens are single-purpose — they cannot modify gallery metadata or trigger builds
+- Revoked or expired tokens return 401 immediately

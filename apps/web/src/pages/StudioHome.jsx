@@ -145,6 +145,7 @@ export default function StudioHome() {
         </div>
         <div style={s.headerRight}>
           <span style={s.userLabel}>{user?.email}</span>
+          <Link to="/dashboard" style={s.outlineBtn}>Dashboard</Link>
           <Link to="/settings" style={s.outlineBtn}>{t('settings')}</Link>
           <button style={s.outlineBtn} onClick={logout}>{t('sign_out')}</button>
         </div>
