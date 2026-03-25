@@ -671,6 +671,146 @@ export async function deleteViewerToken(id) {
   await query('DELETE FROM viewer_tokens WHERE id = ?', [id]);
 }
 
+// ── Projects ──────────────────────────────────────────────────────────────────
+
+export const PROJECT_ROLE_HIERARCHY = ['contributor', 'editor', 'manager'];
+
+export async function getProject(id) {
+  const [rows] = await query('SELECT * FROM projects WHERE id = ?', [id]);
+  return rows[0] ?? null;
+}
+
+export async function getProjectBySlug(studioId, slug) {
+  const [rows] = await query('SELECT * FROM projects WHERE studio_id = ? AND slug = ?', [studioId, slug]);
+  return rows[0] ?? null;
+}
+
+export async function listProjectsByStudio(studioId) {
+  const [rows] = await query(
+    "SELECT * FROM projects WHERE studio_id = ? AND status != 'archived' ORDER BY name ASC",
+    [studioId]
+  );
+  return rows;
+}
+
+export async function createProject(studioId, { slug, name, description = null, visibility = 'restricted', startsAt = null, endsAt = null }) {
+  const id  = randomUUID();
+  const now = Date.now();
+  await query(`
+    INSERT INTO projects (id, studio_id, slug, name, description, visibility, starts_at, ends_at, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+  `, [id, studioId, slug, name, description, visibility, startsAt, endsAt, now, now]);
+  return getProject(id);
+}
+
+export async function updateProject(id, fields) {
+  const allowed = ['slug', 'name', 'description', 'visibility', 'starts_at', 'ends_at', 'status'];
+  const cols    = Object.keys(fields).filter(k => allowed.includes(k));
+  if (!cols.length) return getProject(id);
+  const sets = [...cols.map(c => `${c} = ?`), 'updated_at = ?'].join(', ');
+  const vals = [...cols.map(c => fields[c]), Date.now(), id];
+  await query(`UPDATE projects SET ${sets} WHERE id = ?`, vals);
+  return getProject(id);
+}
+
+export async function archiveProject(id) {
+  await query("UPDATE projects SET status = 'archived', updated_at = ? WHERE id = ?", [Date.now(), id]);
+}
+
+// ── Project role assignments ───────────────────────────────────────────────────
+
+export async function getProjectRole(userId, projectId) {
+  const [rows] = await query(
+    'SELECT role FROM project_role_assignments WHERE user_id = ? AND project_id = ?',
+    [userId, projectId]
+  );
+  return rows[0]?.role ?? null;
+}
+
+export async function upsertProjectRole(projectId, userId, role, grantedByUserId = null) {
+  const id  = randomUUID();
+  const now = Date.now();
+  await query(`
+    INSERT INTO project_role_assignments (id, project_id, user_id, role, granted_by_user_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE role = VALUES(role), granted_by_user_id = VALUES(granted_by_user_id)
+  `, [id, projectId, userId, role, grantedByUserId, now]);
+  const [rows] = await query(
+    'SELECT * FROM project_role_assignments WHERE project_id = ? AND user_id = ?',
+    [projectId, userId]
+  );
+  return rows[0] ?? null;
+}
+
+export async function removeProjectRole(projectId, userId) {
+  await query(
+    'DELETE FROM project_role_assignments WHERE project_id = ? AND user_id = ?',
+    [projectId, userId]
+  );
+}
+
+export async function listProjectMembers(projectId) {
+  const [rows] = await query(`
+    SELECT pra.role, pra.created_at AS granted_at,
+           u.id, u.email, u.name
+    FROM project_role_assignments pra
+    JOIN users u ON u.id = pra.user_id
+    WHERE pra.project_id = ?
+    ORDER BY u.email ASC
+  `, [projectId]);
+  return rows.map(r => ({
+    role:      r.role,
+    grantedAt: r.granted_at,
+    user:      { id: r.id, email: r.email, name: r.name },
+  }));
+}
+
+// ── Gallery role assignments (canonical, replaces gallery_memberships) ─────────
+
+export const GALLERY_ROLE_HIERARCHY_V2 = ['viewer', 'contributor', 'editor'];
+
+export async function getGalleryRoleAssignment(userId, galleryId) {
+  const [rows] = await query(
+    'SELECT * FROM gallery_role_assignments WHERE user_id = ? AND gallery_id = ?',
+    [userId, galleryId]
+  );
+  return rows[0] ?? null;
+}
+
+export async function upsertGalleryRoleAssignment(galleryId, userId, role, grantedByUserId = null) {
+  const id  = randomUUID();
+  const now = Date.now();
+  await query(`
+    INSERT INTO gallery_role_assignments (id, gallery_id, user_id, role, granted_by_user_id, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE role = VALUES(role), granted_by_user_id = VALUES(granted_by_user_id)
+  `, [id, galleryId, userId, role, grantedByUserId, now]);
+  return getGalleryRoleAssignment(userId, galleryId);
+}
+
+export async function removeGalleryRoleAssignment(galleryId, userId) {
+  await query(
+    'DELETE FROM gallery_role_assignments WHERE gallery_id = ? AND user_id = ?',
+    [galleryId, userId]
+  );
+}
+
+export async function listGalleryRoleAssignments(galleryId) {
+  const [rows] = await query(`
+    SELECT gra.role, gra.created_at AS granted_at,
+           u.id, u.email, u.name
+    FROM gallery_role_assignments gra
+    JOIN users u ON u.id = gra.user_id
+    WHERE gra.gallery_id = ?
+    ORDER BY u.email ASC
+  `, [galleryId]);
+  return rows.map(r => ({
+    role:      r.role,
+    grantedAt: r.granted_at,
+    user:      { id: r.id, email: r.email, name: r.name },
+  }));
+}
+
 // ── Audit log ─────────────────────────────────────────────────────────────────
 
 export async function audit(studioId, userId, action, targetType, targetId, meta = {}) {
