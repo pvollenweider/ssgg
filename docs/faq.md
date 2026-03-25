@@ -1,84 +1,72 @@
 # FAQ
 
+## General
+
+**Does it require a server to view galleries?**
+No. Built galleries are pure static files (HTML + images). Caddy serves them directly without hitting the database or the API. You could copy the `dist/<gallery>/` folder to any static host.
+
+**What image formats are supported for upload?**
+JPEG, PNG, HEIC, and WebP. The engine converts everything to optimized JPEG for output.
+
+**How long does a build take?**
+Roughly 1–3 seconds per photo. A 50-photo gallery typically builds in under a minute. The build progress bar in the admin gives real-time feedback via SSE.
+
+**Can I use my own domain for a gallery?**
+Yes. In `PLATFORM_MODE=multi`, add your domain to the studio's domain list. Caddy handles TLS automatically.
+
+**Is internet access required during build?**
+Vendors and fonts are downloaded on first build and cached locally. Subsequent builds are fully offline.
+
 ---
 
-**Is GalleryPack good for photographers?**
-Yes — that's the primary use case. You shoot, you drop photos in a folder, you build, you send a link. No platform account, no upload queue, no subscription. The gallery looks professional out of the box.
+## Access control
 
-**Can I send this directly to a client?**
-Yes. Build the gallery, run `npm run publish`, and copy-paste the contents of `DELIVERY.md` — it's a ready-to-send message with the URL, credentials if applicable, and usage instructions. Your client gets a clean gallery link, not a cloud service signup.
+**What's the difference between `private` and `password`?**
+- `private` — only logged-in users with the right studio/project/gallery role, or users with a viewer token link.
+- `password` — anyone with the password can view it, no account required.
 
-**How fast is it compared to cloud services like Pixieset or Google Photos?**
-For the build: a typical shoot of 20–30 photos builds in under 10 seconds (WebP conversion + EXIF extraction). First build takes longer if fonts need downloading. Subsequent builds are incremental — only new photos are processed.
-For the upload: depends on your connection and photo count. No platform-side queue, no transcoding waiting room.
+**How do photographer invitations work?**
+An admin creates an invite for the photographer's email address. The invite link creates their account, adds them to the gallery, and lets them upload photos immediately — no further admin action required.
 
-**Can I use GalleryPack without a web server?**
-Yes. Galleries open directly from the filesystem (`file://`). ZIP download requires a browser context (Web Crypto API), but browsing and downloading individual photos works locally.
+**Can a client view a private gallery without creating an account?**
+Yes — use a **viewer token**. Create one from the gallery's Access tab and share the link. It grants read-only access to that gallery (or all galleries in a project) without requiring login.
 
-**Does it work offline after build?**
-Yes. All assets (fonts, vendor JS/CSS, images) are local. No CDN calls at runtime.
+**Can I revoke access after sharing a viewer token?**
+Yes. Each viewer token can be revoked individually from the Access tab at any time.
 
-**I just want to try it — what's the fastest path?**
-```bash
-npm run setup:example   # generates sample photos
-npm run build:all       # builds all galleries + site index
-npm run serve           # open http://localhost:3000
-```
+---
 
-**Can I protect a gallery with a password?**
-Yes — set `access: "password"` in `gallery.config.json`. GalleryPack generates `.htaccess` + `.htpasswd` for Apache basic auth. Run `npm run publish` to upload with the correct absolute path pre-filled. See [privacy-access.md](privacy-access.md).
+## Multi-studio
 
-**Does it support multiple galleries?**
-Yes. Each gallery is a subfolder of `src/`. Run `npm run build:all` to build all of them and generate a shared index page at `dist/index.html`.
+**What is `PLATFORM_MODE=single` vs `multi`?**
+- `single` — one studio, one domain. Simpler setup, fully backwards-compatible.
+- `multi` — multiple studios, each with its own domain or subdomain, managed by a superadmin.
 
-**I have no gallery.config.json — will the build crash?**
-No. GalleryPack applies smart defaults: title from folder name, date from EXIF (or today), locale `fr`. A hint suggests running `npm run new-gallery <name>` to create a proper config.
+**How does studio routing work in multi mode?**
+Each request's `Host` header is matched against: the `studio_override` cookie (superadmin context switch) → custom domain entries in the database → `<slug>.BASE_DOMAIN` subdomains → the platform root.
 
-**Can visitors download the original photos?**
-Configurable via `allowDownloadImage` (single photo) and `allowDownloadGallery` (full ZIP).
-Set either to `false` to disable. When enabled, source copies are placed in `dist/<slug>/originals/`.
+**Can a user belong to multiple studios?**
+Yes. A user account can be a member of multiple studios with different roles in each.
 
-**What image formats are supported as input?**
-JPG, JPEG, PNG, TIFF, HEIC/HEIF, AVIF. All output is WebP.
+---
 
-**My iPhone photos have no GPS — why?**
-iOS strips GPS metadata when sharing via AirDrop or iCloud Photos with "Remove location data" enabled. Transfer via USB or disable the stripping option in iOS Settings → Privacy → Location Services. GalleryPack can only use GPS data that is present in the files.
+## Storage
 
-**Does GPS reverse geocoding require an API key?**
-No. GalleryPack uses the free Nominatim/OpenStreetMap API with no registration. Results are cached in `photos.json` — subsequent builds are fully offline and never call the API again.
+**Where are photos stored?**
+In `local` mode: source photos under `storage/src/<galleryId>/`, built output under `storage/dist/<project>/<gallery>/`. In `s3` mode: same structure inside the configured bucket.
 
-**How does date: "auto" work?**
-GalleryPack reads `DateTimeOriginal` from every photo's EXIF, picks the earliest, and uses it as the gallery date. If no EXIF dates are found, the field is left empty.
+**Can I switch from local storage to S3 later?**
+Yes — copy the files to the bucket and set `STORAGE_DRIVER=s3`. Galleries need to be rebuilt after the switch so the worker reads from the new location.
 
-**The country name shows in multiple languages (e.g. "Schweiz/Suisse/Svizzera/...").**
-This happens when the GPS reverse geocoding returns a multilingual OSM name instead of a locale-specific one. GalleryPack uses `Intl.DisplayNames` with the gallery locale to resolve the country name correctly — e.g. `"Suisse"` for `locale: "fr"`, `"Switzerland"` for `locale: "en"`. If you still see this, check that your `locale` field is set in `gallery.config.json`.
+---
 
-**Can I see at a glance which galleries are password-protected?**
-Yes. The site index (`dist/index.html`) shows a small lock icon on the card of every gallery with `access: "password"`. Public galleries have no icon.
+## Technical
 
-**I built a password-protected gallery but its cover image shows in the site index — is that a security leak?**
-By design, the cover thumbnail is copied outside the protected zone (to `dist/covers/`) so the site index can display it without an auth prompt. Only the cover thumbnail is exposed; all other images, the HTML, and the ZIP remain fully protected behind `.htaccess`.
+**What database does it use?**
+MariaDB (or MySQL 8+). Migrations run automatically on startup and are tracked in a `_migrations` table.
 
-**Can I deploy to GitHub Pages / Netlify / Vercel / S3?**
-Yes — it's plain static files. Any host that serves HTML works. Run `npm run deploy` for GitHub Pages (uses a safe isolated git worktree).
+**Can I run without Docker?**
+Yes. Run MariaDB separately, set the `DB_*` environment variables, and start `node apps/api/src/index.js` and `node workers/builder/src/index.js` directly.
 
-**Does password protection work on GitHub Pages?**
-No. `.htaccess` is an Apache feature — GitHub Pages (and Netlify/Vercel) ignore it. Use `private: true` (unguessable URL) for light privacy on those hosts, or serve from Apache/Nginx for real password protection. See [privacy-access.md](privacy-access.md).
-
-**What is the difference between `npm run deploy` and `npm run publish`?**
-`deploy` pushes `dist/` to GitHub Pages (git-based, free). `publish` uploads to your own server via rsync — it also updates `DELIVERY.md` with the live URL and prints the delivery message.
-
-**How do I share a gallery with a client?**
-Build → publish → send the content of `DELIVERY.md` (it's a ready-to-send message with URL, credentials if applicable, and usage instructions).
-
-**Can I add a custom legal notice?**
-Yes. Add `legal.html` and/or `legal.txt` in `src/<gallery>/`. Tokens like `{{AUTHOR}}` and `{{YEAR}}` are replaced at build time. If absent, the built-in template for the gallery locale is used.
-
-**How is this different from iCloud Photos / Google Photos / Pixieset?**
-Those are services — storage, sharing, printing, subscriptions. GalleryPack is a build tool. You own the output, the hosting, and the URLs. Nothing expires, nothing is tracked. See [what-is-gallerypack.md](what-is-gallerypack.md).
-
-**How do I rotate the password on a protected gallery?**
-Change or remove the `password` field in `gallery.config.json`, rebuild, and re-publish. A new `.htpasswd` is generated from scratch each time.
-
-**How do I change which photo appears as the cover in the site index?**
-The first photo in alphabetical order from `src/<gallery>/photos/` is used as the cover. Rename your preferred photo so it sorts first (e.g. prefix it with `00_`).
+**How does the worker know when to build?**
+The API inserts a row into `build_jobs` when a build is triggered. The worker polls this table, picks up queued jobs, and processes them sequentially. Build log lines are written to `build_events` and streamed to the browser via SSE.
