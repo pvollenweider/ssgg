@@ -295,16 +295,17 @@ const s = {
   },
   dropZone: {
     marginTop: '1.5rem',
-    border: '2px dashed #333',
+    border: '2px dashed #444',
     borderRadius: '8px',
     padding: '2rem 1rem',
     textAlign: 'center',
     cursor: 'default',
+    background: '#242424',
     transition: 'border-color 0.15s, background 0.15s',
   },
   dropZoneActive: {
-    borderColor: '#555',
-    background: '#222',
+    borderColor: '#666',
+    background: '#2e2e2e',
   },
   dropText: {
     margin: 0,

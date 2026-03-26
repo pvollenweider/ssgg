@@ -55,7 +55,11 @@ const upload = multer({
 });
 
 // GET /upload/:token — gallery info for the upload page (no auth required)
+// Browsers are redirected to the admin SPA; API clients receive JSON directly.
 router.get('/:token', async (req, res) => {
+  if (req.accepts(['json', 'html']) === 'html') {
+    return res.redirect(302, `/admin/upload/${req.params.token}`);
+  }
   const link = await getUploadLinkByToken(req.params.token);
   if (!link) return res.status(404).json({ error: 'Invalid or expired upload link' });
 
@@ -112,7 +116,7 @@ router.post('/:token/photos', upload.array('photos', 50), async (req, res) => {
 
   if (uploaded.length > 0) {
     await query(
-      'UPDATE galleries SET updated_at = ? WHERE id = ?',
+      'UPDATE galleries SET needs_rebuild = 1, updated_at = ? WHERE id = ?',
       [Date.now(), link.gallery_id]
     );
     // Emit business event so editors get notified

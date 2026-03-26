@@ -219,8 +219,8 @@ export function UploadZone({ galleryId, onDone }) {
 
 const s = {
   root:        { display: 'flex', flexDirection: 'column', gap: '0.75rem' },
-  zone:        { border: '2px dashed #333', borderRadius: 8, padding: '1.5rem', textAlign: 'center', background: '#111', transition: 'border-color 0.15s' },
-  zoneActive:  { borderColor: '#4ade80', background: '#0a1a0a' },
+  zone:        { border: '2px dashed #444', borderRadius: 8, padding: '1.5rem', textAlign: 'center', background: '#242424', transition: 'border-color 0.15s, background 0.15s' },
+  zoneActive:  { borderColor: '#4ade80', background: '#0f2a1a' },
   zoneActions: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' },
   zoneText:    { color: '#666', fontSize: '0.875rem', userSelect: 'none' },
   zoneBtns:    { display: 'flex', gap: '0.5rem' },
