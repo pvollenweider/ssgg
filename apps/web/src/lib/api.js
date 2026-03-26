@@ -159,6 +159,7 @@ export const api = {
   exitStudioSwitch:     ()            => req('DELETE', '/platform/switch'),
   listPlatformUsers:    ()            => req('GET',    '/platform/users'),
   updatePlatformUser:   (id, data)    => req('PATCH',  `/platform/users/${id}`, data),
+  getPlatformLicense:   ()            => req('GET',    '/platform/license'),
 
   // Upload (multipart — handled separately)
   uploadPhotos(galleryId, files, onProgress) {

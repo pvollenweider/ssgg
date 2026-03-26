@@ -104,6 +104,7 @@ export default function GalleryDetail() {
       setPhotos(p);
       setJobs(j);
       setPhotographers(pgs);
+      if (g.needsRebuild) setNeedsRebuild(true);
       if (g.builtAt && p.some(photo => photo.mtime > g.builtAt)) setNeedsRebuild(true);
       if (g.buildStatus !== 'done' && p.length > 0) setNeedsRebuild(true);
       const formData = {

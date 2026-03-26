@@ -35,6 +35,7 @@ export default function StudiosPage() {
   const [slugTouched, setSlugTouched] = useState(false);
   const [form, setForm] = useState({ name: '', slug: '', plan: 'free', ownerEmail: '' });
   const [inviteLink, setInviteLink] = useState('');
+  const [license,     setLicense]     = useState(null); // { source, features, limits, ... }
 
   // Photographers don't have studio access — redirect them to their gallery
   useEffect(() => {
@@ -51,7 +52,12 @@ export default function StudiosPage() {
     setLoading(true);
     try {
       if (isSuperadmin) {
-        setStudios(await api.listPlatformStudios());
+        const [studioList, lic] = await Promise.all([
+          api.listPlatformStudios(),
+          api.getPlatformLicense().catch(() => null),
+        ]);
+        setStudios(studioList);
+        setLicense(lic);
       } else {
         // Regular user — show their studio
         if (user?.studioId) {
@@ -79,8 +85,24 @@ export default function StudiosPage() {
         setInviteLink(`${base}/admin/invite/${studio.inviteToken}`);
       }
       setToast(t('studios_toast_created'));
-    } catch (err) { setToast(err.message); }
+    } catch (err) {
+      if (err.data?.error === 'organization_limit_reached' || err.message?.includes('organization_limit_reached')) {
+        setCreating(false);
+        setToast(t('license_org_limit_toast'));
+      } else {
+        setToast(err.message);
+      }
+    }
   }
+
+  // Derived: is org creation blocked by the license?
+  const orgLimitReached = isSuperadmin && license && (() => {
+    const hasMultiOrg = license.features?.includes('multi_organization');
+    const limit = hasMultiOrg
+      ? (license.limits?.organization_limit ?? Infinity)
+      : 1;
+    return limit !== Infinity && studios.length >= limit;
+  })();
 
   async function handleEnter(studioId) {
     setSwitching(studioId);
@@ -122,11 +144,26 @@ export default function StudiosPage() {
         <div style={s.toolbar}>
           <h2 style={s.heading}>{t('studios_title')}</h2>
           {isSuperadmin && (
-            <button style={s.primaryBtn} onClick={() => setCreating(v => !v)}>
-              {t('studios_new')}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {license?.source === 'free' && <Link to="/license" style={{ ...s.outlineBtn, fontSize: '0.78rem', color: '#888' }}>{t('license_free_badge')}</Link>}
+              <button
+                style={{ ...s.primaryBtn, opacity: orgLimitReached ? 0.45 : 1, cursor: orgLimitReached ? 'not-allowed' : 'pointer' }}
+                onClick={() => !orgLimitReached && setCreating(v => !v)}
+                title={orgLimitReached ? t('license_org_limit_tooltip') : undefined}
+              >
+                {t('studios_new')}
+              </button>
+            </div>
           )}
         </div>
+
+        {orgLimitReached && (
+          <div style={s.upgradeBanner}>
+            <span style={{ fontWeight: 600 }}>{t('license_org_limit_title')}</span>
+            {' '}{t('license_org_limit_body')}
+            {' '}<Link to="/license" style={{ color: '#2563eb' }}>{t('license_upgrade_link')}</Link>
+          </div>
+        )}
 
         {creating && (
           <form style={s.createForm} onSubmit={handleCreate}>
@@ -254,5 +291,6 @@ const s = {
   primaryBtn:   { padding: '0.45rem 1.1rem', background: '#111', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem', whiteSpace: 'nowrap' },
   outlineBtn:   { padding: '0.45rem 0.9rem', background: 'none', color: '#111', border: '1px solid #ddd', borderRadius: 6, fontWeight: 500, cursor: 'pointer', fontSize: '0.875rem', textDecoration: 'none' },
   dim:          { color: '#888', fontSize: '0.875rem' },
-  inviteBanner: { display: 'flex', gap: '0.75rem', alignItems: 'center', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '0.75rem 1rem', marginBottom: '1rem' },
+  inviteBanner:  { display: 'flex', gap: '0.75rem', alignItems: 'center', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '0.75rem 1rem', marginBottom: '1rem' },
+  upgradeBanner: { background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.875rem', color: '#78350f', lineHeight: 1.5 },
 };

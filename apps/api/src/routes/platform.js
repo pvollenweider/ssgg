@@ -15,6 +15,7 @@ import {
 } from '../db/helpers.js';
 import { sendInviteEmail } from '../services/email.js';
 import { query } from '../db/database.js';
+import { getLicenseInfo, effectiveOrgLimit } from '../services/license.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -52,6 +53,11 @@ router.get('/studios', async (req, res) => {
   res.json(studios);
 });
 
+// GET /api/platform/license — current license status (superadmin only)
+router.get('/license', (req, res) => {
+  res.json(getLicenseInfo());
+});
+
 // POST /api/platform/studios — create a new studio + optional owner invitation
 router.post('/studios', async (req, res) => {
   const { name, slug, plan = 'free', ownerEmail } = req.body || {};
@@ -59,6 +65,15 @@ router.post('/studios', async (req, res) => {
   if (!slug)  return res.status(400).json({ error: 'slug is required' });
   if (!/^[a-z0-9-]+$/.test(slug))
     return res.status(400).json({ error: 'slug must be lowercase letters, numbers and hyphens' });
+
+  // Enforce organization_limit from license
+  const limit = effectiveOrgLimit();
+  if (limit !== Infinity) {
+    const [[{ n }]] = await query('SELECT COUNT(*) AS n FROM studios');
+    if (Number(n) >= limit) {
+      return res.status(403).json({ error: 'organization_limit_reached', limit, source: getLicenseInfo().source });
+    }
+  }
 
   const existing = await getStudioBySlug(slug);
   if (existing) return res.status(409).json({ error: 'A studio with this slug already exists' });
