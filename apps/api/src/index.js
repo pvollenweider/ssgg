@@ -14,6 +14,7 @@ import { fileURLToPath } from 'url';
 
 import { runMigrations } from './db/migrations/run.js';
 import { bootstrap }     from './services/bootstrap.js';
+import { loadLicense }   from './services/license.js';
 import { errorHandler }       from './middleware/error.js';
 import { rateLimit }          from './middleware/rateLimit.js';
 import { resolveStudioContext } from './middleware/studioContext.js';
@@ -30,7 +31,7 @@ import invitesRoutes     from './routes/invites.js';
 import invitationsRouter from './routes/invitations.js';
 import scopedInvitesRouter from './routes/scopedInvites.js';
 import publicRoutes, { getPublicGalleries, getCoverName, getPublicPhotoCount, getPublicDateRange } from './routes/public.js';
-import { renderLanding, renderProjectListing } from './views/landing.js';
+import { renderLanding, renderProjectIndex, renderProjectListing } from './views/landing.js';
 import settingsRoutes  from './routes/settings.js';
 import studiosRoutes   from './routes/studios.js';
 import projectsRoutes  from './routes/projects.js';
@@ -178,17 +179,56 @@ app.get(/^\/([^/]+)\/?$/, async (req, res, next) => {
   res.send(renderProjectListing(projectSlug, project.name, galleries, siteTitle, isLoggedIn));
 });
 
-// ── Public gallery listing ────────────────────────────────────────────────────
+// ── Public project index ──────────────────────────────────────────────────────
 app.get('/', async (req, res) => {
-  const galleries = await getPublicGalleries();
   const [studioRows] = await query('SELECT id FROM studios LIMIT 1');
   const studioRow  = studioRows[0];
   const settings   = studioRow ? await getSettings(studioRow.id) : null;
   const siteTitle  = settings?.site_title || 'GalleryPack';
   const token      = req.cookies?.session;
   const isLoggedIn = token ? !!(await getSession(token)) : false;
+
+  // Fetch projects that have at least one public, published gallery
+  const [projRows] = await query(
+    `SELECT p.id, p.slug, p.name, p.description,
+            COUNT(g.id) AS gallery_count,
+            MIN(g.date) AS date_from,
+            MAX(g.date) AS date_to,
+            (SELECT g2.slug FROM galleries g2
+             WHERE g2.project_id = p.id AND g2.access = 'public' AND g2.build_status = 'done'
+             ORDER BY g2.date DESC, g2.created_at DESC LIMIT 1) AS cover_gallery_slug,
+            (SELECT g2.cover_photo FROM galleries g2
+             WHERE g2.project_id = p.id AND g2.access = 'public' AND g2.build_status = 'done'
+             ORDER BY g2.date DESC, g2.created_at DESC LIMIT 1) AS cover_photo
+     FROM projects p
+     JOIN galleries g ON g.project_id = p.id AND g.access = 'public' AND g.build_status = 'done'
+     GROUP BY p.id
+     ORDER BY date_to DESC, p.created_at DESC`
+  );
+
+  const projects = await Promise.all(projRows.map(async p => {
+    let coverName = null;
+    if (p.cover_gallery_slug) {
+      const distSlug = `${p.slug}/${p.cover_gallery_slug}`;
+      const mockRow = { cover_photo: p.cover_photo };
+      coverName = await getCoverName(mockRow, distSlug);
+    }
+    const dateRange = (p.date_from || p.date_to)
+      ? { from: p.date_from || p.date_to, to: p.date_to || p.date_from }
+      : null;
+    return {
+      slug:         p.slug,
+      name:         p.name,
+      description:  p.description || null,
+      galleryCount: Number(p.gallery_count),
+      coverSlug:    p.cover_gallery_slug,
+      coverName,
+      dateRange,
+    };
+  }));
+
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(renderLanding(galleries, siteTitle, isLoggedIn));
+  res.send(renderProjectIndex(projects, siteTitle, isLoggedIn));
 });
 
 // ── Error handler ─────────────────────────────────────────────────────────────
@@ -197,6 +237,7 @@ app.use(errorHandler);
 // ── Bootstrap then start ──────────────────────────────────────────────────────
 (async () => {
   try {
+    loadLicense();
     await runMigrations();
     await bootstrap();
     app.listen(PORT, () => {
