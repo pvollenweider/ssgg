@@ -1,0 +1,106 @@
+name: gallerypack-dev
+
+# Local development environment.
+# Usage: cp .env.example .env && make dev
+#
+# Storage is kept under ./data/ on the host, mirroring the /srv/gallerypack
+# layout used in production containers.
+
+services:
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    volumes:
+      - ./data/db:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:-devroot}"
+      MYSQL_DATABASE:      "${DB_NAME:-gallerypack}"
+      MYSQL_USER:          "${DB_USER:-gallerypack}"
+      MYSQL_PASSWORD:      "${DB_PASS:-devpass}"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./apps/api/src:/app/apps/api/src    # hot-reload: API source changes are live
+      - ./data/private:/srv/gallerypack/private
+      - ./data/public:/srv/gallerypack/public
+      - ./data/internal:/srv/gallerypack/internal
+      - ./data/app:/app/data
+    environment:
+      PORT:                "4000"
+      NODE_ENV:            "development"
+      PLATFORM_MODE:       "${PLATFORM_MODE:-single}"
+      DB_HOST:             "db"
+      DB_PORT:             "3306"
+      DB_NAME:             "${DB_NAME:-gallerypack}"
+      DB_USER:             "${DB_USER:-gallerypack}"
+      DB_PASS:             "${DB_PASS:-devpass}"
+      ADMIN_EMAIL:         "${ADMIN_EMAIL:-admin@localhost}"
+      ADMIN_PASSWORD:      "${ADMIN_PASSWORD:-REDACTED}"
+      SESSION_SECRET:      "${SESSION_SECRET:-dev-session-secret-not-for-production}"
+      VIEWER_TOKEN_SECRET: "${VIEWER_TOKEN_SECRET:-dev-viewer-secret-not-for-production}"
+      BASE_URL:            "${BASE_URL:-http://localhost:4001}"
+      EMAIL_PROVIDER:      "${EMAIL_PROVIDER:-null}"
+      ADMIN_DIST:          "/app/admin-dist"
+      LICENSE_FILE:        "/app/data/gallerypack.license"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./data/private:/srv/gallerypack/private
+      - ./data/public:/srv/gallerypack/public
+      - ./data/internal:/srv/gallerypack/internal
+    environment:
+      NODE_ENV:       "development"
+      DB_HOST:        "db"
+      DB_PORT:        "3306"
+      DB_NAME:        "${DB_NAME:-gallerypack}"
+      DB_USER:        "${DB_USER:-gallerypack}"
+      DB_PASS:        "${DB_PASS:-devpass}"
+      BASE_URL:       "${BASE_URL:-http://localhost:4001}"
+      EMAIL_PROVIDER: "${EMAIL_PROVIDER:-null}"
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "4001:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/public:/srv/gallerypack/public:ro
+      - caddy_dev_data:/data
+      - caddy_dev_config:/config
+    environment:
+      DOMAIN: "localhost"
+    depends_on:
+      - api
+
+volumes:
+  caddy_dev_data:
+  caddy_dev_config:
