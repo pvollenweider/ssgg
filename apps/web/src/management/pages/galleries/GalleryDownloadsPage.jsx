@@ -15,7 +15,7 @@ import { AdminPage, AdminCard, AdminButton, AdminAlert } from '../../../componen
 export default function GalleryDownloadsPage() {
   const t = useT();
   const { galleryId } = useParams();
-  const [form,      setForm]      = useState({ allowDownloadImage: true, allowDownloadGallery: false });
+  const [form,      setForm]      = useState({ allowDownloadImage: true, allowDownloadGallery: false, allowDownloadOriginal: false });
   const [orgDef,    setOrgDef]    = useState(null);
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState('');
@@ -26,7 +26,7 @@ export default function GalleryDownloadsPage() {
 
   useEffect(() => {
     Promise.all([api.getGallery(galleryId), api.getSettings()]).then(([g, s]) => {
-      setForm({ allowDownloadImage: !!g.allowDownloadImage, allowDownloadGallery: !!g.allowDownloadGallery });
+      setForm({ allowDownloadImage: !!g.allowDownloadImage, allowDownloadGallery: !!g.allowDownloadGallery, allowDownloadOriginal: !!g.allowDownloadOriginal });
       if (s) setOrgDef({ img: !!s.allowDownloadImage, zip: !!s.allowDownloadGallery });
     }).catch(() => {});
   }, [galleryId]);
@@ -78,13 +78,23 @@ export default function GalleryDownloadsPage() {
                   </label>
                 </div>
               </div>
-              <div className="mb-0">
+              <div className="mb-3">
                 <div className="form-check form-switch">
                   <input className="form-check-input" type="checkbox" id="dlGal"
                     checked={form.allowDownloadGallery} onChange={set('allowDownloadGallery')} />
                   <label className="form-check-label" htmlFor="dlGal">
                     {t('gal_downloads_zip_label')}
                     <small className="text-muted d-block">{t('gal_downloads_zip_hint')}</small>
+                  </label>
+                </div>
+              </div>
+              <div className="mb-0">
+                <div className="form-check form-switch">
+                  <input className="form-check-input" type="checkbox" id="dlOrig"
+                    checked={form.allowDownloadOriginal} onChange={set('allowDownloadOriginal')} />
+                  <label className="form-check-label" htmlFor="dlOrig">
+                    {t('gal_downloads_original_label')}
+                    <small className="text-muted d-block">{t('gal_downloads_original_hint')}</small>
                   </label>
                 </div>
               </div>

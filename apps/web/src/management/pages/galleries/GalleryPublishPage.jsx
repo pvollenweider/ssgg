@@ -10,6 +10,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
 import { AdminPage, AdminCard, AdminButton, AdminBadge, AdminAlert } from '../../../components/ui/index.js';
+import { BuildLog } from '../../../components/BuildLog.jsx';
 
 const STATUS_BADGE = { done: 'success', error: 'danger', running: 'primary', queued: 'warning' };
 
@@ -18,9 +19,10 @@ export default function GalleryPublishPage() {
   const { galleryId } = useParams();
   const [gallery,  setGallery]  = useState(null);
   const [loading,  setLoading]  = useState(true);
-  const [building, setBuilding] = useState(false);
-  const [buildMsg, setBuildMsg] = useState('');
-  const [error,    setError]    = useState('');
+  const [building,     setBuilding]     = useState(false);
+  const [buildMsg,     setBuildMsg]     = useState('');
+  const [error,        setError]        = useState('');
+  const [activeJobId,  setActiveJobId]  = useState(null);
 
   function load() {
     setLoading(true);
@@ -36,7 +38,7 @@ export default function GalleryPublishPage() {
     setBuilding(true); setBuildMsg(''); setError('');
     try {
       const job = await api.triggerBuild(galleryId, force);
-      setBuildMsg(job?.id ? t('build_queued_job', { id: job.id }) : t('build_queued'));
+      if (job?.id) { setActiveJobId(job.id); setBuildMsg(''); } else { setBuildMsg(t('build_queued')); }
       setTimeout(load, 1500);
     } catch (err) {
       setError(err.message);
@@ -136,6 +138,22 @@ export default function GalleryPublishPage() {
               } />
             )}
 
+          </div>
+        </div>
+      )}
+
+      {activeJobId && (
+        <div className="row mt-3">
+          <div className="col-lg-10">
+            <BuildLog
+              jobId={activeJobId}
+              onDone={(finalStatus) => { load(); if (finalStatus !== 'done') return; setActiveJobId(null); }}
+            />
+            <div className="mt-2">
+              <Link to={`/admin/jobs/${activeJobId}`} className="small text-muted">
+                <i className="fas fa-external-link-alt me-1" />{t('gal_publish_view_logs')}
+              </Link>
+            </div>
           </div>
         </div>
       )}

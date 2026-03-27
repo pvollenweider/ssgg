@@ -11,57 +11,57 @@
  */
 
 export const globalNav = [
-  { key: 'hub',           label: 'Manage Hub',    icon: 'fas fa-tachometer-alt', href: '/admin' },
-  { key: 'platform',      label: 'Platform',       icon: 'fas fa-server',         href: '/admin/platform', superadminOnly: true },
-  { key: 'organizations', label: 'Organizations',  icon: 'fas fa-building',       href: '/admin/organizations' },
-  { key: 'projects',      label: 'Projects',       icon: 'fas fa-folder-open',    href: '/admin/projects' },
-  { key: 'galleries',     label: 'Galleries',      icon: 'fas fa-images',         href: '/admin/galleries' },
-  { key: 'tokens',        label: 'Upload Tokens',  icon: 'fas fa-key',            href: '/admin/tokens' },
+  { key: 'hub',           labelKey: 'nav_hub',           icon: 'fas fa-tachometer-alt', href: '/admin' },
+  { key: 'platform',      labelKey: 'nav_platform',      icon: 'fas fa-server',         href: '/admin/platform', superadminOnly: true },
+  { key: 'organizations', labelKey: 'nav_organizations', icon: 'fas fa-building',       href: '/admin/organizations' },
+  { key: 'projects',      labelKey: 'nav_projects',      icon: 'fas fa-folder-open',    href: '/admin/projects' },
+  { key: 'galleries',     labelKey: 'nav_galleries',     icon: 'fas fa-images',         href: '/admin/galleries' },
+  { key: 'tokens',        labelKey: 'nav_tokens',        icon: 'fas fa-key',            href: '/admin/tokens' },
 ];
 
 export const scopeNav = {
   platform: [
-    { key: 'overview',  label: 'Overview',  icon: 'fas fa-home',        href: '/admin/platform' },
-    { key: 'smtp',      label: 'SMTP',      icon: 'fas fa-envelope',    href: '/admin/platform/smtp' },
-    { key: 'license',   label: 'License',   icon: 'fas fa-certificate', href: '/admin/platform/license' },
-    { key: 'branding',  label: 'Branding',  icon: 'fas fa-paint-brush', href: '/admin/platform/branding' },
+    { key: 'overview',  labelKey: 'nav_overview',  icon: 'fas fa-home',        href: '/admin/platform' },
+    { key: 'smtp',      labelKey: 'nav_smtp',      icon: 'fas fa-envelope',    href: '/admin/platform/smtp' },
+    { key: 'license',   labelKey: 'nav_license',   icon: 'fas fa-certificate', href: '/admin/platform/license' },
+    { key: 'branding',  labelKey: 'nav_branding',  icon: 'fas fa-paint-brush', href: '/admin/platform/branding' },
   ],
 
   organization: [
-    { key: 'overview',  label: 'Overview',        icon: 'fas fa-home',         href: '/admin/organizations/:orgId' },
-    { key: 'general',   label: 'General',         icon: 'fas fa-info-circle',  href: '/admin/organizations/:orgId/general' },
-    { key: 'defaults',  label: 'Defaults',        icon: 'fas fa-sliders-h',    href: '/admin/organizations/:orgId/defaults' },
-    { key: 'access',    label: 'Access & Privacy',icon: 'fas fa-lock',         href: '/admin/organizations/:orgId/access' },
-    { key: 'team',      label: 'Team',            icon: 'fas fa-users',        href: '/admin/organizations/:orgId/team' },
-    { key: 'projects',  label: 'Projects',        icon: 'fas fa-folder-open',  href: '/admin/organizations/:orgId/projects' },
+    { key: 'overview',  labelKey: 'nav_overview',   icon: 'fas fa-home',         href: '/admin/organizations/:orgId' },
+    { key: 'general',   labelKey: 'nav_general',    icon: 'fas fa-info-circle',  href: '/admin/organizations/:orgId/general' },
+    { key: 'defaults',  labelKey: 'nav_defaults',   icon: 'fas fa-sliders-h',    href: '/admin/organizations/:orgId/defaults' },
+    { key: 'access',    labelKey: 'nav_org_access', icon: 'fas fa-lock',         href: '/admin/organizations/:orgId/access' },
+    { key: 'team',      labelKey: 'nav_team',       icon: 'fas fa-users',        href: '/admin/organizations/:orgId/team' },
+    { key: 'projects',  labelKey: 'nav_projects',   icon: 'fas fa-folder-open',  href: '/admin/organizations/:orgId/projects' },
   ],
 
   project: [
-    { key: 'overview',   label: 'Overview',  icon: 'fas fa-home',        href: '/admin/projects/:projectId' },
-    { key: 'general',    label: 'General',   icon: 'fas fa-info-circle', href: '/admin/projects/:projectId/general' },
-    { key: 'galleries',  label: 'Galleries', icon: 'fas fa-images',      href: '/admin/projects/:projectId/galleries' },
-    { key: 'access',     label: 'Access',    icon: 'fas fa-lock',        href: '/admin/projects/:projectId/access' },
-    { key: 'delivery',   label: 'Delivery',  icon: 'fas fa-truck',       href: '/admin/projects/:projectId/delivery' },
+    { key: 'overview',   labelKey: 'nav_overview',  icon: 'fas fa-home',        href: '/admin/projects/:projectId' },
+    { key: 'general',    labelKey: 'nav_general',   icon: 'fas fa-info-circle', href: '/admin/projects/:projectId/general' },
+    { key: 'galleries',  labelKey: 'nav_galleries', icon: 'fas fa-images',      href: '/admin/projects/:projectId/galleries' },
+    { key: 'access',     labelKey: 'nav_access',    icon: 'fas fa-lock',        href: '/admin/projects/:projectId/access' },
+    { key: 'delivery',   labelKey: 'nav_delivery',  icon: 'fas fa-truck',       href: '/admin/projects/:projectId/delivery' },
   ],
 
   gallery: [
-    { key: 'overview',   label: 'Overview',   icon: 'fas fa-home',       href: '/admin/galleries/:galleryId' },
-    { key: 'photos',     label: 'Photos',     icon: 'fas fa-images',     href: '/admin/galleries/:galleryId/photos' },
-    { key: 'inbox',      label: 'Inbox',      icon: 'fas fa-inbox',      href: '/admin/galleries/:galleryId/inbox' },
-    { key: 'jobs',       label: 'Jobs',       icon: 'fas fa-hammer',     href: '/admin/galleries/:galleryId/jobs' },
-    { key: 'general',    label: 'General',    icon: 'fas fa-info-circle',href: '/admin/galleries/:galleryId/general' },
-    { key: 'access',     label: 'Access',     icon: 'fas fa-lock',       href: '/admin/galleries/:galleryId/access' },
-    { key: 'downloads',  label: 'Downloads',  icon: 'fas fa-download',   href: '/admin/galleries/:galleryId/downloads' },
-    { key: 'upload',     label: 'Upload',     icon: 'fas fa-upload',     href: '/admin/galleries/:galleryId/upload' },
-    { key: 'publish',    label: 'Publish',    icon: 'fas fa-rocket',     href: '/admin/galleries/:galleryId/publish' },
-    { key: 'insights',   label: 'Insights',   icon: 'fas fa-chart-bar',  href: '/admin/galleries/:galleryId/insights' },
+    { key: 'overview',   labelKey: 'nav_overview',   icon: 'fas fa-home',        href: '/admin/galleries/:galleryId' },
+    { key: 'photos',     labelKey: 'nav_photos',     icon: 'fas fa-images',      href: '/admin/galleries/:galleryId/photos' },
+    { key: 'inbox',      labelKey: 'nav_inbox',      icon: 'fas fa-inbox',       href: '/admin/galleries/:galleryId/inbox' },
+    { key: 'jobs',       labelKey: 'nav_jobs',       icon: 'fas fa-hammer',      href: '/admin/galleries/:galleryId/jobs' },
+    { key: 'general',    labelKey: 'nav_general',    icon: 'fas fa-info-circle', href: '/admin/galleries/:galleryId/general' },
+    { key: 'access',     labelKey: 'nav_access',     icon: 'fas fa-lock',        href: '/admin/galleries/:galleryId/access' },
+    { key: 'downloads',  labelKey: 'nav_downloads',  icon: 'fas fa-download',    href: '/admin/galleries/:galleryId/downloads' },
+    { key: 'upload',     labelKey: 'nav_upload',     icon: 'fas fa-upload',      href: '/admin/galleries/:galleryId/upload' },
+    { key: 'publish',    labelKey: 'nav_publish',    icon: 'fas fa-rocket',      href: '/admin/galleries/:galleryId/publish' },
+    { key: 'insights',   labelKey: 'tab_insights',   icon: 'fas fa-chart-bar',   href: '/admin/galleries/:galleryId/insights' },
   ],
 };
 
-/** Human-readable scope labels */
+/** Scope section label i18n keys */
 export const scopeLabels = {
-  platform:     'Platform',
-  organization: 'Organization',
-  project:      'Project',
-  gallery:      'Gallery',
+  platform:     'scope_platform',
+  organization: 'scope_organization',
+  project:      'scope_project',
+  gallery:      'scope_gallery',
 };

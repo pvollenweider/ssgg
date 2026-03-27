@@ -107,6 +107,29 @@ router.get('/:id/photos/:filename/preview', async (req, res) => {
   }
 });
 
+// GET /api/galleries/:id/photos/:photoId/download-original
+// Stream the original source file. Requires allow_download_original on the gallery.
+router.get('/:id/photos/:photoId/download-original', async (req, res) => {
+  const gallery = await ensureGalleryBelongsToStudio(req, res);
+  if (!gallery) return;
+
+  if (!gallery.allow_download_original) {
+    return res.status(403).json({ error: 'Original downloads are not enabled for this gallery' });
+  }
+
+  const [rows] = await query('SELECT id, filename FROM photos WHERE id = ? AND gallery_id = ? LIMIT 1', [req.params.photoId, gallery.id]);
+  const photo = rows[0];
+  if (!photo) return res.status(404).json({ error: 'Photo not found' });
+
+  const safe     = path.basename(photo.filename);
+  const filePath = path.join(photosDir(gallery.slug), safe);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Original file not found' });
+
+  res.set('Content-Disposition', `attachment; filename="${safe}"`);
+  res.set('Cache-Control', 'private, no-store');
+  res.sendFile(filePath);
+});
+
 // GET /api/galleries/:id/photos — list photos (DB-backed, falls back to filesystem for legacy rows)
 router.get('/:id/photos', async (req, res) => {
   const gallery = await ensureGalleryBelongsToStudio(req, res);

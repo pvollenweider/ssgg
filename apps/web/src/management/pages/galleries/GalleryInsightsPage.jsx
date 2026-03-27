@@ -55,7 +55,7 @@ const DOMINANT_MM = {
 
 // ── FocalBubbleChart ──────────────────────────────────────────────────────────
 
-function FocalBubbleChart({ bins, selectedKey, onBinClick }) {
+function FocalBubbleChart({ bins, selectedKey, onBinClick, browseLabel = 'click to browse' }) {
   const canvasRef = useRef(null);
   const chartRef  = useRef(null);
   const binsRef   = useRef(bins);
@@ -65,15 +65,17 @@ function FocalBubbleChart({ bins, selectedKey, onBinClick }) {
     if (!canvasRef.current || !bins.length) return;
     const maxCount = Math.max(...bins.map(b => b.count));
     function r(count) { return 10 + Math.sqrt(count / maxCount) * 38; }
+    // Convert hsl(h,s,l) → hsla(h,s,l,alpha) for valid CSS
+    const withAlpha = (hsl, a) => hsl.replace(/^hsl\(/, 'hsla(').replace(/\)$/, `, ${a})`);
     const datasets = bins.map(bin => {
       const isSelected = bin.key === selectedKey;
       return {
         label: bin.label,
         data: [{ x: bin.midMm, y: 1, r: r(bin.count), count: bin.count, key: bin.key }],
-        backgroundColor: bin.color + (isSelected ? 'ff' : 'b0'),
-        borderColor:     bin.color,
-        borderWidth:     isSelected ? 3 : 2,
-        hoverBackgroundColor: bin.color + 'e0',
+        backgroundColor:      withAlpha(bin.color, isSelected ? 1 : 0.69),
+        borderColor:          bin.color,
+        borderWidth:          isSelected ? 3 : 2,
+        hoverBackgroundColor: withAlpha(bin.color, 0.88),
       };
     });
     if (chartRef.current) chartRef.current.destroy();
@@ -100,7 +102,7 @@ function FocalBubbleChart({ bins, selectedKey, onBinClick }) {
           legend: { display: false },
           tooltip: { callbacks: {
             title: ctx => ctx[0].dataset.label,
-            label: ctx => ` ${ctx.raw.count} photos — click to browse`,
+            label: ctx => ` ${ctx.raw.count} photos — ${browseLabel}`,
           }},
         },
       },
@@ -117,34 +119,41 @@ function FocalBubbleChart({ bins, selectedKey, onBinClick }) {
 
 // ── CategoryChart — horizontal bars for discrete metrics ─────────────────────
 
-function CategoryChart({ items, color = '#6366f1', withData, total }) {
+function CategoryChart({ items, color = '#6366f1', withData, total, selectedLabel, onItemClick, t }) {
   if (!items || items.length === 0) return (
-    <p className="text-muted small mb-0">No data available.</p>
+    <p className="text-muted small mb-0">{t('insights_no_data')}</p>
   );
   const maxCount = Math.max(...items.map(i => i.count));
   const coverage = total > 0 ? Math.round((withData / total) * 100) : 0;
+  const coverageText = t('insights_photos_coverage')
+    .replace('{withData}', withData).replace('{total}', total).replace('{pct}', coverage);
   return (
     <div>
-      <p className="text-muted small mb-3">{withData} of {total} photos ({coverage}%) have this data.</p>
+      <p className="text-muted small mb-3">{coverageText}</p>
       {items.map((item, idx) => {
         const barPct = maxCount > 0 ? Math.round((item.count / maxCount) * 100) : 0;
         const isOther = item.label === 'Other';
+        const isSelected = item.label === selectedLabel;
+        const hasPhotos = onItemClick && !isOther && item.photos?.length > 0;
         return (
-          <div key={item.label} className="mb-2">
+          <div key={item.label} className="mb-2"
+            onClick={hasPhotos ? () => onItemClick(isSelected ? null : item) : undefined}
+            style={{ cursor: hasPhotos ? 'pointer' : 'default' }}>
             <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.82rem' }}>
-              <span className={isOther ? 'text-muted' : ''} style={{
+              <span className={isOther ? 'text-muted' : (isSelected ? 'fw-semibold' : '')} style={{
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%',
+                color: isSelected ? color : undefined,
               }} title={item.label}>{item.label}</span>
               <span className="text-muted ms-2" style={{ flexShrink: 0 }}>{item.count} ({item.pct}%)</span>
             </div>
-            <div className="progress" style={{ height: 8 }}>
+            <div className="progress" style={{ height: isSelected ? 10 : 8 }}>
               <div
                 className="progress-bar"
                 role="progressbar"
                 style={{
                   width: `${barPct}%`,
                   background: isOther ? '#9ca3af' : color,
-                  opacity: 0.85 + (idx === 0 ? 0.15 : 0),
+                  opacity: isSelected ? 1 : (0.85 + (idx === 0 ? 0.15 : 0)),
                 }}
                 aria-valuenow={barPct}
                 aria-valuemin={0}
@@ -265,12 +274,12 @@ function InsightCards({ insights }) {
 // ── Tab definitions ───────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'summary',  label: 'Summary',      icon: 'fas fa-lightbulb' },
-  { id: 'focal',    label: 'Focal',         icon: 'fas fa-expand-arrows-alt' },
-  { id: 'lens',     label: 'Lens',          icon: 'fas fa-camera' },
-  { id: 'aperture', label: 'Aperture',      icon: 'fas fa-circle-notch' },
-  { id: 'shutter',  label: 'Shutter',       icon: 'fas fa-bolt' },
-  { id: 'iso',      label: 'ISO',           icon: 'fas fa-sun' },
+  { id: 'summary',  labelKey: 'insights_tab_summary',  icon: 'fas fa-lightbulb' },
+  { id: 'focal',    labelKey: 'insights_tab_focal',    icon: 'fas fa-expand-arrows-alt' },
+  { id: 'lens',     labelKey: 'insights_tab_lens',     icon: 'fas fa-camera' },
+  { id: 'aperture', labelKey: 'insights_tab_aperture', icon: 'fas fa-circle-notch' },
+  { id: 'shutter',  labelKey: 'insights_tab_shutter',  icon: 'fas fa-bolt' },
+  { id: 'iso',      labelKey: 'insights_tab_iso',      icon: 'fas fa-sun' },
 ];
 
 // ── Main page ─────────────────────────────────────────────────────────────────
@@ -287,6 +296,7 @@ export default function GalleryInsightsPage() {
   const [selectedKey,   setSelectedKey]   = useState(null);
   const [lightboxIdx,   setLightboxIdx]   = useState(null);
   const [lightboxPhotos, setLightboxPhotos] = useState([]);
+  const [selectedCatItem, setSelectedCatItem] = useState(null);
 
   const openLightbox  = useCallback((photos, idx) => { setLightboxPhotos(photos); setLightboxIdx(idx); }, []);
   const closeLightbox = useCallback(() => setLightboxIdx(null), []);
@@ -302,7 +312,7 @@ export default function GalleryInsightsPage() {
       .finally(() => setLoading(false));
   }, [galleryId]);
 
-  useEffect(() => { setSelectedKey(null); }, [precision, activeTab]);
+  useEffect(() => { setSelectedKey(null); setSelectedCatItem(null); }, [precision, activeTab]);
 
   const focalData = insights?.focal ?? null;
   const activeBins = useMemo(() => {
@@ -349,7 +359,7 @@ export default function GalleryInsightsPage() {
               style={{ whiteSpace: 'nowrap' }}
             >
               <i className={`${tab.icon} me-1`} style={{ fontSize: '0.8rem' }} />
-              {tab.label}
+              {t(tab.labelKey)}
             </button>
           </li>
         ))}
@@ -365,7 +375,7 @@ export default function GalleryInsightsPage() {
             ? <AdminAlert variant="secondary" message={t('insights_focal_not_built')} />
             : insights?.insights && Object.values(insights.insights).some(Boolean)
               ? <InsightCards insights={insights.insights} />
-              : <AdminAlert variant="secondary" message="Not enough data to generate automatic insights (minimum 10 photos with EXIF)." />
+              : <AdminAlert variant="secondary" message={t('insights_not_enough_data')} />
           }
         </div>
       )}
@@ -376,11 +386,11 @@ export default function GalleryInsightsPage() {
           <div className="d-flex gap-3 mb-4 flex-wrap">
             <div className="card px-4 py-3 text-center" style={{ minWidth: 110 }}>
               <div className="fs-3 fw-bold text-primary">{pct}%</div>
-              <div className="text-muted small">focal data</div>
+              <div className="text-muted small">{t('insights_focal_data_label')}</div>
             </div>
             <div className="card px-4 py-3 text-center" style={{ minWidth: 110 }}>
               <div className="fs-3 fw-bold text-secondary">{withData}</div>
-              <div className="text-muted small">photos analysed</div>
+              <div className="text-muted small">{t('insights_photos_analysed')}</div>
             </div>
             {dominantBin && (
               <div className="card px-4 py-3 text-center" style={{ minWidth: 140 }}>
@@ -397,11 +407,12 @@ export default function GalleryInsightsPage() {
               onChange={e => setPrecision(Number(e.target.value))}
               className="form-range" style={{ flex: 1, maxWidth: 200 }} />
             <span className="text-muted small" style={{ minWidth: 60 }}>
-              {activeBins.length} {activeBins.length === 1 ? 'range' : 'ranges'}
+              {activeBins.length} {activeBins.length === 1 ? t('insights_range_singular') : t('insights_ranges_plural')}
             </span>
           </div>
           <AdminCard className="mb-3">
             <FocalBubbleChart bins={activeBins} selectedKey={selectedKey}
+              browseLabel={t('insights_click_browse')}
               onBinClick={key => setSelectedKey(prev => prev === key ? null : key)} />
           </AdminCard>
           {selectedKey && (() => {
@@ -466,26 +477,53 @@ export default function GalleryInsightsPage() {
       {/* Lens / Aperture / Shutter / ISO tabs — CategoryChart */}
       {['lens', 'aperture', 'shutter', 'iso'].includes(activeTab) && !isEmpty && (() => {
         const metric = insights?.[activeTab];
-        if (!metric) return <AdminAlert variant="secondary" message="Data not available." />;
-        if (metric.withData === 0) return <AdminAlert variant="warning" message={`No ${activeTab} data found in this gallery's EXIF.`} />;
+        if (!metric) return <AdminAlert variant="secondary" message={t('insights_data_not_available')} />;
+        if (metric.withData === 0) return <AdminAlert variant="warning" message={t('insights_no_data')} />;
 
         const COLORS = { lens: '#8b5cf6', aperture: '#0ea5e9', shutter: '#f59e0b', iso: '#10b981' };
-        const SUBTITLES = {
-          lens:     'Lens models used across this gallery',
-          aperture: 'Aperture (f-stop) distribution',
-          shutter:  'Shutter speed distribution',
-          iso:      'ISO sensitivity distribution',
+        const SUBTITLE_KEYS = {
+          lens:     'insights_lens_subtitle',
+          aperture: 'insights_aperture_subtitle',
+          shutter:  'insights_shutter_subtitle',
+          iso:      'insights_iso_subtitle',
         };
 
         return (
-          <AdminCard title={SUBTITLES[activeTab]}>
-            <CategoryChart
-              items={metric.items}
-              color={COLORS[activeTab]}
-              withData={metric.withData}
-              total={metric.total}
-            />
-          </AdminCard>
+          <>
+            <AdminCard title={t(SUBTITLE_KEYS[activeTab])}>
+              <CategoryChart
+                items={metric.items}
+                color={COLORS[activeTab]}
+                withData={metric.withData}
+                total={metric.total}
+                selectedLabel={selectedCatItem?.label ?? null}
+                onItemClick={setSelectedCatItem}
+                t={t}
+              />
+            </AdminCard>
+            {selectedCatItem?.photos?.length > 0 && (
+              <AdminCard className="mb-3" title={selectedCatItem.label}
+                headerRight={<button type="button" className="btn-close" aria-label="Close" onClick={() => setSelectedCatItem(null)} />}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(90px, 1fr))', gap: '0.5rem' }}>
+                  {selectedCatItem.photos.map((photo, idx) => (
+                    <div key={photo.filename}
+                      title={photo.filename}
+                      onClick={() => openLightbox(selectedCatItem.photos, idx)}
+                      style={{ borderRadius: 4, overflow: 'hidden', aspectRatio: '1', background: '#f3f4f6', cursor: 'pointer' }}>
+                      <img
+                        src={photo.thumbnail?.sm ?? `/api/galleries/${galleryId}/photos/${encodeURIComponent(photo.filename)}/preview`}
+                        alt={photo.filename}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', transition: 'transform 0.15s' }}
+                        loading="lazy" decoding="async"
+                        onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.04)'}
+                        onMouseLeave={e => e.currentTarget.style.transform = ''} />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-muted small mb-0 mt-2">{selectedCatItem.photos.length} photo{selectedCatItem.photos.length > 1 ? 's' : ''}</p>
+              </AdminCard>
+            )}
+          </>
         );
       })()}
     </div>
