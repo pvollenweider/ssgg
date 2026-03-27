@@ -397,6 +397,26 @@ CREATE TABLE IF NOT EXISTS photographers (
   INDEX idx_photographer_link    (upload_link_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ── Personal upload tokens (gp_ prefix, SHA-256 hash, gallery/project scope) ──
+
+CREATE TABLE IF NOT EXISTS personal_tokens (
+  id            CHAR(36)      NOT NULL PRIMARY KEY,
+  user_id       VARCHAR(32)   NOT NULL,
+  name          VARCHAR(128)  NOT NULL,
+  token_hash    CHAR(64)      NOT NULL UNIQUE,
+  prefix        VARCHAR(12)   NOT NULL,
+  scope_type    ENUM('gallery','project') NOT NULL,
+  scope_id      CHAR(36)      NOT NULL,
+  created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_used_at  DATETIME      NULL,
+  expires_at    DATETIME      NULL,
+  revoked_at    DATETIME      NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_personal_tokens_user  ON personal_tokens(user_id);
+CREATE INDEX idx_personal_tokens_scope ON personal_tokens(scope_type, scope_id);
+
 -- ── Photos ────────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS photos (
@@ -410,15 +430,18 @@ CREATE TABLE IF NOT EXISTS photos (
   uploaded_by_user_id VARCHAR(32)  NULL,
   upload_link_id      CHAR(36)     NULL,
   photographer_id     VARCHAR(36)  NULL,
+  personal_token_id   CHAR(36)     NULL,
   created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_gallery_file (gallery_id, filename),
-  FOREIGN KEY (gallery_id)      REFERENCES galleries(id)            ON DELETE CASCADE,
-  FOREIGN KEY (upload_link_id)  REFERENCES gallery_upload_links(id) ON DELETE SET NULL,
-  FOREIGN KEY (photographer_id) REFERENCES photographers(id)        ON DELETE SET NULL
+  FOREIGN KEY (gallery_id)         REFERENCES galleries(id)            ON DELETE CASCADE,
+  FOREIGN KEY (upload_link_id)     REFERENCES gallery_upload_links(id) ON DELETE SET NULL,
+  FOREIGN KEY (photographer_id)    REFERENCES photographers(id)        ON DELETE SET NULL,
+  FOREIGN KEY (personal_token_id)  REFERENCES personal_tokens(id)      ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_photos_gallery_status ON photos(gallery_id, status);
 CREATE INDEX idx_photos_upload_link    ON photos(upload_link_id);
+CREATE INDEX idx_photos_personal_token ON photos(personal_token_id);
 
 -- ── Inspector audit log ───────────────────────────────────────────────────────
 
