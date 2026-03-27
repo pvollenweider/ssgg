@@ -122,11 +122,11 @@ export default function ProjectGalleriesPage() {
               <tbody>
                 {galleries.map(g => (
                   <tr key={g.id}>
-                    <td><Link to={`/manage/galleries/${g.id}`} className="fw-semibold text-body">{g.title || g.slug}</Link></td>
+                    <td><Link to={`/admin/galleries/${g.id}`} className="fw-semibold text-body">{g.title || g.slug}</Link></td>
                     <td><code className="text-muted">{g.slug}</code></td>
                     <td><AdminBadge color={STATUS_BADGE[g.build_status] || 'secondary'}>{g.build_status || t('proj_status_draft')}</AdminBadge></td>
                     <td className="text-end">
-                      <Link to={`/manage/galleries/${g.id}`} className="btn btn-sm btn-outline-secondary">
+                      <Link to={`/admin/galleries/${g.id}`} className="btn btn-sm btn-outline-secondary">
                         {t('gal_overview_manage')} <i className="fas fa-chevron-right ms-1" />
                       </Link>
                     </td>

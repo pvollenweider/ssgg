@@ -28,7 +28,7 @@ export default function ProjectOverviewPage() {
       .finally(() => setLoading(false));
   }, [projectId]);
 
-  const base = `/manage/projects/${projectId}`;
+  const base = `/admin/projects/${projectId}`;
 
   return (
     <AdminPage title={project?.name ?? 'Project'} maxWidth="100%">
@@ -67,7 +67,7 @@ export default function ProjectOverviewPage() {
               </p>
               {galleries.slice(0, 3).map(g => (
                 <div key={g.id} className="mt-1">
-                  <Link to={`/manage/galleries/${g.id}`} style={{ fontSize: '0.85rem' }}>{g.title || g.slug}</Link>
+                  <Link to={`/admin/galleries/${g.id}`} style={{ fontSize: '0.85rem' }}>{g.title || g.slug}</Link>
                 </div>
               ))}
               {galleries.length > 3 && <small className="text-muted">+{galleries.length - 3} more</small>}

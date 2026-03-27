@@ -27,7 +27,7 @@ export default function OrganizationOverviewPage() {
       .finally(() => setLoading(false));
   }, [orgId]);
 
-  const base = `/manage/organizations/${orgId}`;
+  const base = `/admin/organizations/${orgId}`;
 
   return (
     <AdminPage title={org?.name ?? 'Organization'} maxWidth="100%">

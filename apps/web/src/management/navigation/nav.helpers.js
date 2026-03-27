@@ -20,9 +20,9 @@ export function interpolatePath(path, params = {}) {
  */
 export function detectScope(pathname) {
   if (pathname.startsWith('/admin/platform')) return 'platform';
-  if (/^\/manage\/organizations\/[^/]+/.test(pathname)) return 'organization';
-  if (/^\/manage\/projects\/[^/]+/.test(pathname)) return 'project';
-  if (/^\/manage\/galleries\/[^/]+/.test(pathname)) return 'gallery';
+  if (/^\/admin\/organizations\/[^/]+/.test(pathname)) return 'organization';
+  if (/^\/admin\/projects\/[^/]+/.test(pathname)) return 'project';
+  if (/^\/admin\/galleries\/[^/]+/.test(pathname)) return 'gallery';
   return null;
 }
 
@@ -31,9 +31,9 @@ export function detectScope(pathname) {
  * @returns {{ orgId?: string, projectId?: string, galleryId?: string }}
  */
 export function extractScopeParams(pathname) {
-  const org     = pathname.match(/^\/manage\/organizations\/([^/]+)/);
-  const project = pathname.match(/^\/manage\/projects\/([^/]+)/);
-  const gallery = pathname.match(/^\/manage\/galleries\/([^/]+)/);
+  const org     = pathname.match(/^\/admin\/organizations\/([^/]+)/);
+  const project = pathname.match(/^\/admin\/projects\/([^/]+)/);
+  const gallery = pathname.match(/^\/admin\/galleries\/([^/]+)/);
 
   if (org)     return { orgId: org[1] };
   if (project) return { projectId: project[1] };
@@ -44,7 +44,6 @@ export function extractScopeParams(pathname) {
 /** Segment label overrides for breadcrumb generation */
 const SEGMENT_LABELS = {
   admin:         null,
-  manage:        null,
   platform:      'Platform',
   smtp:          'SMTP',
   license:       'License',

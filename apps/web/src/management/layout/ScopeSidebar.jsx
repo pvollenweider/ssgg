@@ -32,7 +32,7 @@ export default function ScopeSidebar({ scope, params = {}, onToggle, isMobileDra
   return (
     <aside className="app-sidebar bg-body" data-bs-theme="dark">
       <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link to="/manage" className="brand-link" onClick={handleNavClick}>
+        <Link to="/admin" className="brand-link" onClick={handleNavClick}>
           <span className="brand-text fw-bold" style={{ fontSize: '1rem', letterSpacing: '-0.02em' }}>
             {t('manage_title')}
           </span>
@@ -75,7 +75,7 @@ export default function ScopeSidebar({ scope, params = {}, onToggle, isMobileDra
               .filter(item => !item.superadminOnly || isSuperadmin)
               .map(item => (
                 <li key={item.key} className="nav-item">
-                  <NavLink to={item.href} end={item.href === '/manage'} className={navCls} onClick={handleNavClick}
+                  <NavLink to={item.href} end={item.href === '/admin'} className={navCls} onClick={handleNavClick}
                     style={{ minHeight: 44 }}>
                     <i className={`nav-icon ${item.icon}`} />
                     <p>{item.label}</p>

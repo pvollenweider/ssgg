@@ -27,8 +27,8 @@ import Dashboard       from './pages/Dashboard.jsx';
 // Management
 import ManageLayout    from './management/layout/ManageLayout.jsx';
 import PlatformLayout  from './management/layout/PlatformLayout.jsx';
-import ManageHub       from './management/pages/manage/ManageHub.jsx';
-import TokensPage      from './management/pages/manage/TokensPage.jsx';
+import ManageHub       from './management/pages/admin/ManageHub.jsx';
+import TokensPage      from './management/pages/admin/TokensPage.jsx';
 import { PlatformOverviewPage, SmtpPage, LicensePage, BrandingPage } from './management/pages/platform/index.jsx';
 import { OrganizationsListPage, OrganizationOverviewPage, OrganizationGeneralPage, OrganizationDefaultsPage, OrganizationAccessPage, OrganizationTeamPage, OrganizationProjectsPage } from './management/pages/organizations/index.jsx';
 import { ProjectsListPage, ProjectOverviewPage, ProjectGeneralPage, ProjectGalleriesPage, ProjectAccessPage, ProjectDeliveryPage } from './management/pages/projects/index.jsx';
@@ -93,32 +93,32 @@ export default function App() {
       <Route path="/magic-login/:token"          element={<MagicLogin />} />
       <Route path="/upload/:token"               element={<UploadPage />} />
 
-      {/* ── Management — /manage/* ── */}
-      <Route path="/manage" element={<ManageLayout><ManageHub /></ManageLayout>} />
-      <Route path="/manage/tokens" element={<ManageLayout><TokensPage /></ManageLayout>} />
-      <Route path="/manage/organizations" element={<ManageLayout><OrganizationsListPage /></ManageLayout>} />
-      <Route path="/manage/organizations/:orgId" element={<ManageLayout><OrganizationOverviewPage /></ManageLayout>} />
-      <Route path="/manage/organizations/:orgId/general" element={<ManageLayout><OrganizationGeneralPage /></ManageLayout>} />
-      <Route path="/manage/organizations/:orgId/defaults" element={<ManageLayout><OrganizationDefaultsPage /></ManageLayout>} />
-      <Route path="/manage/organizations/:orgId/access" element={<ManageLayout><OrganizationAccessPage /></ManageLayout>} />
-      <Route path="/manage/organizations/:orgId/team" element={<ManageLayout><OrganizationTeamPage /></ManageLayout>} />
-      <Route path="/manage/organizations/:orgId/projects" element={<ManageLayout><OrganizationProjectsPage /></ManageLayout>} />
+      {/* ── Management — /admin/* ── */}
+      <Route path="/admin" element={<ManageLayout><ManageHub /></ManageLayout>} />
+      <Route path="/admin/tokens" element={<ManageLayout><TokensPage /></ManageLayout>} />
+      <Route path="/admin/organizations" element={<ManageLayout><OrganizationsListPage /></ManageLayout>} />
+      <Route path="/admin/organizations/:orgId" element={<ManageLayout><OrganizationOverviewPage /></ManageLayout>} />
+      <Route path="/admin/organizations/:orgId/general" element={<ManageLayout><OrganizationGeneralPage /></ManageLayout>} />
+      <Route path="/admin/organizations/:orgId/defaults" element={<ManageLayout><OrganizationDefaultsPage /></ManageLayout>} />
+      <Route path="/admin/organizations/:orgId/access" element={<ManageLayout><OrganizationAccessPage /></ManageLayout>} />
+      <Route path="/admin/organizations/:orgId/team" element={<ManageLayout><OrganizationTeamPage /></ManageLayout>} />
+      <Route path="/admin/organizations/:orgId/projects" element={<ManageLayout><OrganizationProjectsPage /></ManageLayout>} />
 
-      <Route path="/manage/projects" element={<ManageLayout><ProjectsListPage /></ManageLayout>} />
-      <Route path="/manage/projects/:projectId" element={<ManageLayout><ProjectOverviewPage /></ManageLayout>} />
-      <Route path="/manage/projects/:projectId/general" element={<ManageLayout><ProjectGeneralPage /></ManageLayout>} />
-      <Route path="/manage/projects/:projectId/galleries" element={<ManageLayout><ProjectGalleriesPage /></ManageLayout>} />
-      <Route path="/manage/projects/:projectId/access" element={<ManageLayout><ProjectAccessPage /></ManageLayout>} />
-      <Route path="/manage/projects/:projectId/delivery" element={<ManageLayout><ProjectDeliveryPage /></ManageLayout>} />
+      <Route path="/admin/projects" element={<ManageLayout><ProjectsListPage /></ManageLayout>} />
+      <Route path="/admin/projects/:projectId" element={<ManageLayout><ProjectOverviewPage /></ManageLayout>} />
+      <Route path="/admin/projects/:projectId/general" element={<ManageLayout><ProjectGeneralPage /></ManageLayout>} />
+      <Route path="/admin/projects/:projectId/galleries" element={<ManageLayout><ProjectGalleriesPage /></ManageLayout>} />
+      <Route path="/admin/projects/:projectId/access" element={<ManageLayout><ProjectAccessPage /></ManageLayout>} />
+      <Route path="/admin/projects/:projectId/delivery" element={<ManageLayout><ProjectDeliveryPage /></ManageLayout>} />
 
-      <Route path="/manage/galleries" element={<ManageLayout><GalleriesListPage /></ManageLayout>} />
-      <Route path="/manage/galleries/:galleryId" element={<ManageLayout><GalleryOverviewPage /></ManageLayout>} />
-      <Route path="/manage/galleries/:galleryId/general" element={<ManageLayout><GalleryGeneralPage /></ManageLayout>} />
-      <Route path="/manage/galleries/:galleryId/access" element={<ManageLayout><GalleryAccessPage /></ManageLayout>} />
-      <Route path="/manage/galleries/:galleryId/downloads" element={<ManageLayout><GalleryDownloadsPage /></ManageLayout>} />
-      <Route path="/manage/galleries/:galleryId/upload" element={<ManageLayout><GalleryUploadPage /></ManageLayout>} />
-      <Route path="/manage/galleries/:galleryId/publish" element={<ManageLayout><GalleryPublishPage /></ManageLayout>} />
-      <Route path="/manage/galleries/:galleryId/insights" element={<ManageLayout><GalleryInsightsPage /></ManageLayout>} />
+      <Route path="/admin/galleries" element={<ManageLayout><GalleriesListPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId" element={<ManageLayout><GalleryOverviewPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/general" element={<ManageLayout><GalleryGeneralPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/access" element={<ManageLayout><GalleryAccessPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/downloads" element={<ManageLayout><GalleryDownloadsPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/upload" element={<ManageLayout><GalleryUploadPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/publish" element={<ManageLayout><GalleryPublishPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/insights" element={<ManageLayout><GalleryInsightsPage /></ManageLayout>} />
 
       {/* ── Platform admin — /admin/platform/* (superadmin only) ── */}
       <Route path="/admin/platform" element={<PlatformLayout><PlatformOverviewPage /></PlatformLayout>} />

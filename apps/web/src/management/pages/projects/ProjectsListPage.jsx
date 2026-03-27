@@ -125,13 +125,13 @@ export default function ProjectsListPage() {
                   {projects.map(p => (
                     <tr key={p.id}>
                       <td>
-                        <Link to={`/manage/projects/${p.id}`} className="fw-semibold text-body">{p.name}</Link>
+                        <Link to={`/admin/projects/${p.id}`} className="fw-semibold text-body">{p.name}</Link>
                         {p.description && <small className="text-muted d-block">{p.description}</small>}
                       </td>
                       <td><code className="text-muted">{p.slug}</code></td>
                       <td><AdminBadge color="secondary" className="bg-light text-dark border">{p.visibility || 'public'}</AdminBadge></td>
                       <td className="text-end">
-                        <Link to={`/manage/projects/${p.id}`} className="btn btn-sm btn-outline-secondary">
+                        <Link to={`/admin/projects/${p.id}`} className="btn btn-sm btn-outline-secondary">
                           {t('gal_overview_manage')} <i className="fas fa-chevron-right ms-1" aria-hidden="true" />
                         </Link>
                       </td>

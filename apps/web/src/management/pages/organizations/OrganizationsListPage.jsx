@@ -149,7 +149,7 @@ export default function OrganizationsListPage() {
                 {orgs.map(org => (
                   <tr key={org.id}>
                     <td>
-                      <Link to={`/manage/organizations/${org.id}`} className="fw-semibold text-body">
+                      <Link to={`/admin/organizations/${org.id}`} className="fw-semibold text-body">
                         {org.name}
                       </Link>
                       {org.is_default && <AdminBadge color="secondary" className="ms-2">{t('studios_default_badge')}</AdminBadge>}
@@ -158,7 +158,7 @@ export default function OrganizationsListPage() {
                     <td>{org.locale || '—'}</td>
                     <td>{org.country || '—'}</td>
                     <td className="text-end">
-                      <Link to={`/manage/organizations/${org.id}`} className="btn btn-sm btn-outline-secondary">
+                      <Link to={`/admin/organizations/${org.id}`} className="btn btn-sm btn-outline-secondary">
                         {t('gal_overview_manage')} <i className="fas fa-chevron-right ms-1" aria-hidden="true" />
                       </Link>
                     </td>
