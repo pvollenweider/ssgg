@@ -551,7 +551,7 @@
   "smtp_host_placeholder": "smtp.esempio.com",
   "smtp_tls_label": "Usa TLS / SSL",
   "smtp_username_label": "Nome utente",
-  "smtp_username_placeholder": "utente@esempio.com",
+  "smtp_username_placeholder": "user@example.com",
   "smtp_password_enter": "Inserisci password",
   "smtp_from_placeholder": "noreply@esempio.com",
   "smtp_from_hint": "Visualizzato come mittente nelle email in uscita. Se vuoto, usa il nome utente.",

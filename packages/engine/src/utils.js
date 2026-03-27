@@ -107,23 +107,14 @@ export function galleryDistName(project, srcName) {
 
 // ── Access / password ─────────────────────────────────────────────────────────
 
-const PASSWORD_WORDS = [
-  'maple','cedar','birch','oak','pine','fern',
-  'amber','coral','ivory','jade','onyx','ruby',
-  'cloud','river','stone','field','brook','grove',
-  'solar','lunar','polar','delta','sigma','kappa',
-];
-
 /**
- * Generate a memorable two-words + two-digit password.
- * Example: "amber-cloud-42"
+ * Generate a cryptographically random gallery access password.
+ * Returns 8 lowercase hex chars in two groups: e.g. "a3f2-b7c1"
+ * Entropy: 32 bits — sufficient for shared gallery access.
  */
 export function generatePassword() {
-  const w1 = PASSWORD_WORDS[Math.floor(Math.random() * PASSWORD_WORDS.length)];
-  let w2;
-  do { w2 = PASSWORD_WORDS[Math.floor(Math.random() * PASSWORD_WORDS.length)]; } while (w2 === w1);
-  const num = Math.floor(Math.random() * 90) + 10;
-  return `${w1}-${w2}-${num}`;
+  const hex = crypto.randomBytes(4).toString('hex');
+  return `${hex.slice(0, 4)}-${hex.slice(4)}`;
 }
 
 // ── Config schema & validation ────────────────────────────────────────────────

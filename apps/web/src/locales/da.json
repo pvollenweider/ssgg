@@ -551,7 +551,7 @@
   "smtp_host_placeholder": "smtp.example.com",
   "smtp_tls_label": "Brug TLS / SSL",
   "smtp_username_label": "Brugernavn",
-  "smtp_username_placeholder": "bruger@example.com",
+  "smtp_username_placeholder": "user@example.com",
   "smtp_password_enter": "Indtast adgangskode",
   "smtp_from_placeholder": "noreply@example.com",
   "smtp_from_hint": "Vises som afsender i udgående e-mails. Brugernavnet bruges som standard, hvis feltet er tomt.",
