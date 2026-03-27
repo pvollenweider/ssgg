@@ -5,24 +5,16 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { useAuth } from './lib/auth.jsx';
 import { I18nProvider } from './lib/I18nContext.jsx';
-import AdminLayout     from './components/AdminLayout.jsx';
-import StudiosPage     from './pages/StudiosPage.jsx';
-import StudioHome      from './pages/StudioHome.jsx';
-import ProjectDetail   from './pages/ProjectDetail.jsx';
-import GalleryDetail   from './pages/GalleryDetail.jsx';
 import BuildStatus     from './pages/BuildStatus.jsx';
-import Settings        from './pages/Settings.jsx';
-import Team            from './pages/Team.jsx';
 import MemberProfile   from './pages/MemberProfile.jsx';
 import AcceptInvite    from './pages/AcceptInvite.jsx';
 import ForgotPassword  from './pages/ForgotPassword.jsx';
 import ResetPassword   from './pages/ResetPassword.jsx';
 import MagicLogin      from './pages/MagicLogin.jsx';
 import UploadPage      from './pages/UploadPage.jsx';
-import Dashboard       from './pages/Dashboard.jsx';
 
 // Management
 import ManageLayout    from './management/layout/ManageLayout.jsx';
@@ -45,7 +37,6 @@ import { InspectorUserList, InspectorUserDetail } from './inspector/InspectorUse
 import InspectorDashboard  from './inspector/InspectorDashboard.jsx';
 import InspectorAnomalies  from './inspector/InspectorAnomalies.jsx';
 
-// Lazy import of Login to avoid circular deps with auth context
 import Login from './pages/Login.jsx';
 
 function RequireAuth({ children }) {
@@ -59,14 +50,22 @@ function RequireAuth({ children }) {
   return children;
 }
 
-function AuthLayout({ children }) {
-  return (
-    <RequireAuth>
-      <AdminLayout>
-        {children}
-      </AdminLayout>
-    </RequireAuth>
-  );
+/** Redirect /projects/:id → /admin/projects/:id/galleries */
+function ProjectRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/admin/projects/${id}/galleries`} replace />;
+}
+
+/** Redirect /galleries/:id → /admin/galleries/:id/photos */
+function GalleryRedirect() {
+  const { id } = useParams();
+  return <Navigate to={`/admin/galleries/${id}/photos`} replace />;
+}
+
+/** Redirect /jobs/:jobId → /admin/jobs/:jobId */
+function JobRedirect() {
+  const { jobId } = useParams();
+  return <Navigate to={`/admin/jobs/${jobId}`} replace />;
 }
 
 export default function App() {
@@ -74,19 +73,17 @@ export default function App() {
     <I18nProvider>
     <Routes>
       <Route path="/login"                       element={<Login />} />
-      {/* Studios list — main entry point */}
-      <Route path="/"                            element={<AuthLayout><StudiosPage /></AuthLayout>} />
-      {/* Studio home — projects + team */}
-      <Route path="/studio"                      element={<AuthLayout><StudioHome /></AuthLayout>} />
-      <Route path="/dashboard"                   element={<AuthLayout><Dashboard /></AuthLayout>} />
-      {/* Project detail — galleries */}
-      <Route path="/projects/:id"                element={<AuthLayout><ProjectDetail /></AuthLayout>} />
-      {/* Gallery detail */}
-      <Route path="/galleries/:id"               element={<AuthLayout><GalleryDetail /></AuthLayout>} />
-      <Route path="/jobs/:jobId"                 element={<AuthLayout><BuildStatus /></AuthLayout>} />
-      <Route path="/settings"                    element={<AuthLayout><Settings /></AuthLayout>} />
-      <Route path="/team"                        element={<AuthLayout><Team /></AuthLayout>} />
-      <Route path="/team/:userId"                element={<AuthLayout><MemberProfile /></AuthLayout>} />
+
+      {/* ── Backward-compat redirects for old AdminLayout routes ── */}
+      <Route path="/"                            element={<Navigate to="/admin" replace />} />
+      <Route path="/studio"                      element={<Navigate to="/admin" replace />} />
+      <Route path="/dashboard"                   element={<Navigate to="/admin" replace />} />
+      <Route path="/settings"                    element={<Navigate to="/admin/profile" replace />} />
+      <Route path="/team"                        element={<Navigate to="/admin/organizations" replace />} />
+      <Route path="/projects/:id"                element={<ProjectRedirect />} />
+      <Route path="/galleries/:id"               element={<GalleryRedirect />} />
+      <Route path="/jobs/:jobId"                 element={<JobRedirect />} />
+
       {/* Public / unauthenticated */}
       <Route path="/invite/:token"               element={<AcceptInvite />} />
       <Route path="/forgot-password"             element={<ForgotPassword />} />
@@ -95,41 +92,44 @@ export default function App() {
       <Route path="/upload/:token"               element={<UploadPage />} />
 
       {/* ── Management — /admin/* ── */}
-      <Route path="/admin" element={<ManageLayout><ManageHub /></ManageLayout>} />
-      <Route path="/admin/profile" element={<ManageLayout><ProfilePage /></ManageLayout>} />
-      <Route path="/admin/tokens" element={<ManageLayout><TokensPage /></ManageLayout>} />
-      <Route path="/admin/organizations" element={<ManageLayout><OrganizationsListPage /></ManageLayout>} />
-      <Route path="/admin/organizations/:orgId" element={<ManageLayout><OrganizationOverviewPage /></ManageLayout>} />
-      <Route path="/admin/organizations/:orgId/general" element={<ManageLayout><OrganizationGeneralPage /></ManageLayout>} />
-      <Route path="/admin/organizations/:orgId/defaults" element={<ManageLayout><OrganizationDefaultsPage /></ManageLayout>} />
-      <Route path="/admin/organizations/:orgId/access" element={<ManageLayout><OrganizationAccessPage /></ManageLayout>} />
-      <Route path="/admin/organizations/:orgId/team" element={<ManageLayout><OrganizationTeamPage /></ManageLayout>} />
-      <Route path="/admin/organizations/:orgId/projects" element={<ManageLayout><OrganizationProjectsPage /></ManageLayout>} />
+      <Route path="/admin"                       element={<ManageLayout><ManageHub /></ManageLayout>} />
+      <Route path="/admin/profile"               element={<ManageLayout><ProfilePage /></ManageLayout>} />
+      <Route path="/admin/tokens"                element={<ManageLayout><TokensPage /></ManageLayout>} />
+      <Route path="/admin/members/:userId"       element={<ManageLayout><MemberProfile /></ManageLayout>} />
+      <Route path="/admin/jobs/:jobId"           element={<ManageLayout><BuildStatus /></ManageLayout>} />
 
-      <Route path="/admin/projects" element={<ManageLayout><ProjectsListPage /></ManageLayout>} />
-      <Route path="/admin/projects/:projectId" element={<ManageLayout><ProjectOverviewPage /></ManageLayout>} />
-      <Route path="/admin/projects/:projectId/general" element={<ManageLayout><ProjectGeneralPage /></ManageLayout>} />
-      <Route path="/admin/projects/:projectId/galleries" element={<ManageLayout><ProjectGalleriesPage /></ManageLayout>} />
-      <Route path="/admin/projects/:projectId/access" element={<ManageLayout><ProjectAccessPage /></ManageLayout>} />
-      <Route path="/admin/projects/:projectId/delivery" element={<ManageLayout><ProjectDeliveryPage /></ManageLayout>} />
+      <Route path="/admin/organizations"                             element={<ManageLayout><OrganizationsListPage /></ManageLayout>} />
+      <Route path="/admin/organizations/:orgId"                      element={<ManageLayout><OrganizationOverviewPage /></ManageLayout>} />
+      <Route path="/admin/organizations/:orgId/general"              element={<ManageLayout><OrganizationGeneralPage /></ManageLayout>} />
+      <Route path="/admin/organizations/:orgId/defaults"             element={<ManageLayout><OrganizationDefaultsPage /></ManageLayout>} />
+      <Route path="/admin/organizations/:orgId/access"               element={<ManageLayout><OrganizationAccessPage /></ManageLayout>} />
+      <Route path="/admin/organizations/:orgId/team"                 element={<ManageLayout><OrganizationTeamPage /></ManageLayout>} />
+      <Route path="/admin/organizations/:orgId/projects"             element={<ManageLayout><OrganizationProjectsPage /></ManageLayout>} />
 
-      <Route path="/admin/galleries" element={<ManageLayout><GalleriesListPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId" element={<ManageLayout><GalleryOverviewPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/general" element={<ManageLayout><GalleryGeneralPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/access" element={<ManageLayout><GalleryAccessPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/downloads" element={<ManageLayout><GalleryDownloadsPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/upload" element={<ManageLayout><GalleryUploadPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/publish" element={<ManageLayout><GalleryPublishPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/insights" element={<ManageLayout><GalleryInsightsPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/photos" element={<ManageLayout><GalleryPhotosPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/jobs" element={<ManageLayout><GalleryJobsPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/inbox" element={<ManageLayout><GalleryInboxPage /></ManageLayout>} />
+      <Route path="/admin/projects"                                  element={<ManageLayout><ProjectsListPage /></ManageLayout>} />
+      <Route path="/admin/projects/:projectId"                       element={<ManageLayout><ProjectOverviewPage /></ManageLayout>} />
+      <Route path="/admin/projects/:projectId/general"               element={<ManageLayout><ProjectGeneralPage /></ManageLayout>} />
+      <Route path="/admin/projects/:projectId/galleries"             element={<ManageLayout><ProjectGalleriesPage /></ManageLayout>} />
+      <Route path="/admin/projects/:projectId/access"                element={<ManageLayout><ProjectAccessPage /></ManageLayout>} />
+      <Route path="/admin/projects/:projectId/delivery"              element={<ManageLayout><ProjectDeliveryPage /></ManageLayout>} />
+
+      <Route path="/admin/galleries"                                 element={<ManageLayout><GalleriesListPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId"                      element={<ManageLayout><GalleryOverviewPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/photos"               element={<ManageLayout><GalleryPhotosPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/inbox"                element={<ManageLayout><GalleryInboxPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/jobs"                 element={<ManageLayout><GalleryJobsPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/general"              element={<ManageLayout><GalleryGeneralPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/access"               element={<ManageLayout><GalleryAccessPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/downloads"            element={<ManageLayout><GalleryDownloadsPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/upload"               element={<ManageLayout><GalleryUploadPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/publish"              element={<ManageLayout><GalleryPublishPage /></ManageLayout>} />
+      <Route path="/admin/galleries/:galleryId/insights"             element={<ManageLayout><GalleryInsightsPage /></ManageLayout>} />
 
       {/* ── Platform admin — /admin/platform/* (superadmin only) ── */}
-      <Route path="/admin/platform" element={<PlatformLayout><PlatformOverviewPage /></PlatformLayout>} />
-      <Route path="/admin/platform/smtp" element={<PlatformLayout><SmtpPage /></PlatformLayout>} />
-      <Route path="/admin/platform/license" element={<PlatformLayout><LicensePage /></PlatformLayout>} />
-      <Route path="/admin/platform/branding" element={<PlatformLayout><BrandingPage /></PlatformLayout>} />
+      <Route path="/admin/platform"              element={<PlatformLayout><PlatformOverviewPage /></PlatformLayout>} />
+      <Route path="/admin/platform/smtp"         element={<PlatformLayout><SmtpPage /></PlatformLayout>} />
+      <Route path="/admin/platform/license"      element={<PlatformLayout><LicensePage /></PlatformLayout>} />
+      <Route path="/admin/platform/branding"     element={<PlatformLayout><BrandingPage /></PlatformLayout>} />
 
       {/* Inspector (superadmin only) */}
       <Route path="/inspector" element={<RequireAuth><InspectorLayout /></RequireAuth>}>
@@ -147,7 +147,7 @@ export default function App() {
         <Route path="dashboard"                  element={<InspectorDashboard />} />
       </Route>
 
-      <Route path="*"                            element={<Navigate to="/" replace />} />
+      <Route path="*"                            element={<Navigate to="/admin" replace />} />
     </Routes>
     </I18nProvider>
   );
