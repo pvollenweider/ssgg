@@ -174,13 +174,18 @@ export function getLicenseInfo() {
 
 /**
  * Effective organization limit from the current capabilities.
- * `multi_organization` feature with no explicit limit → unlimited.
- * No feature → hard cap of 1.
+ * Resolution order:
+ *   1. Explicit organization_limit in license limits → use that value
+ *   2. multi_organization feature with no explicit limit → unlimited
+ *   3. Neither → hard cap of 1 (free tier)
  */
 export function effectiveOrgLimit() {
   const caps = getCapabilities();
+  if (caps.limits.organization_limit != null) {
+    return caps.limits.organization_limit;
+  }
   if (caps.features.includes('multi_organization')) {
-    return caps.limits.organization_limit ?? Infinity;
+    return Infinity;
   }
   return 1;
 }

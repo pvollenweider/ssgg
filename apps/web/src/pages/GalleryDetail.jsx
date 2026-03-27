@@ -27,6 +27,7 @@ export default function GalleryDetail() {
   const { user } = useAuth();
   const CAN_BUILD = ['collaborator', 'admin', 'owner'].includes(user?.studioRole) || user?.platformRole === 'superadmin';
   const canManageAccess = EDITOR_ROLES.includes(user?.studioRole) || user?.platformRole === 'superadmin';
+  const canInvite = ['admin', 'owner'].includes(user?.studioRole) || user?.platformRole === 'superadmin';
 
   const [gallery,      setGallery]      = useState(null);
   const [photos,       setPhotos]       = useState([]);
@@ -40,6 +41,7 @@ export default function GalleryDetail() {
   const [needsRebuild, setNeedsRebuild] = useState(false);
   const [advOpen,      setAdvOpen]      = useState(false);
   const [dangerOpen,   setDangerOpen]   = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [newSlug,      setNewSlug]      = useState('');
   const [renamingSlug, setRenamingSlug] = useState(false);
   const [toast,        setToast]        = useState('');
@@ -116,6 +118,7 @@ export default function GalleryDetail() {
         password: '', coverPhoto: g.coverPhoto || '',
         allowDownloadImage: g.allowDownloadImage !== false,
         allowDownloadGallery: !!g.allowDownloadGallery,
+        standalone: !!g.standalone,
       };
       setForm(formData);
       setNewSlug(g.slug);
@@ -332,7 +335,7 @@ export default function GalleryDetail() {
 
   async function handleQuickShareLink() {
     try {
-      const link = await api.createUploadLink(id, { label: 'Quick share' });
+      const link = await api.createUploadLink(id, { label: `Quick share ${new Date().toLocaleDateString()}` });
       setShareModal({ url: link.uploadUrl, label: gallery.title || gallery.slug });
       setUploadLinks(ls => [link, ...ls]);
     } catch (e) { setToast(`${t('error')}: ${e.message}`); }
@@ -409,65 +412,93 @@ export default function GalleryDetail() {
     : `/${gallery.slug}`;
 
   return (
-    <div style={s.page}>
-      <header style={s.header}>
-        <Link to={gallery.projectId ? `/projects/${gallery.projectId}` : '/studio'} style={s.back}>
-          ← {gallery.breadcrumb?.project?.name || t('studio_back')}
-        </Link>
-        <span style={s.title}>{gallery.title || gallery.slug}</span>
-        <div style={s.headerActions}>
-          {gallery.buildStatus === 'done' && (
-            <a href={`${publicPath}/`} target="_blank" rel="noreferrer" style={s.viewBtn}>
-              {t('view_gallery_btn')}
-            </a>
-          )}
-          {canManageAccess && (
-            <button style={s.outlineBtn} onClick={handleQuickShareLink}>
-              🔗 Share upload link
-            </button>
-          )}
-          {CAN_BUILD && <>
-            <button
-              style={{ ...s.outlineBtn, ...(gallery.buildStatus === 'done' && !needsRebuild ? { opacity: 0.4, cursor: 'default' } : {}) }}
-              onClick={() => handleBuild(false)}
-              disabled={gallery.buildStatus === 'done' && !needsRebuild}
-            >{t('build_btn')}</button>
-            <button style={s.outlineBtn} onClick={() => handleBuild(true)}>{t('force_rebuild_btn')}</button>
-          </>}
+    <>
+      {/* Content Header */}
+      <div className="content-header">
+        <div className="container-fluid">
+          <div className="row mb-2 align-items-center">
+            <div className="col-sm-5 d-flex align-items-center" style={{ gap: '0.5rem' }}>
+              <h1 className="m-0" style={{ fontSize: '1.05rem', fontWeight: 600 }}>
+                <Link to={gallery.projectId ? `/projects/${gallery.projectId}` : '/studio'}
+                  className="text-muted me-1" style={{ fontSize: '0.875rem' }}>
+                  {gallery.breadcrumb?.project?.name || t('studio_back')}
+                </Link>
+                <span className="text-muted me-1">/</span>
+                {gallery.title || gallery.slug}
+              </h1>
+              {canManageAccess && (
+                <button
+                  className={`btn btn-sm ${settingsOpen ? 'btn-secondary' : 'btn-outline-secondary'}`}
+                  onClick={() => setSettingsOpen(v => !v)}
+                  title={t('settings')}
+                >
+                  <i className="fas fa-cog" />
+                </button>
+              )}
+            </div>
+            <div className="col-sm-7 text-sm-end d-flex justify-content-end flex-wrap align-items-center" style={{ gap: '0.4rem' }}>
+              {gallery.buildStatus === 'done' && (
+                <a href={`${publicPath}/`} target="_blank" rel="noreferrer" className="btn btn-success btn-sm">
+                  {t('view_gallery_btn')} <i className="fas fa-external-link-alt ms-1" />
+                </a>
+              )}
+              {CAN_BUILD && <>
+                <button
+                  className="btn btn-outline-secondary btn-sm"
+                  onClick={() => handleBuild(false)}
+                  disabled={gallery.buildStatus === 'done' && !needsRebuild}
+                  style={{ opacity: gallery.buildStatus === 'done' && !needsRebuild ? 0.4 : 1 }}
+                >{t('build_btn')}</button>
+                {gallery.builtAt && (
+                  <button className="btn btn-outline-secondary btn-sm" onClick={() => handleBuild(true)}>
+                    {t('force_rebuild_btn')}
+                  </button>
+                )}
+              </>}
+            </div>
+          </div>
         </div>
-      </header>
+      </div>
 
       {/* Tabs */}
-      <div style={s.tabs}>
-        {[
-          'photos',
-          'settings',
-          'jobs',
-          ...(canManageAccess ? ['access']        : []),
-          ...(canManageAccess ? ['upload']        : []),
-          ...(canManageAccess ? ['inbox']         : []),
-          ...(canManageAccess ? ['photographers'] : []),
-        ].map(tabKey => (
-          <button key={tabKey} style={{ ...s.tab, ...(tab === tabKey ? s.tabActive : {}) }}
-            onClick={() => {
-              setTab(tabKey);
-              if (tabKey === 'access') loadAccess();
-              if (tabKey === 'upload') loadUploadLinks();
-              if (tabKey === 'inbox')  loadInbox();
-            }}>
-            {t(`tab_${tabKey}`)}
-          </button>
-        ))}
+      <div style={{ background: '#fff', borderBottom: '1px solid #dee2e6', padding: '0 1.25rem' }}>
+        <ul className="nav nav-tabs border-bottom-0">
+          {[
+            'photos',
+            'jobs',
+            ...(canManageAccess ? ['access']        : []),
+            ...(canManageAccess ? ['inbox']         : []),
+            ...(canManageAccess ? ['photographers'] : []),
+          ].map(tabKey => (
+            <li key={tabKey} className="nav-item">
+              <button
+                className={`nav-link border-0 ${tab === tabKey ? 'active' : 'text-muted'}`}
+                style={{ background: 'none', borderRadius: 0, padding: '0.6rem 1rem', fontSize: '0.875rem', cursor: 'pointer' }}
+                onClick={() => {
+                  setTab(tabKey);
+                  if (tabKey === 'access')        loadAccess();
+                  if (tabKey === 'photographers') loadUploadLinks();
+                  if (tabKey === 'inbox')         loadInbox();
+                }}
+              >
+                {t(`tab_${tabKey}`)}
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
 
       {needsRebuild && (
-        <div style={s.rebuildBanner}>
-          <span>{t('photos_changed_banner')}</span>
-          {CAN_BUILD && <button style={s.rebuildBtn} onClick={() => handleBuild(false)}>{t('build_now')}</button>}
+        <div className="alert alert-warning d-flex align-items-center mb-0 border-left-0 border-right-0 rounded-0" style={{ padding: '0.6rem 1.5rem' }}>
+          <span className="flex-grow-1">{t('photos_changed_banner')}</span>
+          {CAN_BUILD && (
+            <button className="btn btn-warning btn-sm ms-2" onClick={() => handleBuild(false)}>{t('build_now')}</button>
+          )}
         </div>
       )}
 
-      <main style={s.main}>
+      <section className="content">
+      <div className="container-fluid" style={{ maxWidth: 960, paddingTop: '1.5rem' }}>
 
         {/* ── PHOTOS ── */}
         {tab === 'photos' && (
@@ -516,15 +547,25 @@ export default function GalleryDetail() {
                       : `/api/galleries/${id}/photos/${encodeURIComponent(p.file)}/preview`}
                     style={s.thumb} alt={p.file} />
                   <div style={s.photoName}>{p.file}</div>
-                  {CAN_BUILD && <button style={s.deleteBtn} onClick={() => handleDeletePhoto(p.file)}>✕</button>}
+                  {CAN_BUILD && <button style={s.deleteBtn} onClick={() => handleDeletePhoto(p.file)}><i className="fas fa-times" /></button>}
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* ── SETTINGS ── */}
-        {tab === 'settings' && (
+        {/* ── SETTINGS PANEL ── */}
+        {settingsOpen && (
+          <div className="card card-warning card-outline mb-4">
+            <div className="card-header">
+              <h3 className="card-title"><i className="fas fa-cog me-2" />{t('settings')}</h3>
+              <div className="card-tools">
+                <button className="btn btn-tool" type="button" onClick={() => setSettingsOpen(false)}>
+                  <i className="fas fa-times" />
+                </button>
+              </div>
+            </div>
+            <div className="card-body">
           <form onSubmit={saveSettings} style={s.settingsForm}>
             <Row label={t('field_title')}>
               <input style={s.input} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
@@ -545,7 +586,7 @@ export default function GalleryDetail() {
 
             {/* Advanced settings */}
             <button type="button" style={s.advToggle} onClick={() => setAdvOpen(o => !o)}>
-              <span style={s.advArrow}>{advOpen ? '▾' : '▸'}</span>
+              <i className={`fas fa-chevron-${advOpen ? 'down' : 'right'} me-1`} style={{ fontSize: '0.7rem' }} />
               {t('advanced_settings')}
             </button>
             {advOpen && (
@@ -594,7 +635,7 @@ export default function GalleryDetail() {
                                 ? `${publicPath}/img/grid/${p.thumb}.webp`
                                 : `/api/galleries/${id}/photos/${encodeURIComponent(p.file)}/preview`}
                               style={s.coverThumbImg} alt={p.file} />
-                            {form.coverPhoto === p.file && <div style={s.coverCheck}>✓</div>}
+                            {form.coverPhoto === p.file && <div style={s.coverCheck}><i className="fas fa-check" /></div>}
                           </div>
                         ))}
                       </div>}
@@ -604,6 +645,12 @@ export default function GalleryDetail() {
                 </Row>
                 <Row label={t('field_allow_dl_gallery')}>
                   <input type="checkbox" checked={form.allowDownloadGallery} onChange={e => setForm(f => ({ ...f, allowDownloadGallery: e.target.checked }))} />
+                </Row>
+                <Row label={t('field_standalone_build')}>
+                  <div>
+                    <input type="checkbox" checked={form.standalone} onChange={e => setForm(f => ({ ...f, standalone: e.target.checked }))} />
+                    <span style={{ fontSize: '0.78rem', color: '#999', marginLeft: '0.5rem' }}>{t('field_standalone_hint')}</span>
+                  </div>
                 </Row>
                 {/* private field removed — access dropdown is canonical */}
               </div>
@@ -615,7 +662,7 @@ export default function GalleryDetail() {
 
             {/* Danger Zone */}
             <button type="button" style={{ ...s.advToggle, marginTop:'1.5rem', color:'#dc2626' }} onClick={() => setDangerOpen(o => !o)}>
-              <span style={s.advArrow}>{dangerOpen ? '▾' : '▸'}</span>
+              <i className={`fas fa-chevron-${dangerOpen ? 'down' : 'right'} me-1`} style={{ fontSize: '0.7rem' }} />
               {t('danger_zone')}
             </button>
             {dangerOpen && (
@@ -651,6 +698,8 @@ export default function GalleryDetail() {
               </div>
             )}
           </form>
+            </div>
+          </div>
         )}
 
         {/* ── JOBS ── */}
@@ -756,132 +805,6 @@ export default function GalleryDetail() {
               </button>
             </form>
 
-            {/* C. Invite a photographer to this gallery */}
-            <h3 style={{ ...s.sectionTitle, marginTop: '1.5rem' }}>{t('access_invite_photographer_title')}</h3>
-            <p style={s.sectionHint}>
-              {t('access_invite_photographer_hint')}{' '}
-              {t('access_invite_team_hint')} <a href="/admin/team" style={{ color: '#555' }}>{t('nav_team')}</a>.
-            </p>
-            <form onSubmit={handleSendInvite} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <input
-                style={{ ...s.input, flex: '1 1 200px' }}
-                type="email"
-                placeholder={t('access_invite_email_placeholder')}
-                value={inviteEmail}
-                onChange={e => setInviteEmail(e.target.value)}
-                required
-              />
-              <button style={s.primaryBtn} type="submit" disabled={sendingInvite}>
-                {t('access_send_invite')}
-              </button>
-            </form>
-            {inviteLink && (
-              <div style={s.inviteLinkBox}>
-                <p style={{ margin: '0 0 0.4rem', fontSize: '0.8rem', color: '#555' }}>{t('access_invite_link_hint')}</p>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <code style={s.inviteLinkCode}>{inviteLink}</code>
-                  <button style={s.accessBtn} onClick={() => { navigator.clipboard.writeText(inviteLink); setToast(t('access_copied')); }}>
-                    {t('access_copy_link')}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── UPLOAD LINKS ── */}
-        {tab === 'upload' && canManageAccess && (
-          <div style={{ maxWidth: 620 }}>
-            <h3 style={s.sectionTitle}>Photographer upload links</h3>
-            <p style={s.sectionHint}>
-              Send an upload link to a photographer. They can upload photos without an account.
-              Uploaded photos land in the <strong>Inbox</strong> tab pending your review.
-            </p>
-
-            <form onSubmit={handleCreateUploadLink} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <input
-                  style={{ ...s.input, flex: '1 1 160px' }}
-                  placeholder="Label (e.g. 'Reception photos')"
-                  value={newLinkLabel}
-                  onChange={e => setNewLinkLabel(e.target.value)}
-                />
-                <input
-                  style={{ ...s.input, flex: '1 1 140px' }}
-                  type="date"
-                  title="Expiry date (optional)"
-                  value={newLinkExpiry}
-                  onChange={e => setNewLinkExpiry(e.target.value)}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                <input
-                  style={{ ...s.input, flex: '1 1 160px' }}
-                  placeholder="Photographer name (optional)"
-                  value={newLinkPhotographer}
-                  onChange={e => setNewLinkPhotographer(e.target.value)}
-                />
-                <input
-                  style={{ ...s.input, flex: '1 1 160px' }}
-                  type="email"
-                  placeholder="Photographer email (optional)"
-                  value={newLinkPgEmail}
-                  onChange={e => setNewLinkPgEmail(e.target.value)}
-                />
-                <button style={s.primaryBtn} type="submit" disabled={creatingLink}>
-                  {creatingLink ? '…' : 'Create link'}
-                </button>
-              </div>
-              {newLinkPhotographer.trim() && (
-                <p style={{ fontSize: '0.75rem', color: '#888', margin: 0 }}>
-                  A photographer record will be created and linked — photos uploaded via this link will be auto-attributed to <strong>{newLinkPhotographer}</strong>.
-                </p>
-              )}
-            </form>
-
-            {newLinkUrl && (
-              <div style={s.inviteLinkBox}>
-                <p style={{ margin: '0 0 0.4rem', fontSize: '0.8rem', color: '#555' }}>Share this link with the photographer:</p>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <code style={s.inviteLinkCode}>{newLinkUrl}</code>
-                  <button style={s.accessBtn} onClick={() => { navigator.clipboard.writeText(newLinkUrl); setToast(t('access_copied')); }}>
-                    Copy
-                  </button>
-                  <button style={s.accessBtn} onClick={() => setShareModal({ url: newLinkUrl, label: gallery.title || gallery.slug })}>
-                    QR
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {uploadLinks.length === 0
-              ? <p style={s.dim}>No upload links yet.</p>
-              : <div style={s.accessList}>
-                  {uploadLinks.map(l => (
-                    <div key={l.id} style={s.accessRow}>
-                      <span style={s.accessEmail}>{l.label || '(no label)'}</span>
-                      {l.expires_at && (
-                        <span style={s.accessMeta}>expires {new Date(l.expires_at).toLocaleDateString()}</span>
-                      )}
-                      <span style={{ fontSize: '0.75rem', color: l.active ? '#4ade80' : '#666' }}>
-                        {l.active ? 'active' : 'revoked'}
-                      </span>
-                      {l.active && (
-                        <>
-                          {l.uploadUrl && (
-                            <button style={s.accessBtn} onClick={() => setQrModal({ url: l.uploadUrl, label: l.label || gallery.title || gallery.slug })}>
-                              QR
-                            </button>
-                          )}
-                          <button style={s.accessDangerBtn} onClick={() => handleRevokeUploadLink(l.id)}>
-                            Revoke
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-            }
           </div>
         )}
 
@@ -932,14 +855,142 @@ export default function GalleryDetail() {
 
         {/* ── PHOTOGRAPHERS ── */}
         {tab === 'photographers' && canManageAccess && (
-          <div style={{ maxWidth: 600 }}>
-            <h3 style={s.sectionTitle}>Photographers</h3>
+          <div style={{ maxWidth: 620 }}>
+
+            {/* Quick share */}
+            <h3 style={s.sectionTitle}>{t('access_invite_photographer_title')}</h3>
+            <p style={s.sectionHint}>
+              {t('access_invite_photographer_hint')}{' '}
+              {t('access_invite_team_hint')} <a href="/admin/team" style={{ color: '#555' }}>{t('nav_team')}</a>.
+            </p>
+            {canInvite && (
+              <form onSubmit={handleSendInvite} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <input
+                  style={{ ...s.input, flex: '1 1 200px' }}
+                  type="email"
+                  placeholder={t('access_invite_email_placeholder')}
+                  value={inviteEmail}
+                  onChange={e => setInviteEmail(e.target.value)}
+                  required
+                />
+                <button style={s.primaryBtn} type="submit" disabled={sendingInvite}>
+                  {t('access_send_invite')}
+                </button>
+              </form>
+            )}
+            {inviteLink && (
+              <div style={{ ...s.inviteLinkBox, marginBottom: '1rem' }}>
+                <p style={{ margin: '0 0 0.4rem', fontSize: '0.8rem', color: '#555' }}>{t('access_invite_link_hint')}</p>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <code style={s.inviteLinkCode}>{inviteLink}</code>
+                  <button style={s.accessBtn} onClick={() => { navigator.clipboard.writeText(inviteLink); setToast(t('access_copied')); }}>
+                    {t('access_copy_link')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Upload links */}
+            <h3 style={{ ...s.sectionTitle, marginTop: '1.5rem' }}>Upload links</h3>
+            <p style={s.sectionHint}>
+              Send an upload link to a photographer. They can upload photos without an account.
+              Uploaded photos land in the <strong>Inbox</strong> tab pending your review.
+            </p>
+            <div style={{ marginBottom: '1rem' }}>
+              <button style={s.primaryBtn} onClick={handleQuickShareLink}>
+                <i className="fas fa-link" style={{ marginRight: '0.4rem' }} />Quick share
+              </button>
+            </div>
+            <form onSubmit={handleCreateUploadLink} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <input
+                  style={{ ...s.input, flex: '1 1 160px' }}
+                  placeholder="Label (e.g. 'Reception photos')"
+                  value={newLinkLabel}
+                  onChange={e => setNewLinkLabel(e.target.value)}
+                />
+                <input
+                  style={{ ...s.input, flex: '1 1 140px' }}
+                  type="date"
+                  title="Expiry date (optional)"
+                  value={newLinkExpiry}
+                  onChange={e => setNewLinkExpiry(e.target.value)}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <input
+                  style={{ ...s.input, flex: '1 1 160px' }}
+                  placeholder="Photographer name (optional)"
+                  value={newLinkPhotographer}
+                  onChange={e => setNewLinkPhotographer(e.target.value)}
+                />
+                <input
+                  style={{ ...s.input, flex: '1 1 160px' }}
+                  type="email"
+                  placeholder="Photographer email (optional)"
+                  value={newLinkPgEmail}
+                  onChange={e => setNewLinkPgEmail(e.target.value)}
+                />
+                <button style={s.primaryBtn} type="submit" disabled={creatingLink}>
+                  {creatingLink ? '…' : 'Create link'}
+                </button>
+              </div>
+              {newLinkPhotographer.trim() && (
+                <p style={{ fontSize: '0.75rem', color: '#888', margin: 0 }}>
+                  A photographer record will be created and linked — photos uploaded via this link will be auto-attributed to <strong>{newLinkPhotographer}</strong>.
+                </p>
+              )}
+            </form>
+            {newLinkUrl && (
+              <div style={{ ...s.inviteLinkBox, marginBottom: '0.75rem' }}>
+                <p style={{ margin: '0 0 0.4rem', fontSize: '0.8rem', color: '#555' }}>Share this link with the photographer:</p>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <code style={s.inviteLinkCode}>{newLinkUrl}</code>
+                  <button style={s.accessBtn} onClick={() => { navigator.clipboard.writeText(newLinkUrl); setToast(t('access_copied')); }}>
+                    Copy
+                  </button>
+                  <button style={s.accessBtn} onClick={() => setShareModal({ url: newLinkUrl, label: gallery.title || gallery.slug })}>
+                    QR
+                  </button>
+                </div>
+              </div>
+            )}
+            {uploadLinks.length === 0
+              ? <p style={s.dim}>No upload links yet.</p>
+              : <div style={{ ...s.accessList, marginBottom: '1.5rem' }}>
+                  {uploadLinks.map(l => (
+                    <div key={l.id} style={s.accessRow}>
+                      <span style={s.accessEmail}>{l.label || '(no label)'}</span>
+                      {l.expires_at && (
+                        <span style={s.accessMeta}>expires {new Date(l.expires_at).toLocaleDateString()}</span>
+                      )}
+                      <span style={{ fontSize: '0.75rem', color: l.active ? '#4ade80' : '#666' }}>
+                        {l.active ? 'active' : 'revoked'}
+                      </span>
+                      {l.active && (
+                        <>
+                          {l.uploadUrl && (
+                            <button style={s.accessBtn} onClick={() => setQrModal({ url: l.uploadUrl, label: l.label || gallery.title || gallery.slug })}>
+                              QR
+                            </button>
+                          )}
+                          <button style={s.accessDangerBtn} onClick={() => handleRevokeUploadLink(l.id)}>
+                            Revoke
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+            }
+
+            {/* Named photographers */}
+            <h3 style={{ ...s.sectionTitle, marginTop: '1.5rem' }}>Photographers</h3>
             <p style={s.sectionHint}>
               Named photographers associated with this gallery. Attribution is set automatically
               when photos are uploaded via a linked upload link, or manually from the photo list.
               Their names appear as credits in the built gallery.
             </p>
-
             <form onSubmit={handleAddPhotographer} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
               <input
                 style={{ ...s.input, flex: '1 1 160px' }}
@@ -959,7 +1010,6 @@ export default function GalleryDetail() {
                 {addingPhotographer ? '…' : 'Add photographer'}
               </button>
             </form>
-
             {photographers.length === 0
               ? <p style={s.dim}>No photographers yet. Create an upload link with a photographer name, or add one above.</p>
               : <div style={s.accessList}>
@@ -985,7 +1035,8 @@ export default function GalleryDetail() {
           </div>
         )}
 
-      </main>
+      </div>
+      </section>
       <Toast message={toast} onDone={() => setToast('')} />
 
       {/* Share upload link modal (with QR code) */}
@@ -1035,7 +1086,7 @@ export default function GalleryDetail() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 

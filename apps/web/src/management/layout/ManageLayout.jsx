@@ -8,19 +8,16 @@
 import { useEffect, useState } from 'react';
 import { useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth.jsx';
+import { useT } from '../../lib/I18nContext.jsx';
 import ScopeSidebar from './ScopeSidebar.jsx';
 import Topbar from './Topbar.jsx';
 import { detectScope, extractScopeParams } from '../navigation/nav.helpers.js';
+import { BreadcrumbProvider } from '../context/BreadcrumbContext.jsx';
 
-/**
- * Main shell for all /manage/* routes.
- * Detects the active scope from the URL and passes it to ScopeSidebar.
- *
- * @param {{ children: React.ReactNode, entityNames?: Record<string,string> }} props
- */
-export default function ManageLayout({ children, entityNames }) {
+function ManageLayoutInner({ children }) {
   const { user, loading } = useAuth();
   const { pathname } = useLocation();
+  const t = useT();
   const [collapsed, setCollapsed] = useState(false);
 
   const scope = detectScope(pathname);
@@ -44,7 +41,7 @@ export default function ManageLayout({ children, entityNames }) {
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#888' }}>
-      Loading…
+      {t('loading')}
     </div>
   );
 
@@ -52,7 +49,7 @@ export default function ManageLayout({ children, entityNames }) {
 
   return (
     <div className="app-wrapper">
-      <Topbar onToggleSidebar={() => setCollapsed(c => !c)} entityNames={entityNames} />
+      <Topbar onToggleSidebar={() => setCollapsed(c => !c)} />
 
       <ScopeSidebar scope={scope} params={params} />
 
@@ -63,8 +60,16 @@ export default function ManageLayout({ children, entityNames }) {
       </main>
 
       <footer className="app-footer">
-        <strong>GalleryPack</strong> &copy; {new Date().getFullYear()}
+        <strong>{t('manage_title')}</strong> &copy; {new Date().getFullYear()}
       </footer>
     </div>
+  );
+}
+
+export default function ManageLayout({ children }) {
+  return (
+    <BreadcrumbProvider>
+      <ManageLayoutInner>{children}</ManageLayoutInner>
+    </BreadcrumbProvider>
   );
 }

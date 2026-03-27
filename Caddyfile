@@ -64,7 +64,10 @@
         }
     }
 
-    encode gzip
+    # Exclude SSE streams from gzip — encode buffers responses before compressing,
+    # which breaks Server-Sent Events (infinite response, never "complete").
+    @not_sse not path /api/*/stream
+    encode @not_sse gzip
 
     header {
         X-Content-Type-Options "nosniff"

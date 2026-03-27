@@ -9,12 +9,14 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { useT } from '../lib/I18nContext.jsx';
 
-const SEV_COLOR = { error: '#f87171', warning: '#fbbf24', info: '#60a5fa' };
-const SEV_ICON  = { error: '❌', warning: '⚠️', info: 'ℹ️' };
+const SEV_COLOR  = { error: '#f87171', warning: '#fbbf24', info: '#60a5fa' };
+const SEV_BADGE  = { error: 'danger', warning: 'warning', info: 'info' };
 const BUILD_COLOR = { done: '#4ade80', error: '#f87171', running: '#60a5fa', queued: '#fbbf24' };
 
 export default function InspectorGallery() {
+  const t = useT();
   const { id }       = useParams();
   const [data,       setData]       = useState(null);
   const [loading,    setLoading]    = useState(true);
@@ -32,7 +34,7 @@ export default function InspectorGallery() {
   useEffect(() => { load(); }, [id]);
 
   async function handleRebuild() {
-    if (!confirm('Rebuild this gallery? This will overwrite the current static output.')) return;
+    if (!confirm(t('inspector_rebuild_confirm'))) return;
     setRebuilding(true);
     try {
       const r = await api.inspectorRebuild(id);
@@ -44,9 +46,7 @@ export default function InspectorGallery() {
 
   async function handleToggleActive() {
     const newActive = !data.active;
-    const msg = newActive
-      ? 'Re-enable this gallery?'
-      : 'Disable this gallery? It will stop being accessible to viewers and photographers.';
+    const msg = newActive ? t('inspector_reenable_confirm') : t('inspector_disable_confirm');
     if (!confirm(msg)) return;
     try {
       await api.inspectorSetActive(id, newActive);
@@ -55,7 +55,7 @@ export default function InspectorGallery() {
   }
 
   async function handleRevokeUploadLink(linkId) {
-    if (!confirm('Revoke this upload link?')) return;
+    if (!confirm(t('inspector_revoke_upload_confirm'))) return;
     try {
       await api.inspectorRevokeUploadLink(id, linkId);
       setData(d => ({ ...d, upload_links: d.upload_links.map(l => l.id === linkId ? { ...l, active: false } : l) }));
@@ -63,143 +63,202 @@ export default function InspectorGallery() {
   }
 
   async function handleRevokeToken(tokenId) {
-    if (!confirm('Revoke this viewer token?')) return;
+    if (!confirm(t('inspector_revoke_token_confirm'))) return;
     try {
       await api.inspectorRevokeToken(id, tokenId);
-      setData(d => ({ ...d, viewer_tokens: d.viewer_tokens.map(t => t.id === tokenId ? { ...t, active: false } : t) }));
+      setData(d => ({ ...d, viewer_tokens: d.viewer_tokens.map(tk => tk.id === tokenId ? { ...tk, active: false } : tk) }));
     } catch (e) { setToast(`Error: ${e.message}`); }
   }
 
-  if (loading) return <p style={s.dim}>Loading…</p>;
-  if (error)   return <p style={{ color: '#f87171' }}>{error}</p>;
-  if (!data)   return null;
+  const title = data ? (data.title || data.slug) : '…';
 
   return (
-    <div style={s.page}>
-      {toast && <div style={s.toast} onClick={() => setToast('')}>{toast}</div>}
-
-      {/* Header */}
-      <div style={s.header}>
-        <div>
-          <p style={s.breadcrumb}>
-            <Link to={`/inspector/studios/${data.studio?.id}`} style={s.link}>{data.studio?.name}</Link>
-            {data.project && <> / <Link to={`/inspector/projects/${data.project.id}`} style={s.link}>{data.project.name}</Link></>}
-          </p>
-          <h2 style={s.title}>{data.title || data.slug}</h2>
-          <div style={s.meta}>
-            <span style={{ ...s.badge, background: data.active ? '#14532d' : '#450a0a', color: data.active ? '#4ade80' : '#f87171' }}>
-              {data.active ? 'Active' : 'Disabled'}
-            </span>
-            <span style={{ ...s.badge, background: '#1e1e1e', color: '#aaa' }}>{data.status}</span>
-            <span style={{ ...s.badge, background: '#1e1e1e', color: BUILD_COLOR[data.build_status] || '#888' }}>{data.build_status || 'never built'}</span>
-          </div>
-        </div>
-        <div style={s.headerActions}>
-          <button style={s.btn} onClick={handleRebuild} disabled={rebuilding}>
-            {rebuilding ? 'Queuing…' : '↺ Rebuild'}
-          </button>
-          <button style={{ ...s.btn, background: data.active ? '#450a0a' : '#14532d' }} onClick={handleToggleActive}>
-            {data.active ? 'Disable' : 'Enable'}
-          </button>
-          <Link to={`/galleries/${id}`} style={s.btn}>Open in admin →</Link>
-        </div>
-      </div>
-
-      {/* Health warnings */}
-      {data.health?.warnings?.length > 0 && (
-        <section style={s.section}>
-          <h3 style={s.sectionTitle}>Health</h3>
-          {data.health.warnings.map((w, i) => (
-            <div key={i} style={{ ...s.warningRow, borderColor: SEV_COLOR[w.severity] || '#333' }}>
-              <span>{SEV_ICON[w.severity]} {w.message}</span>
-              {w.code === 'inbox_not_empty' && <Link to={`/galleries/${id}?tab=inbox`} style={s.link}>Go to inbox →</Link>}
-              {w.code === 'build_failed' && w.job_id && <Link to={`/jobs/${w.job_id}`} style={s.link}>See build →</Link>}
-            </div>
-          ))}
-        </section>
+    <>
+      {/* Toast */}
+      {toast && (
+        <div style={s.toast} onClick={() => setToast('')}>{toast}</div>
       )}
 
-      {/* Photos */}
-      <section style={s.section}>
-        <h3 style={s.sectionTitle}>Photos — {data.photos?.total}</h3>
-        <div style={s.statRow}>
-          <Stat label="Uploaded (pending)" value={data.photos?.by_status?.uploaded} color="#fbbf24" />
-          <Stat label="Validated"           value={data.photos?.by_status?.validated} color="#60a5fa" />
-          <Stat label="Published"           value={data.photos?.by_status?.published} color="#4ade80" />
-        </div>
-      </section>
-
-      {/* Last build */}
-      <section style={s.section}>
-        <h3 style={s.sectionTitle}>Last build</h3>
-        {!data.last_build
-          ? <p style={s.dim}>Never built.</p>
-          : <div style={s.card}>
-              <Row label="Status"><span style={{ color: BUILD_COLOR[data.last_build.status] || '#888', fontWeight: 600 }}>{data.last_build.status}</span></Row>
-              <Row label="Started">{data.last_build.started_at ? new Date(data.last_build.started_at).toLocaleString() : '—'}</Row>
-              {data.last_build.error_message && <Row label="Error"><code style={{ color: '#f87171', fontSize: '0.8rem' }}>{data.last_build.error_message}</code></Row>}
-              <Row label=""><Link to={`/jobs/${data.last_build.id}`} style={s.link}>View logs →</Link></Row>
-            </div>
-        }
-      </section>
-
-      {/* Upload links */}
-      <section style={s.section}>
-        <h3 style={s.sectionTitle}>Upload links — {data.upload_links?.length}</h3>
-        {data.upload_links?.length === 0 && <p style={s.dim}>No upload links.</p>}
-        {data.upload_links?.map(l => (
-          <div key={l.id} style={s.card}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <span style={{ flex: 1, fontSize: '0.85rem' }}>{l.label || '(no label)'}</span>
-              <span style={{ fontSize: '0.75rem', color: l.active ? '#4ade80' : '#555' }}>{l.active ? 'active' : 'revoked'}</span>
-              {l.expires_at && <span style={s.dim}>exp. {new Date(l.expires_at).toLocaleDateString()}</span>}
-              {l.active && (
-                <button style={s.dangerBtn} onClick={() => handleRevokeUploadLink(l.id)}>Revoke</button>
+      {/* Content Header */}
+      <div className="content-header" style={s.header}>
+        <div className="container-fluid">
+          <div className="row mb-2 align-items-center">
+            <div className="col-sm-6">
+              <h1 className="m-0" style={s.pageTitle}>{title}</h1>
+              {data && (
+                <div className="mt-1" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <span className={`badge bg-${data.active ? 'success' : 'danger'}`}>{data.active ? t('inspector_gallery_active') : t('inspector_gallery_disabled')}</span>
+                  <span className="badge bg-secondary">{data.status}</span>
+                  <span className="badge" style={{ background: '#1e1e2e', color: BUILD_COLOR[data.build_status] || '#888' }}>
+                    {data.build_status || t('gal_list_never_built')}
+                  </span>
+                </div>
               )}
             </div>
           </div>
-        ))}
-      </section>
-
-      {/* Viewer tokens */}
-      {data.viewer_tokens?.length > 0 && (
-        <section style={s.section}>
-          <h3 style={s.sectionTitle}>Viewer tokens — {data.viewer_tokens.length}</h3>
-          {data.viewer_tokens.map(t => (
-            <div key={t.id} style={s.card}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <span style={{ flex: 1, fontSize: '0.85rem' }}>{t.label || '(no label)'}</span>
-                <span style={{ fontSize: '0.75rem', color: t.active ? '#4ade80' : '#555' }}>{t.active ? 'active' : 'revoked'}</span>
-                {t.expires_at && <span style={s.dim}>exp. {new Date(t.expires_at).toLocaleDateString()}</span>}
-                {t.active && (
-                  <button style={s.dangerBtn} onClick={() => handleRevokeToken(t.id)}>Revoke</button>
-                )}
+          {/* Action buttons */}
+          {data && (
+            <div className="row">
+              <div className="col-12">
+                <div className="btn-group btn-group-sm">
+                  <button className="btn btn-secondary" style={s.actionBtn} onClick={handleRebuild} disabled={rebuilding}>
+                    <i className="fas fa-sync me-1" />{rebuilding ? t('inspector_queuing') : t('inspector_rebuild_btn')}
+                  </button>
+                  <button
+                    className={`btn btn-${data.active ? 'outline-danger' : 'outline-success'}`}
+                    style={s.actionBtn}
+                    onClick={handleToggleActive}
+                  >
+                    {data.active ? t('inspector_disable_btn') : t('inspector_enable_btn')}
+                  </button>
+                  <Link to={`/galleries/${id}`} className="btn btn-secondary" style={s.actionBtn}>
+                    <i className="fas fa-external-link-alt me-1" />{t('inspector_open_admin')}
+                  </Link>
+                </div>
               </div>
             </div>
-          ))}
-        </section>
-      )}
+          )}
+        </div>
+      </div>
 
-      {/* Members */}
-      <section style={s.section}>
-        <h3 style={s.sectionTitle}>Members</h3>
-        {data.members?.length === 0 && <p style={s.dim}>No gallery-level members.</p>}
-        {data.members?.map(m => (
-          <div key={m.user_id} style={{ ...s.card, display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-            <Link to={`/inspector/users/${m.user_id}`} style={s.link}>{m.email}</Link>
-            <span style={s.dim}>{m.name}</span>
-            <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: '#666' }}>{m.role}</span>
-          </div>
-        ))}
+      <section className="content">
+        <div className="container-fluid pt-3">
+          {loading && <p style={{ color: '#555' }}>{t('loading')}</p>}
+          {error   && <div className="alert alert-danger">{error}</div>}
+          {!loading && !error && data && (
+            <>
+              {/* Health warnings */}
+              {data.health?.warnings?.length > 0 && (
+                <div className="card" style={s.card}>
+                  <div className="card-header" style={s.cardHeader}>
+                    <h3 className="card-title" style={s.cardTitle}>{t('inspector_health_warnings')}</h3>
+                  </div>
+                  <div className="card-body p-2">
+                    {data.health.warnings.map((w, i) => (
+                      <div key={i} className="callout" style={{ borderLeftColor: SEV_COLOR[w.severity] || '#333', background: '#111', margin: '0 0 0.4rem', padding: '0.4rem 0.75rem' }}>
+                        <span className={`badge bg-${SEV_BADGE[w.severity] || 'secondary'} me-2`} style={{ fontSize: '0.65rem' }}>{w.severity}</span>
+                        <span style={{ color: '#ccc', fontSize: '0.85rem' }}>{w.message}</span>
+                        {w.code === 'inbox_not_empty' && <Link to={`/galleries/${id}?tab=inbox`} style={{ marginLeft: '0.75rem', color: '#7dd3fc', fontSize: '0.8rem' }}>{t('inspector_go_inbox')}</Link>}
+                        {w.code === 'build_failed' && w.job_id && <Link to={`/jobs/${w.job_id}`} style={{ marginLeft: '0.75rem', color: '#7dd3fc', fontSize: '0.8rem' }}>{t('inspector_see_build')}</Link>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="row">
+                {/* Photos stats */}
+                <div className="col-md-4">
+                  <div className="card" style={s.card}>
+                    <div className="card-header" style={s.cardHeader}>
+                      <h3 className="card-title" style={s.cardTitle}>{t('tab_photos')} — {data.photos?.total}</h3>
+                    </div>
+                    <div className="card-body">
+                      <StatRow label={t('inspector_photos_pending')}   value={data.photos?.by_status?.uploaded}  color="#fbbf24" />
+                      <StatRow label={t('inspector_photos_validated')} value={data.photos?.by_status?.validated} color="#60a5fa" />
+                      <StatRow label={t('inspector_photos_published')} value={data.photos?.by_status?.published} color="#4ade80" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Last build */}
+                <div className="col-md-8">
+                  <div className="card" style={s.card}>
+                    <div className="card-header" style={s.cardHeader}>
+                      <h3 className="card-title" style={s.cardTitle}>{t('inspector_last_build')}</h3>
+                    </div>
+                    <div className="card-body">
+                      {!data.last_build ? (
+                        <p style={{ color: '#555', fontSize: '0.82rem', margin: 0 }}>{t('inspector_never_built')}</p>
+                      ) : (
+                        <>
+                          <KVRow label={t('inspector_th_status')}>
+                            <span style={{ color: BUILD_COLOR[data.last_build.status] || '#888', fontWeight: 600 }}>{data.last_build.status}</span>
+                          </KVRow>
+                          <KVRow label={t('inspector_build_started')}>{data.last_build.started_at ? new Date(data.last_build.started_at).toLocaleString() : '—'}</KVRow>
+                          {data.last_build.error_message && (
+                            <KVRow label={t('inspector_build_error')}><code style={{ color: '#f87171', fontSize: '0.8rem', background: 'none' }}>{data.last_build.error_message}</code></KVRow>
+                          )}
+                          <KVRow label=""><Link to={`/jobs/${data.last_build.id}`} style={s.link}>{t('inspector_view_logs')}</Link></KVRow>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="row">
+                {/* Upload links */}
+                <div className="col-md-6">
+                  <div className="card" style={s.card}>
+                    <div className="card-header" style={s.cardHeader}>
+                      <h3 className="card-title" style={s.cardTitle}>{t('gal_upload_links_section')} — {data.upload_links?.length}</h3>
+                    </div>
+                    <div className="card-body p-0">
+                      {data.upload_links?.length === 0 && <p style={{ color: '#555', fontSize: '0.82rem', margin: '0.75rem' }}>{t('inspector_no_upload_links')}</p>}
+                      {data.upload_links?.map(l => (
+                        <div key={l.id} style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #1e1e2e', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span style={{ flex: 1, fontSize: '0.85rem', color: '#ccc' }}>{l.label || t('inspector_no_label')}</span>
+                          <span style={{ fontSize: '0.75rem', color: l.active ? '#4ade80' : '#555' }}>{l.active ? t('inspector_active_badge') : t('inspector_revoked_badge')}</span>
+                          {l.expires_at && <span style={{ fontSize: '0.72rem', color: '#555' }}>exp. {new Date(l.expires_at).toLocaleDateString()}</span>}
+                          {l.active && <button style={s.dangerBtn} onClick={() => handleRevokeUploadLink(l.id)}>{t('inspector_revoke_btn')}</button>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Viewer tokens */}
+                <div className="col-md-6">
+                  {data.viewer_tokens?.length > 0 && (
+                    <div className="card" style={s.card}>
+                      <div className="card-header" style={s.cardHeader}>
+                        <h3 className="card-title" style={s.cardTitle}>{t('inspector_viewer_tokens')} — {data.viewer_tokens.length}</h3>
+                      </div>
+                      <div className="card-body p-0">
+                        {data.viewer_tokens.map(tk => (
+                          <div key={tk.id} style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #1e1e2e', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <span style={{ flex: 1, fontSize: '0.85rem', color: '#ccc' }}>{tk.label || t('inspector_no_label')}</span>
+                            <span style={{ fontSize: '0.75rem', color: tk.active ? '#4ade80' : '#555' }}>{tk.active ? t('inspector_active_badge') : t('inspector_revoked_badge')}</span>
+                            {tk.expires_at && <span style={{ fontSize: '0.72rem', color: '#555' }}>exp. {new Date(tk.expires_at).toLocaleDateString()}</span>}
+                            {tk.active && <button style={s.dangerBtn} onClick={() => handleRevokeToken(tk.id)}>{t('inspector_revoke_btn')}</button>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Members */}
+              <div className="card" style={s.card}>
+                <div className="card-header" style={s.cardHeader}>
+                  <h3 className="card-title" style={s.cardTitle}>{t('inspector_th_members')}</h3>
+                </div>
+                <div className="card-body p-0">
+                  {data.members?.length === 0 && <p style={{ color: '#555', fontSize: '0.82rem', margin: '0.75rem' }}>{t('inspector_no_members')}</p>}
+                  {data.members?.map(m => (
+                    <div key={m.user_id} style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #1e1e2e', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                      <Link to={`/inspector/users/${m.user_id}`} style={s.link}>{m.email}</Link>
+                      <span style={{ fontSize: '0.75rem', color: '#555' }}>{m.name}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: '#666' }}>{m.role}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Audit log */}
+              <AuditLog targetType="gallery" targetId={id} />
+            </>
+          )}
+        </div>
       </section>
-
-      {/* Audit log */}
-      <AuditLog targetType="gallery" targetId={id} />
-    </div>
+    </>
   );
 }
 
 function AuditLog({ targetType, targetId }) {
+  const t = useT();
   const [entries, setEntries] = useState(null);
   useEffect(() => {
     api.inspectorAuditLog({ target_type: targetType, target_id: targetId, limit: 10 })
@@ -209,29 +268,33 @@ function AuditLog({ targetType, targetId }) {
 
   if (!entries || entries.length === 0) return null;
   return (
-    <section style={s.section}>
-      <h3 style={s.sectionTitle}>Audit log</h3>
-      {entries.map(e => (
-        <div key={e.id} style={{ ...s.card, fontSize: '0.8rem', color: '#888' }}>
-          <span style={{ color: '#ccc', fontWeight: 500 }}>{e.action}</span>
-          {' — '}{e.actor_email || e.actor_id}
-          {' — '}{new Date(e.created_at).toLocaleString()}
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function Stat({ label, value, color = '#eee' }) {
-  return (
-    <div style={s.stat}>
-      <span style={{ ...s.statValue, color }}>{value ?? 0}</span>
-      <span style={s.statLabel}>{label}</span>
+    <div className="card" style={s.card}>
+      <div className="card-header" style={s.cardHeader}>
+        <h3 className="card-title" style={s.cardTitle}>{t('inspector_audit_log')}</h3>
+      </div>
+      <div className="card-body p-0">
+        {entries.map(e => (
+          <div key={e.id} style={{ padding: '0.4rem 0.75rem', borderBottom: '1px solid #1e1e2e', fontSize: '0.8rem', color: '#666' }}>
+            <span style={{ color: '#ccc', fontWeight: 500 }}>{e.action}</span>
+            {' — '}{e.actor_email || e.actor_id}
+            {' — '}{new Date(e.created_at).toLocaleString()}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
 
-function Row({ label, children }) {
+function StatRow({ label, value, color }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', fontSize: '0.82rem' }}>
+      <span style={{ color: '#666' }}>{label}</span>
+      <span style={{ fontWeight: 600, color: color || '#eee' }}>{value ?? 0}</span>
+    </div>
+  );
+}
+
+function KVRow({ label, children }) {
   return (
     <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '0.3rem', fontSize: '0.82rem' }}>
       <span style={{ width: 90, color: '#555', flexShrink: 0 }}>{label}</span>
@@ -241,24 +304,13 @@ function Row({ label, children }) {
 }
 
 const s = {
-  page:         { maxWidth: 780 },
-  header:       { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' },
-  breadcrumb:   { margin: '0 0 0.25rem', fontSize: '0.8rem', color: '#555' },
-  title:        { margin: '0 0 0.5rem', fontSize: '1.3rem', fontWeight: 600, color: '#eee' },
-  meta:         { display: 'flex', gap: '0.4rem', flexWrap: 'wrap' },
-  badge:        { display: 'inline-block', padding: '0.15rem 0.5rem', borderRadius: 4, fontSize: '0.72rem', fontWeight: 600 },
-  headerActions:{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'flex-start' },
-  btn:          { padding: '0.4rem 0.85rem', background: '#1e1e1e', border: '1px solid #333', borderRadius: 5, color: '#ccc', cursor: 'pointer', fontSize: '0.82rem', textDecoration: 'none', whiteSpace: 'nowrap' },
-  dangerBtn:    { padding: '0.25rem 0.6rem', background: 'none', border: '1px solid #7f1d1d', borderRadius: 4, color: '#f87171', cursor: 'pointer', fontSize: '0.75rem' },
-  section:      { marginBottom: '1.5rem' },
-  sectionTitle: { margin: '0 0 0.6rem', fontSize: '0.75rem', fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.06em' },
-  warningRow:   { display: 'flex', gap: '1rem', alignItems: 'center', padding: '0.5rem 0.75rem', background: '#111', border: '1px solid', borderRadius: 5, marginBottom: '0.4rem', fontSize: '0.85rem', color: '#ccc' },
-  statRow:      { display: 'flex', gap: '0.75rem', flexWrap: 'wrap' },
-  stat:         { background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 7, padding: '0.75rem 1rem', minWidth: 90, textAlign: 'center' },
-  statValue:    { display: 'block', fontSize: '1.5rem', fontWeight: 700, lineHeight: 1 },
-  statLabel:    { display: 'block', fontSize: '0.7rem', color: '#555', marginTop: '0.25rem' },
-  card:         { background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 6, padding: '0.6rem 0.85rem', marginBottom: '0.4rem' },
-  link:         { color: '#7dd3fc', textDecoration: 'none', fontSize: '0.85rem' },
-  dim:          { color: '#555', fontSize: '0.8rem', margin: 0 },
-  toast:        { position: 'fixed', bottom: '1rem', right: '1rem', background: '#1e3a5f', color: '#93c5fd', padding: '0.6rem 1rem', borderRadius: 6, fontSize: '0.85rem', cursor: 'pointer', zIndex: 100 },
+  header:    { background: '#0f1117', borderBottom: '1px solid #1e1e2e' },
+  pageTitle: { color: '#eee', fontSize: '1.3rem' },
+  card:      { background: '#1a1a2e', border: '1px solid #2a2a3e' },
+  cardHeader:{ background: '#1a1a2e', borderBottom: '1px solid #2a2a3e' },
+  cardTitle: { color: '#eee', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.05em' },
+  link:      { color: '#7dd3fc', textDecoration: 'none' },
+  actionBtn: { background: '#1e1e2e', border: '1px solid #2a2a3e', color: '#ccc', fontSize: '0.82rem' },
+  dangerBtn: { padding: '0.2rem 0.5rem', background: 'none', border: '1px solid #7f1d1d', borderRadius: 4, color: '#f87171', cursor: 'pointer', fontSize: '0.72rem' },
+  toast:     { position: 'fixed', bottom: '1rem', right: '1rem', background: '#1e3a5f', color: '#93c5fd', padding: '0.6rem 1rem', borderRadius: 6, fontSize: '0.85rem', cursor: 'pointer', zIndex: 100 },
 };

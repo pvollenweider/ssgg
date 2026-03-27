@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS users (
   notify_on_publish TINYINT(1)   NOT NULL DEFAULT 1,
   created_at        BIGINT       NOT NULL,
   updated_at        BIGINT       NOT NULL,
-  FOREIGN KEY (studio_id) REFERENCES studios(id) ON DELETE CASCADE
+  FOREIGN KEY (studio_id) REFERENCES studios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_users_studio        ON users(studio_id);

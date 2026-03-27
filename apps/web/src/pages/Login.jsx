@@ -10,6 +10,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../lib/auth.jsx';
 import { api } from '../lib/api.js';
 import { useT } from '../lib/I18nContext.jsx';
+import LoginLayout from '../components/LoginLayout.jsx';
 
 export default function Login() {
   const { login } = useAuth();
@@ -40,38 +41,50 @@ export default function Login() {
   }
 
   return (
-    <div style={s.page}>
-      <div style={s.card}>
-        <h1 style={s.title}>GalleryPack</h1>
-        <form onSubmit={handleSubmit} style={s.form}>
-          <input
-            style={s.input}
-            type="email" placeholder={t('login_email')} autoComplete="email"
-            value={email} onChange={e => setEmail(e.target.value)} required
-          />
-          <input
-            style={s.input}
-            type="password" placeholder={t('login_password')} autoComplete="current-password"
-            value={password} onChange={e => setPassword(e.target.value)} required
-          />
-          {error && <p style={s.error}>{error}</p>}
-          <button style={s.btn} type="submit" disabled={loading}>
-            {loading ? t('login_signing_in') : t('login_sign_in')}
-          </button>
-        </form>
-        <Link to="/forgot-password" style={s.forgot}>{t('login_forgot_password')}</Link>
-      </div>
-    </div>
+    <LoginLayout title={t('login_sign_in')}>
+      <form onSubmit={handleSubmit}>
+        <div className="mb-3">
+          <div className="input-group">
+            <input
+              type="email"
+              className="form-control"
+              placeholder={t('login_email')}
+              autoComplete="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+            />
+            <span className="input-group-text"><i className="fas fa-envelope" /></span>
+          </div>
+        </div>
+        <div className="mb-3">
+          <div className="input-group">
+            <input
+              type="password"
+              className="form-control"
+              placeholder={t('login_password')}
+              autoComplete="current-password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+            />
+            <span className="input-group-text"><i className="fas fa-lock" /></span>
+          </div>
+        </div>
+        {error && (
+          <div className="alert alert-danger py-2 px-3 mb-3" role="alert" style={{ fontSize: '0.85rem' }}>
+            {error}
+          </div>
+        )}
+        <button type="submit" className="btn btn-primary w-100" disabled={loading}>
+          {loading ? <><i className="fas fa-spinner fa-spin me-1" />{t('login_signing_in')}</> : t('login_sign_in')}
+        </button>
+      </form>
+      <p className="mt-3 mb-0 text-center">
+        <Link to="/forgot-password" className="text-muted" style={{ fontSize: '0.875rem' }}>
+          {t('login_forgot_password')}
+        </Link>
+      </p>
+    </LoginLayout>
   );
 }
-
-const s = {
-  page:  { display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'#f0f0f0' },
-  card:  { background:'#fff', borderRadius:12, padding:'2.5rem 2rem', width:'100%', maxWidth:360, boxShadow:'0 2px 16px #0001' },
-  title: { margin:'0 0 1.5rem', fontSize:'1.4rem', fontWeight:700, textAlign:'center', letterSpacing:'-0.02em' },
-  form:  { display:'flex', flexDirection:'column', gap:'0.75rem' },
-  input: { padding:'0.6rem 0.75rem', border:'1px solid #ddd', borderRadius:6, fontSize:'0.95rem', outline:'none' },
-  btn:   { padding:'0.65rem', background:'#111', color:'#fff', border:'none', borderRadius:6, fontWeight:600, cursor:'pointer', fontSize:'0.95rem' },
-  error:  { margin:0, color:'#c00', fontSize:'0.85rem' },
-  forgot: { display:'block', marginTop:'1rem', textAlign:'center', fontSize:'0.85rem', color:'#888', textDecoration:'none' },
-};

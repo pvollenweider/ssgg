@@ -5,8 +5,8 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
 import { AdminPage, AdminCard, AdminButton, AdminAlert } from '../../../components/ui/index.js';
@@ -18,6 +18,10 @@ export default function GalleryGeneralPage() {
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState('');
   const [error,  setError]  = useState('');
+  const [flushConfirm, setFlushConfirm] = useState(false);
+  const [flushing,     setFlushing]     = useState(false);
+  const [flushError,   setFlushError]   = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     api.getGallery(galleryId).then(g => {
@@ -41,6 +45,19 @@ export default function GalleryGeneralPage() {
       setSaving(false);
     }
   }
+
+  const flushDist = useCallback(async () => {
+    setFlushing(true); setFlushError('');
+    try {
+      await api.flushGalleryDist(galleryId);
+      setFlushConfirm(false);
+      navigate(0); // reload
+    } catch (err) {
+      setFlushError(err.message);
+    } finally {
+      setFlushing(false);
+    }
+  }, [galleryId, navigate]);
 
   return (
     <AdminPage title={t('gal_general_title')}>
@@ -86,6 +103,50 @@ export default function GalleryGeneralPage() {
           </form>
         </div>
       </div>
+          {/* Danger zone */}
+      <div className="row mt-4">
+        <div className="col-lg-7">
+          <AdminCard>
+            <p className="text-uppercase fw-semibold text-danger mb-2" style={{ fontSize: '0.72rem', letterSpacing: '0.08em' }}>
+              Danger zone
+            </p>
+            <div className="d-flex align-items-center justify-content-between gap-3">
+              <div>
+                <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>Flush built output</div>
+                <div className="text-muted" style={{ fontSize: '0.8rem' }}>
+                  Delete all built files. Gallery will be unavailable until rebuilt. Source photos are not affected.
+                </div>
+              </div>
+              <AdminButton variant="outline-danger" size="sm" onClick={() => setFlushConfirm(true)}>
+                Flush
+              </AdminButton>
+            </div>
+            {flushError && <AdminAlert message={flushError} className="mt-2 mb-0" />}
+          </AdminCard>
+        </div>
+      </div>
+
+      {/* Flush confirmation modal */}
+      {flushConfirm && (
+        <div className="modal d-block" style={{ background: 'rgba(0,0,0,0.5)', position: 'fixed', inset: 0, zIndex: 1055 }} onClick={() => !flushing && setFlushConfirm(false)}>
+          <div className="modal-dialog modal-dialog-centered" onClick={e => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header border-0">
+                <h5 className="modal-title">Flush built output?</h5>
+              </div>
+              <div className="modal-body">
+                <p>This will delete all built files for <strong>{form.title}</strong>. The gallery will be unavailable until rebuilt. This cannot be undone.</p>
+              </div>
+              <div className="modal-footer border-0">
+                <AdminButton variant="secondary" onClick={() => setFlushConfirm(false)} disabled={flushing}>Cancel</AdminButton>
+                <AdminButton variant="danger" loading={flushing} loadingLabel="Flushing…" onClick={flushDist}>
+                  Flush built output
+                </AdminButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminPage>
   );
 }

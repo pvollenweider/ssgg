@@ -71,10 +71,14 @@ GPL/AGPL dependencies are acceptable here — GalleryPack holds copyright on the
 | `react-dom` | * | MIT | DOM renderer |
 | `react-router-dom` | * | MIT | Client-side routing |
 | `qrcode` | * | MIT | QR code generation for upload links |
+| `admin-lte` | 4.0.0-rc7 | MIT | AdminLTE 4 admin UI template (Bootstrap 5 bundled, no jQuery) |
+| `@fortawesome/fontawesome-free` | ^6 | MIT (icons), OFL-1.1 (fonts), CC-BY-4.0 (docs) | Icon font |
 | `@vitejs/plugin-react` | * | MIT | Vite React plugin |
 | `vite` | * | MIT | Build tool (dev only) |
 
 **Result:** all dependencies are permissive. No commercial license risk.
+
+**Asset note:** FontAwesome Free uses MIT for JS/CSS, OFL-1.1 for font files (.woff2/.ttf) — both are compatible with proprietary distribution.
 
 ---
 

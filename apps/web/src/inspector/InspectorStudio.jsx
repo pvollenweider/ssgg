@@ -9,32 +9,76 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { useT } from '../lib/I18nContext.jsx';
 
 export function InspectorStudioList() {
+  const t = useT();
   const [studios, setStudios] = useState(null);
 
   useEffect(() => {
     api.inspectorStudios().then(setStudios).catch(() => setStudios([]));
   }, []);
 
-  if (!studios) return <p style={{ color: '#555' }}>Loading…</p>;
-
   return (
-    <div>
-      <h2 style={s.pageTitle}>Studios — {studios.length}</h2>
-      {studios.map(st => (
-        <Link key={st.id} to={`/inspector/studios/${st.id}`} style={s.row}>
-          <span style={s.rowName}>{st.name}</span>
-          <span style={s.rowSlug}>{st.slug}</span>
-          <span style={s.rowMeta}>{st.gallery_count} galleries · {st.member_count} members</span>
-          {st.is_default === 1 && <span style={s.badge}>default</span>}
-        </Link>
-      ))}
-    </div>
+    <>
+      <div className="content-header" style={s.header}>
+        <div className="container-fluid">
+          <div className="row mb-2 align-items-center">
+            <div className="col-sm-6">
+              <h1 className="m-0" style={s.pageTitle}>
+                {t('inspector_studios_title')} {studios && `— ${studios.length}`}
+              </h1>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section className="content">
+        <div className="container-fluid pt-3">
+          {!studios ? (
+            <p style={{ color: '#555' }}>{t('loading')}</p>
+          ) : (
+            <div className="card" style={s.card}>
+              <div className="card-body p-0">
+                <table className="table table-sm table-hover mb-0" style={{ background: 'transparent' }}>
+                  <thead>
+                    <tr style={{ borderColor: '#2a2a3e' }}>
+                      <th style={s.th}>{t('inspector_th_name')}</th>
+                      <th style={s.th}>{t('inspector_th_slug')}</th>
+                      <th style={s.th} className="text-center">{t('inspector_th_galleries')}</th>
+                      <th style={s.th} className="text-center">{t('inspector_th_members')}</th>
+                      <th style={s.th}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {studios.map(st => (
+                      <tr key={st.id} style={{ borderColor: '#1e1e2e' }}>
+                        <td style={s.td}>
+                          <Link to={`/inspector/studios/${st.id}`} style={s.link}>{st.name}</Link>
+                        </td>
+                        <td style={s.td}><code style={s.code}>{st.slug}</code></td>
+                        <td style={{ ...s.td, textAlign: 'center', color: '#aaa' }}>{st.gallery_count}</td>
+                        <td style={{ ...s.td, textAlign: 'center', color: '#aaa' }}>{st.member_count}</td>
+                        <td style={s.td}>
+                          {st.is_default === 1 && (
+                            <span className="badge bg-secondary" style={{ fontSize: '0.65rem' }}>{t('inspector_default_badge')}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+    </>
   );
 }
 
 export function InspectorStudioDetail() {
+  const t = useT();
   const { id } = useParams();
   const [data, setData] = useState(null);
 
@@ -42,45 +86,86 @@ export function InspectorStudioDetail() {
     api.inspectorStudio(id).then(setData).catch(() => {});
   }, [id]);
 
-  if (!data) return <p style={{ color: '#555' }}>Loading…</p>;
-
   return (
-    <div style={{ maxWidth: 700 }}>
-      <h2 style={s.pageTitle}>{data.name}</h2>
-      <p style={s.meta}>{data.slug} · {data.locale} · {data.country}</p>
+    <>
+      <div className="content-header" style={s.header}>
+        <div className="container-fluid">
+          <div className="row mb-2 align-items-center">
+            <div className="col-sm-6">
+              <h1 className="m-0" style={s.pageTitle}>{data?.name || '…'}</h1>
+              {data && <p className="m-0" style={{ color: '#555', fontSize: '0.8rem' }}>{data.slug} · {data.locale} · {data.country}</p>}
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <section style={s.section}>
-        <h3 style={s.sectionTitle}>Members — {data.members?.length}</h3>
-        {data.members?.map(m => (
-          <Link key={m.id} to={`/inspector/users/${m.id}`} style={s.row}>
-            <span style={s.rowName}>{m.email}</span>
-            <span style={s.rowMeta}>{m.name}</span>
-            <span style={{ ...s.badge, marginLeft: 'auto' }}>{m.role}</span>
-          </Link>
-        ))}
+      <section className="content">
+        <div className="container-fluid pt-3">
+          {!data ? (
+            <p style={{ color: '#555' }}>{t('loading')}</p>
+          ) : (
+            <div className="row">
+              <div className="col-md-6">
+                <div className="card" style={s.card}>
+                  <div className="card-header" style={s.cardHeader}>
+                    <h3 className="card-title" style={s.cardTitle}>{t('inspector_th_members')} — {data.members?.length}</h3>
+                  </div>
+                  <div className="card-body p-0">
+                    <table className="table table-sm mb-0" style={{ background: 'transparent' }}>
+                      <tbody>
+                        {data.members?.map(m => (
+                          <tr key={m.id} style={{ borderColor: '#1e1e2e' }}>
+                            <td style={s.td}>
+                              <Link to={`/inspector/users/${m.id}`} style={s.link}>{m.email}</Link>
+                              {m.name && <><br /><span style={{ fontSize: '0.72rem', color: '#555' }}>{m.name}</span></>}
+                            </td>
+                            <td style={{ ...s.td, textAlign: 'right' }}>
+                              <span className="badge" style={{ background: '#2a2a3e', color: '#aaa', fontSize: '0.68rem' }}>{m.role}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+              <div className="col-md-6">
+                <div className="card" style={s.card}>
+                  <div className="card-header" style={s.cardHeader}>
+                    <h3 className="card-title" style={s.cardTitle}>{t('inspector_nav_projects')} — {data.projects?.length}</h3>
+                  </div>
+                  <div className="card-body p-0">
+                    <table className="table table-sm mb-0" style={{ background: 'transparent' }}>
+                      <tbody>
+                        {data.projects?.map(p => (
+                          <tr key={p.id} style={{ borderColor: '#1e1e2e' }}>
+                            <td style={s.td}>
+                              <Link to={`/inspector/projects/${p.id}`} style={s.link}>{p.name}</Link>
+                              <br /><code style={s.code}>{p.slug}</code>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </section>
-
-      <section style={s.section}>
-        <h3 style={s.sectionTitle}>Projects — {data.projects?.length}</h3>
-        {data.projects?.map(p => (
-          <Link key={p.id} to={`/inspector/projects/${p.id}`} style={s.row}>
-            <span style={s.rowName}>{p.name}</span>
-            <span style={s.rowSlug}>{p.slug}</span>
-          </Link>
-        ))}
-      </section>
-    </div>
+    </>
   );
 }
 
 const s = {
-  pageTitle:    { margin: '0 0 1rem', fontSize: '1.2rem', fontWeight: 600, color: '#eee' },
-  meta:         { margin: '0 0 1.25rem', color: '#555', fontSize: '0.82rem' },
-  section:      { marginBottom: '1.5rem' },
-  sectionTitle: { margin: '0 0 0.5rem', fontSize: '0.72rem', fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.06em' },
-  row:          { display: 'flex', gap: '0.75rem', alignItems: 'center', padding: '0.5rem 0.75rem', background: '#1a1a1a', border: '1px solid #222', borderRadius: 5, marginBottom: '0.3rem', textDecoration: 'none', color: '#ccc', fontSize: '0.85rem' },
-  rowName:      { fontWeight: 500, color: '#eee' },
-  rowSlug:      { fontFamily: 'monospace', fontSize: '0.78rem', color: '#666' },
-  rowMeta:      { color: '#555', fontSize: '0.78rem' },
-  badge:        { padding: '0.1rem 0.4rem', background: '#222', borderRadius: 3, fontSize: '0.68rem', color: '#888' },
+  header:    { background: '#0f1117', borderBottom: '1px solid #1e1e2e' },
+  pageTitle: { color: '#eee', fontSize: '1.3rem' },
+  card:      { background: '#1a1a2e', border: '1px solid #2a2a3e' },
+  cardHeader:{ background: '#1a1a2e', borderBottom: '1px solid #2a2a3e' },
+  cardTitle: { color: '#eee', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.05em' },
+  th:        { background: '#111', color: '#666', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', border: 'none', borderBottom: '1px solid #2a2a3e', padding: '0.5rem 0.75rem' },
+  td:        { border: 'none', borderBottom: '1px solid #1e1e2e', padding: '0.5rem 0.75rem', color: '#ccc', fontSize: '0.85rem' },
+  link:      { color: '#7dd3fc', textDecoration: 'none' },
+  code:      { fontFamily: 'monospace', fontSize: '0.75rem', color: '#666', background: 'none' },
 };

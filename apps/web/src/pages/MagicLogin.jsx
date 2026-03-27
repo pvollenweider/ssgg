@@ -10,6 +10,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { useT } from '../lib/I18nContext.jsx';
+import LoginLayout from '../components/LoginLayout.jsx';
 
 // States: loading → valid | invalid → (on click) logging_in → done
 export default function MagicLogin() {
@@ -44,44 +45,42 @@ export default function MagicLogin() {
   }
 
   return (
-    <div style={s.page}>
-      <div style={s.card}>
-        <h1 style={s.title}>GalleryPack</h1>
-
+    <LoginLayout>
+      <div className="text-center">
         {state === 'loading' && (
-          <p style={s.sub}>{t('loading')}</p>
+          <p className="text-muted">
+            <i className="fas fa-spinner fa-spin me-1" />{t('loading')}
+          </p>
         )}
 
         {state === 'valid' && (
           <>
-            {email && <p style={s.sub}>{email}</p>}
-            <button style={s.btn} onClick={handleLogin}>
+            {email && <p className="text-muted mb-3">{email}</p>}
+            <button className="btn btn-primary w-100" onClick={handleLogin}>
               {t('magic_confirm_btn')}
             </button>
           </>
         )}
 
         {state === 'logging_in' && (
-          <p style={s.sub}>{t('magic_loading')}</p>
+          <p className="text-muted">
+            <i className="fas fa-spinner fa-spin me-1" />{t('magic_loading')}
+          </p>
         )}
 
         {state === 'invalid' && (
           <>
-            <p style={s.error}>{error}</p>
-            <a href="/forgot-password" style={s.link}>{t('magic_request_new')}</a>
+            <div className="alert alert-danger py-2 px-3 mb-3" style={{ fontSize: '0.85rem' }}>
+              {error}
+            </div>
+            <p className="mb-0">
+              <a href="/forgot-password" className="text-muted" style={{ fontSize: '0.875rem' }}>
+                {t('magic_request_new')}
+              </a>
+            </p>
           </>
         )}
       </div>
-    </div>
+    </LoginLayout>
   );
 }
-
-const s = {
-  page:  { display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'#f0f0f0' },
-  card:  { background:'#fff', borderRadius:12, padding:'2.5rem 2rem', width:'100%', maxWidth:360, boxShadow:'0 2px 16px #0001', textAlign:'center' },
-  title: { margin:'0 0 1.5rem', fontSize:'1.4rem', fontWeight:700, letterSpacing:'-0.02em' },
-  sub:   { margin:'0 0 1.25rem', fontSize:'0.9rem', color:'#888' },
-  btn:   { width:'100%', padding:'0.65rem', background:'#111', color:'#fff', border:'none', borderRadius:8, fontSize:'0.95rem', fontWeight:600, cursor:'pointer' },
-  error: { margin:'0 0 1rem', fontSize:'0.9rem', color:'#c00' },
-  link:  { fontSize:'0.85rem', color:'#888', textDecoration:'none' },
-};

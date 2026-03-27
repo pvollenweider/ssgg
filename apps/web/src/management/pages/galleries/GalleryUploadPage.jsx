@@ -21,6 +21,14 @@ export default function GalleryUploadPage() {
   const [error,    setError]    = useState('');
   const [copied,   setCopied]   = useState('');
 
+  // Maintenance
+  const [reconciling,   setReconciling]   = useState(false);
+  const [reconcileResult, setReconcileResult] = useState(null);
+  const [deduping,      setDeduping]      = useState(false);
+  const [dupeResult,    setDupeResult]    = useState(null);
+  const [dupeConfirm,   setDupeConfirm]   = useState(false);
+  const [maintError,    setMaintError]    = useState('');
+
   function load() {
     setLoading(true);
     api.listUploadLinks(galleryId)
@@ -47,6 +55,44 @@ export default function GalleryUploadPage() {
 
   async function revoke(linkId) {
     try { await api.revokeUploadLink(galleryId, linkId); load(); } catch {}
+  }
+
+  async function reconcile() {
+    setReconciling(true); setMaintError(''); setReconcileResult(null);
+    try {
+      const r = await api.reconcilePhotos(galleryId);
+      setReconcileResult(r);
+    } catch (err) {
+      setMaintError(err.message);
+    } finally {
+      setReconciling(false);
+    }
+  }
+
+  async function dryRunDedupe() {
+    setDeduping(true); setMaintError(''); setDupeResult(null);
+    try {
+      const r = await api.deduplicatePhotos(galleryId, true);
+      setDupeResult(r);
+      if (r.totalDuplicates > 0) setDupeConfirm(true);
+    } catch (err) {
+      setMaintError(err.message);
+    } finally {
+      setDeduping(false);
+    }
+  }
+
+  async function runDedupe() {
+    setDeduping(true); setMaintError('');
+    try {
+      const r = await api.deduplicatePhotos(galleryId, false);
+      setDupeResult(r);
+      setDupeConfirm(false);
+    } catch (err) {
+      setMaintError(err.message);
+    } finally {
+      setDeduping(false);
+    }
   }
 
   function copy(url) {
@@ -127,8 +173,83 @@ export default function GalleryUploadPage() {
             <div className="form-text mt-2">{t('gal_upload_hint')}</div>
           </AdminCard>
 
+          {/* Maintenance tools */}
+          <AdminCard title="Photo maintenance">
+            <AdminAlert message={maintError} className="mb-3" />
+
+            <div className="d-flex flex-column gap-3">
+              {/* Reconcile */}
+              <div className="d-flex align-items-start gap-3">
+                <div style={{ flex: 1 }}>
+                  <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>Reconcile photos</div>
+                  <div className="text-muted" style={{ fontSize: '0.8rem' }}>
+                    Re-register photos found on disk but missing from the database (e.g. after an interrupted upload).
+                  </div>
+                  {reconcileResult && (
+                    <div className="mt-1 text-success small">
+                      Added {reconcileResult.added} · Already present {reconcileResult.alreadyPresent} · Total on disk {reconcileResult.total}
+                    </div>
+                  )}
+                </div>
+                <AdminButton variant="outline-secondary" size="sm" loading={reconciling} loadingLabel="Scanning…" onClick={reconcile}>
+                  Reconcile
+                </AdminButton>
+              </div>
+
+              <hr className="my-0" />
+
+              {/* Deduplicate */}
+              <div className="d-flex align-items-start gap-3">
+                <div style={{ flex: 1 }}>
+                  <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>Find duplicates</div>
+                  <div className="text-muted" style={{ fontSize: '0.8rem' }}>
+                    Detect byte-identical photos (by SHA-256 hash). Runs a dry-run first — you confirm before any deletion.
+                  </div>
+                  {dupeResult && !dupeConfirm && (
+                    <div className={`mt-1 small ${dupeResult.totalDuplicates > 0 ? 'text-warning' : 'text-success'}`}>
+                      {dupeResult.dryRun
+                        ? `${dupeResult.totalDuplicates} duplicate(s) found`
+                        : `${dupeResult.deleted} duplicate(s) removed`
+                      }
+                    </div>
+                  )}
+                </div>
+                <AdminButton variant="outline-secondary" size="sm" loading={deduping} loadingLabel="Scanning…" onClick={dryRunDedupe}>
+                  Find duplicates
+                </AdminButton>
+              </div>
+            </div>
+          </AdminCard>
+
         </div>
       </div>
+
+      {/* Dedupe confirmation modal */}
+      {dupeConfirm && dupeResult && (
+        <div className="modal d-block" style={{ background: 'rgba(0,0,0,0.5)', position: 'fixed', inset: 0, zIndex: 1055 }} onClick={() => !deduping && setDupeConfirm(false)}>
+          <div className="modal-dialog modal-dialog-centered" onClick={e => e.stopPropagation()}>
+            <div className="modal-content">
+              <div className="modal-header border-0">
+                <h5 className="modal-title">Remove {dupeResult.totalDuplicates} duplicate(s)?</h5>
+              </div>
+              <div className="modal-body" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                {dupeResult.duplicateSets.map(set => (
+                  <div key={set.hash} className="mb-2 small">
+                    <span className="text-success fw-semibold">Keep:</span> {set.keep} &nbsp;
+                    <span className="text-danger fw-semibold">Delete:</span> {set.dupes.join(', ')}
+                  </div>
+                ))}
+              </div>
+              <div className="modal-footer border-0">
+                <AdminButton variant="secondary" onClick={() => setDupeConfirm(false)} disabled={deduping}>Cancel</AdminButton>
+                <AdminButton variant="danger" loading={deduping} loadingLabel="Removing…" onClick={runDedupe}>
+                  Remove duplicates
+                </AdminButton>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminPage>
   );
 }

@@ -8,7 +8,8 @@
 // apps/api/src/routes/settings.js — admin global settings
 import { Router } from 'express';
 import { requireAdmin } from '../middleware/auth.js';
-import { getSettings, upsertSettings, getStudio, updateStudio, getStudioBySlug, audit } from '../db/helpers.js';
+import { getSettings, upsertSettings, getStudio, updateStudio, getStudioBySlug, audit, genId } from '../db/helpers.js';
+import { query } from '../db/database.js';
 import { sendEmail } from '../services/email.js';
 
 const router = Router();
@@ -31,13 +32,21 @@ function rowToSettings(row) {
     smtpSecure:                 row?.smtp_secure                   === 1,
     smtpPassSet:                !!(row?.smtp_pass),  // never send the password itself
     baseUrl:                    row?.base_url                      || null,
+    hostname:                   row?.hostname                      || null,
   };
 }
 
 // GET /api/settings
 router.get('/', async (req, res) => {
   const row = await getSettings(req.studioId);
-  res.json(rowToSettings(row));
+  const result = rowToSettings(row);
+  // Attach primary domain (hostname field)
+  const [domainRows] = await query(
+    'SELECT domain FROM studio_domains WHERE studio_id = ? AND is_primary = 1 LIMIT 1',
+    [req.studioId]
+  );
+  result.hostname = domainRows[0]?.domain ?? null;
+  res.json(result);
 });
 
 // PATCH /api/settings
@@ -47,7 +56,7 @@ router.patch('/', async (req, res) => {
     defaultLocale, defaultAccess,
     defaultAllowDownloadImage, defaultAllowDownloadGallery, defaultPrivate,
     smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, smtpSecure,
-    baseUrl,
+    baseUrl, hostname,
   } = req.body || {};
 
   const updates = {
@@ -70,10 +79,32 @@ router.patch('/', async (req, res) => {
   if (smtpPass && smtpPass.trim()) updates.smtp_pass = smtpPass.trim();
 
   await upsertSettings(req.studioId, updates);
+
+  // Persist primary hostname to studio_domains if provided
+  if (hostname !== undefined) {
+    const h = (hostname || '').trim().toLowerCase();
+    if (h) {
+      // Remove existing primary domain for this studio, then insert new one
+
+      await query('UPDATE studio_domains SET is_primary = 0 WHERE studio_id = ?', [req.studioId]);
+      await query(
+        'INSERT INTO studio_domains (id, studio_id, domain, is_primary, created_at) VALUES (?, ?, ?, 1, ?) ON DUPLICATE KEY UPDATE is_primary = 1',
+        [genId(), req.studioId, h, Date.now()]
+      );
+    } else {
+      // Clear primary hostname
+      await query('UPDATE studio_domains SET is_primary = 0 WHERE studio_id = ?', [req.studioId]);
+    }
+  }
+
   // Audit SMTP changes separately (sensitive config — don't log passwords)
   const hasSmtpChange = smtpHost !== undefined || smtpPort !== undefined || smtpUser !== undefined || smtpPass !== undefined || smtpFrom !== undefined;
   try { await audit(req.studioId, req.userId, 'studio.settings_changed', 'studio', req.studioId, { smtp_changed: hasSmtpChange }); } catch {}
-  res.json(rowToSettings(await getSettings(req.studioId)));
+  const finalRow = await getSettings(req.studioId);
+  const finalResult = rowToSettings(finalRow);
+  const [finalDomainRows] = await query('SELECT domain FROM studio_domains WHERE studio_id = ? AND is_primary = 1 LIMIT 1', [req.studioId]);
+  finalResult.hostname = finalDomainRows[0]?.domain ?? null;
+  res.json(finalResult);
 });
 
 // POST /api/settings/smtp-test — send a test email to the logged-in user

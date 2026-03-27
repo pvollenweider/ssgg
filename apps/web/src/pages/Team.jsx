@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useT } from '../lib/I18nContext.jsx';
+import { useAuth } from '../lib/auth.jsx';
 import { Toast } from '../components/Toast.jsx';
 
 const STUDIO_ROLES = ['photographer', 'collaborator', 'admin', 'owner'];
@@ -17,6 +18,7 @@ const GALLERY_ROLE_COLORS = { viewer: '#888', contributor: '#059669', editor: '#
 
 export default function Team() {
   const t = useT();
+  const { user } = useAuth();
   const [members,     setMembers]     = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [loading,     setLoading]     = useState(true);
@@ -124,13 +126,26 @@ export default function Team() {
   const pending = invitations.filter(i => !i.accepted_at);
 
   return (
-    <div style={s.page}>
-      <header style={s.header}>
-        <Link to="/" style={s.back}>{t('back_to_galleries')}</Link>
-        <span style={s.title}>{t('team_title')}</span>
-      </header>
+    <>
+      {/* Content Header */}
+      <div className="content-header">
+        <div className="container-fluid">
+          <div className="row mb-2 align-items-center">
+            <div className="col-sm-6">
+              <h1 className="m-0">
+                <Link to="/studio" className="text-muted me-1" style={{ fontSize: '0.875rem' }}>
+                  {user?.studioName || t('studio_back')}
+                </Link>
+                <span className="text-muted me-1">/</span>
+                {t('team_title')}
+              </h1>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <main style={s.main}>
+      <section className="content">
+      <div className="container-fluid" style={{ maxWidth: 800 }}>
 
         {/* ── Membres du studio ── */}
         <Section label={t('team_section_members')}>
@@ -182,7 +197,7 @@ export default function Team() {
                     <td style={{ ...s.td, color: '#999', fontSize: '0.8rem' }}>{formatDate(m.user.createdAt)}</td>
                     <td style={s.td}>
                       <div style={{ display:'flex', gap:'0.4rem' }}>
-                        <button style={s.removeBtn} onClick={() => handleResetLink(m.user.id)} title={t('team_reset_link_title')}>🔑</button>
+                        <button style={s.removeBtn} onClick={() => handleResetLink(m.user.id)} title={t('team_reset_link_title')}><i className="fas fa-key" /></button>
                         <button
                           style={{ ...s.removeBtn, opacity: m.role === 'owner' && ownerCount <= 1 ? 0.35 : 1 }}
                           disabled={m.role === 'owner' && ownerCount <= 1}
@@ -270,9 +285,10 @@ export default function Team() {
           )}
         </Section>
 
-      </main>
+      </div>
+      </section>
       <Toast message={toast} onDone={() => setToast('')} />
-    </div>
+    </>
   );
 }
 

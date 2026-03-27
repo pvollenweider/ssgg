@@ -23,7 +23,10 @@ router.get('/:id/focal-stats', async (req, res, next) => {
   try {
     const { id } = req.params;
     const [rows] = await query(
-      'SELECT * FROM galleries WHERE id = ? AND studio_id = ? LIMIT 1',
+      `SELECT g.*, p.slug AS proj_slug
+       FROM galleries g
+       LEFT JOIN projects p ON p.id = g.project_id
+       WHERE g.id = ? AND g.studio_id = ? LIMIT 1`,
       [id, req.studioId]
     );
     const gallery = rows[0];
@@ -34,38 +37,43 @@ router.get('/:id/focal-stats', async (req, res, next) => {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    // Read the built manifest (dist/<slug>/photos.json)
+    // Build the correct dist path (project-scoped galleries live at dist/<proj>/<slug>/)
+    const distSlug = gallery.proj_slug
+      ? `${gallery.proj_slug}/${gallery.slug}`
+      : gallery.slug;
+
+    // Read the built manifest (dist/<distSlug>/photos.json)
     let manifest;
     try {
-      const buf = await fileStorage.read(`dist/${gallery.slug}/photos.json`);
+      const buf = await fileStorage.read(`dist/${distSlug}/photos.json`);
       manifest = JSON.parse(buf.toString('utf8'));
     } catch {
       return res.json({ total: 0, withData: 0, bins: [], dominant: null });
     }
 
-    const photos = Object.values(manifest.photos || {});
-    const total  = photos.length;
+    const photoEntries = Object.entries(manifest.photos || {});
+    const total = photoEntries.length;
 
-    // Bin every photo that has focal35 data
-    const counts = Object.fromEntries(FOCAL_BINS.map(b => [b.key, 0]));
-    let withData = 0;
-
-    for (const photo of photos) {
+    // Collect raw focal data per photo — client handles all binning
+    const rawPhotos = [];
+    for (const [filename, photo] of photoEntries) {
       const mm = parseFocal35(photo.exif?.focal35);
-      if (mm === null) continue;
-      const key = binFocalLength(mm);
-      if (key) { counts[key]++; withData++; }
+      if (mm !== null) rawPhotos.push({ filename, mm, lens: photo.exif?.lens ?? null });
     }
+    const withData = rawPhotos.length;
 
-    // Build sorted bins (descending count), skip empty ones
-    const bins = FOCAL_BINS
-      .map(b => ({ key: b.key, label: b.label, count: counts[b.key] }))
+    // Also compute dominant bin server-side (using default bins) for the KPI card
+    const counts = Object.fromEntries(FOCAL_BINS.map(b => [b.key, 0]));
+    for (const { mm } of rawPhotos) {
+      const key = binFocalLength(mm);
+      if (key) counts[key]++;
+    }
+    const dominant = FOCAL_BINS
+      .map(b => ({ key: b.key, count: counts[b.key] }))
       .filter(b => b.count > 0)
-      .sort((a, b) => b.count - a.count);
+      .sort((a, b) => b.count - a.count)[0]?.key ?? null;
 
-    const dominant = bins[0]?.key ?? null;
-
-    res.json({ total, withData, bins, dominant });
+    res.json({ total, withData, photos: rawPhotos, dominant });
   } catch (err) {
     next(err);
   }

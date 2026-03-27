@@ -44,10 +44,10 @@ function collectEntry(entry) {
 }
 
 const STATUS_BADGE = {
-  queued:    { bg: '#1c1c1c', color: '#888',    label: 'Queued' },
-  uploading: { bg: '#1e3a5f', color: '#60a5fa', label: 'Uploading…' },
-  done:      { bg: '#14532d', color: '#4ade80', label: '✓ Done' },
-  error:     { bg: '#450a0a', color: '#f87171', label: '✕ Failed' },
+  queued:    { bg: '#f3f4f6', color: '#888',    label: 'Queued' },
+  uploading: { bg: '#dbeafe', color: '#2563eb', label: 'Uploading…' },
+  done:      { bg: '#dcfce7', color: '#16a34a', label: '✓ Done' },
+  error:     { bg: '#fee2e2', color: '#dc2626', label: '✕ Failed' },
 };
 
 export function UploadZone({ galleryId, onDone }) {
@@ -219,22 +219,22 @@ export function UploadZone({ galleryId, onDone }) {
 
 const s = {
   root:        { display: 'flex', flexDirection: 'column', gap: '0.75rem' },
-  zone:        { border: '2px dashed #444', borderRadius: 8, padding: '1.5rem', textAlign: 'center', background: '#242424', transition: 'border-color 0.15s, background 0.15s' },
-  zoneActive:  { borderColor: '#4ade80', background: '#0f2a1a' },
+  zone:        { border: '2px dashed #ccc', borderRadius: 8, padding: '1.5rem', textAlign: 'center', background: '#f8f9fa', transition: 'border-color 0.15s, background 0.15s' },
+  zoneActive:  { borderColor: '#16a34a', background: '#f0fdf4' },
   zoneActions: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' },
-  zoneText:    { color: '#666', fontSize: '0.875rem', userSelect: 'none' },
+  zoneText:    { color: '#888', fontSize: '0.875rem', userSelect: 'none' },
   zoneBtns:    { display: 'flex', gap: '0.5rem' },
-  zoneBtn:     { padding: '0.35rem 0.85rem', background: 'none', border: '1px solid #333', borderRadius: 5, cursor: 'pointer', fontSize: '0.82rem', color: '#888', fontWeight: 500 },
+  zoneBtn:     { padding: '0.35rem 0.85rem', background: '#fff', border: '1px solid #ddd', borderRadius: 5, cursor: 'pointer', fontSize: '0.82rem', color: '#555', fontWeight: 500 },
   hidden:      { display: 'none' },
   statsBar:    { display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '0.82rem', flexWrap: 'wrap' },
   smallBtn:    { padding: '0.25rem 0.6rem', background: 'none', border: '1px solid #333', borderRadius: 4, cursor: 'pointer', fontSize: '0.78rem', color: '#888' },
   grid:        { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '0.5rem' },
-  card:        { position: 'relative', borderRadius: 6, overflow: 'hidden', background: '#111', border: '1px solid #1e1e1e' },
+  card:        { position: 'relative', borderRadius: 6, overflow: 'hidden', background: '#fff', border: '1px solid #e5e7eb' },
   thumbWrap:   { position: 'relative', aspectRatio: '1', overflow: 'hidden' },
   thumb:       { width: '100%', height: '100%', objectFit: 'cover', display: 'block' },
   progressBar: { position: 'absolute', bottom: 0, left: 0, height: 3, background: '#60a5fa', transition: 'width 0.2s' },
   cardMeta:    { padding: '0.25rem 0.35rem 0' },
   badge:       { display: 'inline-block', fontSize: '0.65rem', fontWeight: 600, padding: '0.1rem 0.35rem', borderRadius: 3 },
-  cardName:    { padding: '0.15rem 0.35rem 0.35rem', fontSize: '0.65rem', color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  cardName:    { padding: '0.15rem 0.35rem 0.35rem', fontSize: '0.65rem', color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   doneBtn:     { padding: '0.5rem 1.25rem', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' },
 };
