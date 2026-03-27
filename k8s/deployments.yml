@@ -1,0 +1,383 @@
+---
+# GalleryPack — Kubernetes Deployments & Services
+# Target: K3s with local-path storage.
+# Images: ghcr.io/pvollenweider/gallerypack-* (tag controlled by environment)
+#
+# Before applying:
+#   kubectl apply -f k8s/storage.yml
+#   kubectl apply -f k8s/config.yml
+#   kubectl create secret generic gallerypack-app-secrets --from-env-file=.env
+#   kubectl apply -f k8s/deployments.yml
+
+# ── Database ──────────────────────────────────────────────────────────────────
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gallerypack-db
+  labels:
+    app: gallerypack
+    component: db
+spec:
+  serviceName: gallerypack-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gallerypack
+      component: db
+  template:
+    metadata:
+      labels:
+        app: gallerypack
+        component: db
+    spec:
+      containers:
+        - name: mariadb
+          image: mariadb:11
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gallerypack-app-secrets
+                  key: DB_ROOT_PASSWORD
+            - name: MYSQL_DATABASE
+              value: gallerypack
+            - name: MYSQL_USER
+              value: gallerypack
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gallerypack-app-secrets
+                  key: DB_PASS
+          ports:
+            - containerPort: 3306
+          volumeMounts:
+            - name: db-data
+              mountPath: /var/lib/mysql
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect", "--innodb_initialized"]
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["healthcheck.sh", "--connect"]
+            initialDelaySeconds: 60
+            periodSeconds: 20
+      volumes:
+        - name: db-data
+          persistentVolumeClaim:
+            claimName: gallerypack-db
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gallerypack-db
+  labels:
+    app: gallerypack
+    component: db
+spec:
+  selector:
+    app: gallerypack
+    component: db
+  ports:
+    - port: 3306
+      targetPort: 3306
+
+# ── API ───────────────────────────────────────────────────────────────────────
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gallerypack-api
+  labels:
+    app: gallerypack
+    component: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gallerypack
+      component: api
+  template:
+    metadata:
+      labels:
+        app: gallerypack
+        component: api
+    spec:
+      containers:
+        - name: api
+          image: ghcr.io/pvollenweider/gallerypack-api:prod
+          ports:
+            - containerPort: 4000
+          env:
+            - name: PORT
+              value: "4000"
+            - name: NODE_ENV
+              value: production
+            - name: PLATFORM_MODE
+              value: single
+            - name: DB_HOST
+              value: gallerypack-db
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_NAME
+              value: gallerypack
+            - name: DB_USER
+              value: gallerypack
+            - name: BASE_URL
+              value: "https://$(DOMAIN)"
+            - name: EMAIL_PROVIDER
+              value: "null"
+            - name: ADMIN_DIST
+              value: /app/admin-dist
+            - name: LICENSE_FILE
+              value: /app/data/gallerypack.license
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: gallerypack-app-secrets
+                  key: DB_PASS
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gallerypack-app-secrets
+                  key: SESSION_SECRET
+            - name: VIEWER_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gallerypack-app-secrets
+                  key: VIEWER_TOKEN_SECRET
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gallerypack-app-secrets
+                  key: ADMIN_PASSWORD
+          volumeMounts:
+            - name: public
+              mountPath: /srv/gallerypack/public
+            - name: internal
+              mountPath: /srv/gallerypack/internal
+            - name: private
+              mountPath: /srv/gallerypack/private
+            - name: app-data
+              mountPath: /app/data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 4000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 4000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+      volumes:
+        - name: public
+          persistentVolumeClaim:
+            claimName: gallerypack-public
+        - name: internal
+          persistentVolumeClaim:
+            claimName: gallerypack-internal
+        - name: private
+          persistentVolumeClaim:
+            claimName: gallerypack-private
+        - name: app-data
+          persistentVolumeClaim:
+            claimName: gallerypack-app-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gallerypack-api
+  labels:
+    app: gallerypack
+    component: api
+spec:
+  selector:
+    app: gallerypack
+    component: api
+  ports:
+    - port: 4000
+      targetPort: 4000
+
+# ── Worker ────────────────────────────────────────────────────────────────────
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gallerypack-worker
+  labels:
+    app: gallerypack
+    component: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gallerypack
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: gallerypack
+        component: worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/pvollenweider/gallerypack-worker:prod
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: DB_HOST
+              value: gallerypack-db
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_NAME
+              value: gallerypack
+            - name: DB_USER
+              value: gallerypack
+            - name: EMAIL_PROVIDER
+              value: "null"
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: gallerypack-app-secrets
+                  key: DB_PASS
+          volumeMounts:
+            - name: public
+              mountPath: /srv/gallerypack/public
+            - name: internal
+              mountPath: /srv/gallerypack/internal
+            - name: private
+              mountPath: /srv/gallerypack/private
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          livenessProbe:
+            exec:
+              command:
+                - node
+                - -e
+                - |
+                  const fs = require('fs');
+                  const p = '/tmp/worker.alive';
+                  if (fs.existsSync(p) && (Date.now() - fs.statSync(p).mtimeMs < 120000)) process.exit(0);
+                  process.exit(1);
+            initialDelaySeconds: 60
+            periodSeconds: 60
+      volumes:
+        - name: public
+          persistentVolumeClaim:
+            claimName: gallerypack-public
+        - name: internal
+          persistentVolumeClaim:
+            claimName: gallerypack-internal
+        - name: private
+          persistentVolumeClaim:
+            claimName: gallerypack-private
+
+# ── Proxy (Caddy) ─────────────────────────────────────────────────────────────
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gallerypack-proxy
+  labels:
+    app: gallerypack
+    component: proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gallerypack
+      component: proxy
+  template:
+    metadata:
+      labels:
+        app: gallerypack
+        component: proxy
+    spec:
+      containers:
+        - name: caddy
+          image: caddy:2-alpine
+          ports:
+            - containerPort: 80
+            - containerPort: 443
+          env:
+            - name: DOMAIN
+              value: "your-domain.example.com"  # override via kustomize or patch
+          volumeMounts:
+            - name: caddyfile
+              mountPath: /etc/caddy/Caddyfile
+              subPath: Caddyfile
+            - name: public
+              mountPath: /srv/gallerypack/public
+              readOnly: true
+            - name: caddy-data
+              mountPath: /data
+            - name: caddy-config
+              mountPath: /config
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: caddyfile
+          configMap:
+            name: gallerypack-caddy-config
+        - name: public
+          persistentVolumeClaim:
+            claimName: gallerypack-public
+        - name: caddy-data
+          emptyDir: {}
+        - name: caddy-config
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gallerypack-proxy
+  labels:
+    app: gallerypack
+    component: proxy
+spec:
+  type: LoadBalancer
+  selector:
+    app: gallerypack
+    component: proxy
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+    - name: https
+      port: 443
+      targetPort: 443

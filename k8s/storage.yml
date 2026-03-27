@@ -1,0 +1,69 @@
+---
+# GalleryPack — PersistentVolumeClaims
+# Three storage tiers + database volume.
+# Uses local-path (K3s default). Adjust storageClassName for other clusters.
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gallerypack-public
+  labels:
+    app: gallerypack
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 50Gi   # generated galleries (HTML/CSS/JS + optimised images)
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gallerypack-internal
+  labels:
+    app: gallerypack
+spec:
+  accessModes: [ReadWriteMany]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi   # admin thumbnails, previews, inbox
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gallerypack-private
+  labels:
+    app: gallerypack
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 100Gi  # original uploads, high-resolution images
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gallerypack-db
+  labels:
+    app: gallerypack
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gallerypack-app-data
+  labels:
+    app: gallerypack
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi    # license file, misc server state

@@ -1,0 +1,48 @@
+---
+# GalleryPack — ConfigMap: Caddyfile
+# Inject Caddyfile as a ConfigMap so it can be mounted into the proxy pod.
+# Update the Caddyfile content below when routing rules change.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gallerypack-caddy-config
+  labels:
+    app: gallerypack
+data:
+  Caddyfile: |
+    {$DOMAIN:localhost} {
+        handle /api/* {
+            reverse_proxy gallerypack-api:4000 {
+                header_up X-Forwarded-For {remote_host}
+                flush_interval -1
+            }
+        }
+
+        handle /admin* {
+            reverse_proxy gallerypack-api:4000
+        }
+
+        # Built galleries — only the public tier is mounted here
+        handle /* {
+            root * /srv/gallerypack/public
+            try_files {path} {path}/index.html
+            file_server {
+                precompressed br gzip
+            }
+            @missing not file
+            handle @missing {
+                reverse_proxy gallerypack-api:4000
+            }
+        }
+
+        @not_sse not path /api/*/stream
+        encode @not_sse gzip
+
+        header {
+            X-Content-Type-Options "nosniff"
+            X-Frame-Options        "SAMEORIGIN"
+            Referrer-Policy        "strict-origin-when-cross-origin"
+            -Server
+        }
+    }
