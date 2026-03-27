@@ -5,9 +5,11 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-import { NavLink, Link, useLocation } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth.jsx';
 import { useT } from '../../lib/I18nContext.jsx';
+import { api } from '../../lib/api.js';
 import { globalNav, scopeNav, scopeLabels } from '../navigation/nav.config.js';
 import { interpolatePath } from '../navigation/nav.helpers.js';
 
@@ -17,14 +19,47 @@ import { interpolatePath } from '../navigation/nav.helpers.js';
  *   isMobileDrawer  — when true, renders in the mobile drawer context
  *   onClose         — called to close the mobile drawer (link clicks also close it)
  */
-export default function ScopeSidebar({ scope, params = {}, onToggle, isMobileDrawer = false, onClose }) {
-  const { user, logout } = useAuth();
+export default function ScopeSidebar({ scope, params = {}, isMobileDrawer = false, onClose }) {
+  const { user, setUser, logout } = useAuth();
   const t = useT();
+  const navigate = useNavigate();
   const isSuperadmin = user?.platformRole === 'superadmin';
-  const location = useLocation();
+  const canAdmin = ['admin', 'owner', 'collaborator'].includes(user?.studioRole) || isSuperadmin;
+
+  // Org switcher (superadmin only)
+  const [studios,   setStudios]   = useState([]);
+  const [orgOpen,   setOrgOpen]   = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const orgRef = useRef(null);
+
+  useEffect(() => {
+    if (isSuperadmin) api.listPlatformStudios().then(setStudios).catch(() => {});
+  }, [isSuperadmin]);
+
+  useEffect(() => {
+    function onOutside(e) {
+      if (orgRef.current && !orgRef.current.contains(e.target)) setOrgOpen(false);
+    }
+    if (orgOpen) document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, [orgOpen]);
+
+  async function handleSwitchOrg(studioId) {
+    if (studioId === user?.studioId) { setOrgOpen(false); return; }
+    setSwitching(true);
+    try {
+      await api.switchStudio(studioId);
+      const me = await api.me();
+      setUser(me);
+      navigate('/admin');
+    } catch {}
+    finally { setSwitching(false); setOrgOpen(false); }
+  }
 
   const navCls = ({ isActive }) => `nav-link${isActive ? ' active' : ''}`;
   const contextItems = scope ? scopeNav[scope] : null;
+  const otherStudios = studios.filter(s => s.id !== user?.studioId);
+  const canSwitch = isSuperadmin && otherStudios.length > 0;
 
   // On mobile drawer, clicking a nav item should close it
   const handleNavClick = isMobileDrawer && onClose ? onClose : undefined;
@@ -71,6 +106,52 @@ export default function ScopeSidebar({ scope, params = {}, onToggle, isMobileDra
               <i className="fas fa-user-cog me-1" />{t('profile_title')}
             </NavLink>
           </div>
+        </div>
+
+        {/* Current organization + switcher (superadmin) */}
+        <div className="border-bottom border-secondary" ref={orgRef} style={{ position: 'relative' }}>
+          <button
+            type="button"
+            className={`nav-link w-100 text-start d-flex align-items-center${orgOpen ? ' active' : ''}`}
+            onClick={() => canSwitch && setOrgOpen(o => !o)}
+            style={{ background: 'none', border: 'none', cursor: canSwitch ? 'pointer' : 'default', padding: '0.55rem 1.25rem', minHeight: 44 }}
+            disabled={switching}
+          >
+            <i className="nav-icon fas fa-building" />
+            <p className="mb-0 flex-grow-1">
+              {switching ? '…' : (user?.studioName || t('studio_untitled'))}
+            </p>
+            {canSwitch && (
+              <i className={`fas fa-angle-${orgOpen ? 'up' : 'down'} ms-1`}
+                style={{ fontSize: '0.7rem', opacity: 0.5 }} />
+            )}
+          </button>
+
+          {orgOpen && (
+            <div style={{
+              position: 'absolute', left: 0, right: 0, top: '100%',
+              background: '#2d3238', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: '0 0 4px 4px', zIndex: 1050,
+              maxHeight: 220, overflowY: 'auto',
+            }}>
+              {otherStudios.map(s => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => handleSwitchOrg(s.id)}
+                  style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '0.5rem 1.25rem', background: 'none', border: 'none',
+                    color: 'rgba(255,255,255,0.65)', fontSize: '0.82rem', cursor: 'pointer',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                >
+                  <i className="fas fa-building me-2" style={{ opacity: 0.4 }} />{s.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Global navigation */}
@@ -120,6 +201,20 @@ export default function ScopeSidebar({ scope, params = {}, onToggle, isMobileDra
               </ul>
             </nav>
           </>
+        )}
+
+        {/* Tools — Inspector (admin+) */}
+        {canAdmin && (
+          <nav className="mt-2 border-top border-secondary pt-2" aria-label="Tools">
+            <ul className="nav sidebar-menu flex-column">
+              <li className="nav-item">
+                <NavLink to="/inspector" className={navCls} onClick={handleNavClick} style={{ minHeight: 44 }}>
+                  <i className="nav-icon fas fa-search" />
+                  <p>{t('nav_inspector')}</p>
+                </NavLink>
+              </li>
+            </ul>
+          </nav>
         )}
       </div>
     </aside>
