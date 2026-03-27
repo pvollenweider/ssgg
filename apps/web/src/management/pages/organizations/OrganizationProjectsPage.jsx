@@ -57,11 +57,11 @@ export default function OrganizationProjectsPage() {
                     {projects.map(p => (
                       <tr key={p.id}>
                         <td>
-                          <Link to={`/manage/projects/${p.id}`} className="fw-semibold text-body">{p.name}</Link>
+                          <Link to={`/admin/projects/${p.id}`} className="fw-semibold text-body">{p.name}</Link>
                         </td>
                         <td><code className="text-muted">{p.slug}</code></td>
                         <td className="text-end">
-                          <Link to={`/manage/projects/${p.id}`} className="btn btn-sm btn-outline-secondary">
+                          <Link to={`/admin/projects/${p.id}`} className="btn btn-sm btn-outline-secondary">
                             Manage <i className="fas fa-chevron-right ms-1" />
                           </Link>
                         </td>

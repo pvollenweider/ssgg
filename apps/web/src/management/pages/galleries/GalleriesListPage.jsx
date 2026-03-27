@@ -48,7 +48,7 @@ export default function GalleriesListPage() {
                 {galleries.map(g => (
                   <tr key={g.id}>
                     <td>
-                      <Link to={`/manage/galleries/${g.id}`} className="fw-semibold text-body">{g.title || g.slug}</Link>
+                      <Link to={`/admin/galleries/${g.id}`} className="fw-semibold text-body">{g.title || g.slug}</Link>
                       <small className="text-muted d-block"><code>{g.slug}</code></small>
                     </td>
                     <td>
@@ -61,7 +61,7 @@ export default function GalleriesListPage() {
                       }
                     </td>
                     <td className="text-end">
-                      <Link to={`/manage/galleries/${g.id}`} className="btn btn-sm btn-outline-secondary">
+                      <Link to={`/admin/galleries/${g.id}`} className="btn btn-sm btn-outline-secondary">
                         {t('gal_overview_manage')} <i className="fas fa-chevron-right ms-1" aria-hidden="true" />
                       </Link>
                     </td>

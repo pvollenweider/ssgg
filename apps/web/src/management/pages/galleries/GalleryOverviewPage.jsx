@@ -46,7 +46,7 @@ export default function GalleryOverviewPage() {
     }
   }
 
-  const base = `/manage/galleries/${galleryId}`;
+  const base = `/admin/galleries/${galleryId}`;
 
   return (
     <AdminPage
