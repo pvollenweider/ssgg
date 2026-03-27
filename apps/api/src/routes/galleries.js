@@ -101,8 +101,9 @@ function rowToGallery(row, { dateRange = null } = {}) {
     access:               row.access,
     private:              row.access !== 'public',
     standalone:           !!row.standalone,
-    allowDownloadImage:   !!row.allow_download_image,
-    allowDownloadGallery: !!row.allow_download_gallery,
+    allowDownloadImage:    !!row.allow_download_image,
+    allowDownloadGallery:  !!row.allow_download_gallery,
+    allowDownloadOriginal: !!row.allow_download_original,
     coverPhoto:           row.cover_photo,
     slideshowInterval:    row.slideshow_interval,
     copyright:            row.copyright,
@@ -246,17 +247,17 @@ router.patch('/:id', async (req, res) => {
   const allowed = [
     'title','description','subtitle','author','author_email','date','location',
     'locale','access','password','standalone',
-    'allow_download_image','allow_download_gallery','cover_photo',
+    'allow_download_image','allow_download_gallery','allow_download_original','cover_photo',
     'slideshow_interval','copyright',
   ];
 
   const camelToSnake = {
     authorEmail: 'author_email', allowDownloadImage: 'allow_download_image',
-    allowDownloadGallery: 'allow_download_gallery', coverPhoto: 'cover_photo',
+    allowDownloadGallery: 'allow_download_gallery', allowDownloadOriginal: 'allow_download_original', coverPhoto: 'cover_photo',
     slideshowInterval: 'slideshow_interval',
   };
 
-  const boolCols = new Set(['standalone','allow_download_image','allow_download_gallery']);
+  const boolCols = new Set(['standalone','allow_download_image','allow_download_gallery','allow_download_original']);
 
   const updates = {};
   for (const [key, val] of Object.entries(req.body || {})) {

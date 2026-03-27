@@ -63,6 +63,10 @@ function processFocal(photos) {
 
 // ── Lens model ────────────────────────────────────────────────────────────────
 
+function photoRef(p) {
+  return { filename: p.filename, id: p.id, thumbnail: p.thumbnail };
+}
+
 function processLens(photos) {
   const map = {};
   let withData = 0;
@@ -72,22 +76,24 @@ function processLens(photos) {
     if (!raw) continue;
     const label = raw.trim();
     if (!label) continue;
-    map[label] = (map[label] ?? 0) + 1;
+    if (!map[label]) map[label] = { count: 0, photos: [] };
+    map[label].count++;
+    map[label].photos.push(photoRef(p));
     withData++;
   }
 
   // Cap at top 10 + "Other"
-  const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
+  const sorted = Object.entries(map).sort((a, b) => b[1].count - a[1].count);
   let items;
   if (sorted.length > 10) {
     const top10 = sorted.slice(0, 10);
-    const otherCount = sorted.slice(10).reduce((s, [, c]) => s + c, 0);
+    const otherCount = sorted.slice(10).reduce((s, [, v]) => s + v.count, 0);
     items = [
-      ...top10.map(([label, count]) => ({ label, count, pct: pct(count, withData) })),
-      { label: 'Other', count: otherCount, pct: pct(otherCount, withData) },
+      ...top10.map(([label, v]) => ({ label, count: v.count, pct: pct(v.count, withData), photos: v.photos })),
+      { label: 'Other', count: otherCount, pct: pct(otherCount, withData), photos: [] },
     ];
   } else {
-    items = sorted.map(([label, count]) => ({ label, count, pct: pct(count, withData) }));
+    items = sorted.map(([label, v]) => ({ label, count: v.count, pct: pct(v.count, withData), photos: v.photos }));
   }
 
   return { total: photos.length, withData, items };
@@ -117,16 +123,20 @@ function processAperture(photos) {
     const f = parseFloat(raw.replace(/[ƒf\/]/g, ''));
     if (isNaN(f)) continue;
     const label = `f/${nearestFstop(f)}`;
-    map[label] = (map[label] ?? 0) + 1;
+    if (!map[label]) map[label] = { count: 0, photos: [] };
+    map[label].count++;
+    map[label].photos.push(photoRef(p));
     withData++;
   }
 
   // Sort by f-number ascending
-  const items = toItems(map, withData).sort((a, b) => {
-    const fa = parseFloat(a.label.replace('f/', ''));
-    const fb = parseFloat(b.label.replace('f/', ''));
-    return fa - fb;
-  });
+  const items = Object.entries(map)
+    .map(([label, v]) => ({ label, count: v.count, pct: pct(v.count, withData), photos: v.photos }))
+    .sort((a, b) => {
+      const fa = parseFloat(a.label.replace('f/', ''));
+      const fb = parseFloat(b.label.replace('f/', ''));
+      return fa - fb;
+    });
 
   return { total: photos.length, withData, items };
 }
@@ -153,20 +163,20 @@ function parseShutterSec(raw) {
 }
 
 function processShutter(photos) {
-  const map = Object.fromEntries(SHUTTER_RANGES.map(r => [r.label, 0]));
+  const map = Object.fromEntries(SHUTTER_RANGES.map(r => [r.label, { count: 0, photos: [] }]));
   let withData = 0;
 
   for (const p of photos) {
     const sec = parseShutterSec(p.exif?.shutter);
     if (sec === null) continue;
     for (const range of SHUTTER_RANGES) {
-      if (range.test(sec)) { map[range.label]++; break; }
+      if (range.test(sec)) { map[range.label].count++; map[range.label].photos.push(photoRef(p)); break; }
     }
     withData++;
   }
 
   const items = SHUTTER_RANGES
-    .map(r => ({ label: r.label, count: map[r.label], pct: pct(map[r.label], withData) }))
+    .map(r => ({ label: r.label, count: map[r.label].count, pct: pct(map[r.label].count, withData), photos: map[r.label].photos }))
     .filter(i => i.count > 0);
 
   return { total: photos.length, withData, items };
@@ -192,20 +202,20 @@ function parseISO(raw) {
 }
 
 function processISO(photos) {
-  const map = Object.fromEntries(ISO_RANGES.map(r => [r.label, 0]));
+  const map = Object.fromEntries(ISO_RANGES.map(r => [r.label, { count: 0, photos: [] }]));
   let withData = 0;
 
   for (const p of photos) {
     const n = parseISO(p.exif?.iso);
     if (n === null) continue;
     for (const range of ISO_RANGES) {
-      if (range.test(n)) { map[range.label]++; break; }
+      if (range.test(n)) { map[range.label].count++; map[range.label].photos.push(photoRef(p)); break; }
     }
     withData++;
   }
 
   const items = ISO_RANGES
-    .map(r => ({ label: r.label, count: map[r.label], pct: pct(map[r.label], withData) }))
+    .map(r => ({ label: r.label, count: map[r.label].count, pct: pct(map[r.label].count, withData), photos: map[r.label].photos }))
     .filter(i => i.count > 0);
 
   return { total: photos.length, withData, items };

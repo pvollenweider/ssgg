@@ -164,7 +164,7 @@ export default function ScopeSidebar({ scope, params = {}, isMobileDrawer = fals
                   <NavLink to={item.href} end={item.href === '/admin'} className={navCls} onClick={handleNavClick}
                     style={{ minHeight: 44 }}>
                     <i className={`nav-icon ${item.icon}`} />
-                    <p>{item.label}</p>
+                    <p>{t(item.labelKey)}</p>
                   </NavLink>
                 </li>
               ))}
@@ -176,10 +176,10 @@ export default function ScopeSidebar({ scope, params = {}, isMobileDrawer = fals
           <>
             <div className="px-3 py-2 border-top border-secondary mt-2">
               <span className="text-white" style={{ fontSize: '0.72rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                {scopeLabels[scope]}
+                {t(scopeLabels[scope])}
               </span>
             </div>
-            <nav aria-label={`${scopeLabels[scope]} navigation`}>
+            <nav aria-label={t(scopeLabels[scope])}>
               <ul className="nav sidebar-menu flex-column">
                 {contextItems.map(item => {
                   const href = interpolatePath(item.href, params);
@@ -193,7 +193,7 @@ export default function ScopeSidebar({ scope, params = {}, isMobileDrawer = fals
                         style={{ minHeight: 44 }}
                       >
                         <i className={`nav-icon ${item.icon}`} />
-                        <p>{item.label}</p>
+                        <p>{t(item.labelKey)}</p>
                       </NavLink>
                     </li>
                   );
