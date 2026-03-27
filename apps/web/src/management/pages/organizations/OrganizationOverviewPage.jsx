@@ -6,23 +6,29 @@
 // Unauthorized use is strictly prohibited.
 
 import { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
 import { useBreadcrumb } from '../../context/BreadcrumbContext.jsx';
-import { AdminPage, AdminCard, AdminAlert, AdminLoader } from '../../../components/ui/index.js';
+import { AdminPage, AdminCard, AdminAlert, AdminLoader, AdminButton } from '../../../components/ui/index.js';
 
 export default function OrganizationOverviewPage() {
   const t = useT();
   const { orgId } = useParams();
+  const navigate = useNavigate();
   const { setEntityName } = useBreadcrumb();
-  const [org,     setOrg]     = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState('');
+  const [org,          setOrg]          = useState(null);
+  const [projectCount, setProjectCount] = useState(null);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState('');
 
   useEffect(() => {
-    api.getOrganization(orgId)
-      .then(o => { setOrg(o); setEntityName(orgId, o.name); })
+    Promise.all([api.getOrganization(orgId), api.listProjects()])
+      .then(([o, projects]) => {
+        setOrg(o);
+        setEntityName(orgId, o.name);
+        setProjectCount(projects?.length ?? 0);
+      })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [orgId]);
@@ -33,6 +39,19 @@ export default function OrganizationOverviewPage() {
     <AdminPage title={org?.name ?? 'Organization'} maxWidth="100%">
       {loading && <AdminLoader />}
       <AdminAlert message={error} />
+
+      {!loading && projectCount === 0 && (
+        <div className="alert alert-info d-flex align-items-center gap-3 mb-3">
+          <i className="fas fa-lightbulb fa-lg" />
+          <div style={{ flex: 1 }}>
+            <strong>{t('cta_org_no_projects_title')}</strong>
+            <div style={{ fontSize: '0.875rem' }}>{t('cta_org_no_projects_desc')}</div>
+          </div>
+          <AdminButton size="sm" icon="fas fa-plus" onClick={() => navigate(`${base}/projects`)}>
+            {t('proj_new_btn')}
+          </AdminButton>
+        </div>
+      )}
 
       {org && (
         <div className="row">

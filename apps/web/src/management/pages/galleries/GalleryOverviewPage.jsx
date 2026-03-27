@@ -6,7 +6,7 @@
 // Unauthorized use is strictly prohibited.
 
 import { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
 import { useBreadcrumb } from '../../context/BreadcrumbContext.jsx';
@@ -18,6 +18,7 @@ const ACCESS_BADGE  = { public: 'success', private: 'secondary', password: 'warn
 export default function GalleryOverviewPage() {
   const t = useT();
   const { galleryId } = useParams();
+  const navigate = useNavigate();
   const { setEntityName } = useBreadcrumb();
   const [gallery, setGallery] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -67,6 +68,32 @@ export default function GalleryOverviewPage() {
       {loading && <div className="text-center py-5 text-muted"><i className="fas fa-spinner fa-spin fa-2x" /></div>}
       <AdminAlert message={error} />
       <AdminAlert variant="info" message={buildMsg} className="py-2" />
+
+      {!loading && gallery && gallery.photoCount === 0 && (
+        <div className="alert alert-info d-flex align-items-center gap-3 mb-3">
+          <i className="fas fa-images fa-lg" />
+          <div style={{ flex: 1 }}>
+            <strong>{t('cta_gal_no_photos_title')}</strong>
+            <div style={{ fontSize: '0.875rem' }}>{t('cta_gal_no_photos_desc')}</div>
+          </div>
+          <AdminButton size="sm" icon="fas fa-upload" onClick={() => navigate(`${base}/photos`)}>
+            {t('upload_photos')}
+          </AdminButton>
+        </div>
+      )}
+
+      {!loading && gallery && gallery.photoCount > 0 && !gallery.buildStatus && (
+        <div className="alert alert-warning d-flex align-items-center gap-3 mb-3">
+          <i className="fas fa-rocket fa-lg" />
+          <div style={{ flex: 1 }}>
+            <strong>{t('cta_gal_not_published_title')}</strong>
+            <div style={{ fontSize: '0.875rem' }}>{t('cta_gal_not_published_desc')}</div>
+          </div>
+          <AdminButton size="sm" icon="fas fa-rocket" onClick={() => navigate(`${base}/publish`)}>
+            {t('gal_publish_title')}
+          </AdminButton>
+        </div>
+      )}
 
       {gallery && (
         <div className="row">

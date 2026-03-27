@@ -9,15 +9,17 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
+import { slugify } from '../../../lib/i18n.js';
 import { AdminPage, AdminCard, AdminButton, AdminAlert } from '../../../components/ui/index.js';
 
 export default function GalleryGeneralPage() {
   const t = useT();
   const { galleryId } = useParams();
-  const [form,   setForm]   = useState({ title: '', slug: '', author: '', authorEmail: '', locale: 'en' });
-  const [saving, setSaving] = useState(false);
-  const [saved,  setSaved]  = useState('');
-  const [error,  setError]  = useState('');
+  const [form,       setForm]       = useState({ title: '', slug: '', author: '', authorEmail: '', locale: 'en' });
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [saving,     setSaving]     = useState(false);
+  const [saved,      setSaved]      = useState('');
+  const [error,      setError]      = useState('');
   const [flushConfirm, setFlushConfirm] = useState(false);
   const [flushing,     setFlushing]     = useState(false);
   const [flushError,   setFlushError]   = useState('');
@@ -26,8 +28,23 @@ export default function GalleryGeneralPage() {
   useEffect(() => {
     api.getGallery(galleryId).then(g => {
       setForm({ title: g.title || '', slug: g.slug || '', author: g.author || '', authorEmail: g.authorEmail || '', locale: g.locale || 'en' });
+      setSlugEdited(true); // existing gallery: don't auto-update slug from title
     }).catch(() => {});
   }, [galleryId]);
+
+  function handleTitleChange(e) {
+    const title = e.target.value;
+    setForm(f => ({
+      ...f,
+      title,
+      slug: slugEdited ? f.slug : slugify(title),
+    }));
+  }
+
+  function handleSlugChange(e) {
+    setSlugEdited(true);
+    setForm(f => ({ ...f, slug: e.target.value }));
+  }
 
   function set(field) {
     return e => setForm(f => ({ ...f, [field]: e.target.value }));
@@ -67,13 +84,13 @@ export default function GalleryGeneralPage() {
             <AdminCard title={t('branding_identity_section')}>
               <div className="mb-3">
                 <label className="form-label">{t('field_title')}</label>
-                <input className="form-control" value={form.title} onChange={set('title')} required />
+                <input className="form-control" value={form.title} onChange={handleTitleChange} required />
               </div>
               <div className="mb-3">
                 <label className="form-label">{t('orgs_th_slug')}</label>
                 <div className="input-group">
                   <span className="input-group-text text-muted">/</span>
-                  <input className="form-control" value={form.slug} onChange={set('slug')} required pattern="[a-z0-9-]+" />
+                  <input className="form-control" value={form.slug} onChange={handleSlugChange} required pattern="[a-z0-9-]+" />
                 </div>
               </div>
               <div className="mb-0">

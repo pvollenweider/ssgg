@@ -6,7 +6,7 @@
 // Unauthorized use is strictly prohibited.
 
 import { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
 import { useBreadcrumb } from '../../context/BreadcrumbContext.jsx';
@@ -15,6 +15,7 @@ import { AdminPage, AdminCard, AdminAlert, AdminLoader, AdminButton } from '../.
 export default function ProjectOverviewPage() {
   const t = useT();
   const { projectId } = useParams();
+  const navigate = useNavigate();
   const { setEntityName } = useBreadcrumb();
   const [project,    setProject]    = useState(null);
   const [galleries,  setGalleries]  = useState([]);
@@ -34,6 +35,19 @@ export default function ProjectOverviewPage() {
     <AdminPage title={project?.name ?? 'Project'} maxWidth="100%">
       {loading && <AdminLoader />}
       <AdminAlert message={error} />
+
+      {!loading && galleries.length === 0 && project && (
+        <div className="alert alert-info d-flex align-items-center gap-3 mb-3">
+          <i className="fas fa-lightbulb fa-lg" />
+          <div style={{ flex: 1 }}>
+            <strong>{t('cta_proj_no_galleries_title')}</strong>
+            <div style={{ fontSize: '0.875rem' }}>{t('cta_proj_no_galleries_desc')}</div>
+          </div>
+          <AdminButton size="sm" icon="fas fa-plus" onClick={() => navigate(`${base}/galleries`)}>
+            {t('proj_new_gallery_btn')}
+          </AdminButton>
+        </div>
+      )}
 
       {project && (
         <div className="row">

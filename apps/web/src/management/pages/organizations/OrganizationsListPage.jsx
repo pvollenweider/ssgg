@@ -6,14 +6,16 @@
 // Unauthorized use is strictly prohibited.
 
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useAuth } from '../../../lib/auth.jsx';
 import { useT } from '../../../lib/I18nContext.jsx';
-import { AdminPage, AdminCard, AdminInput, AdminBadge, AdminAlert, AdminButton, AdminLoader } from '../../../components/ui/index.js';
+import { slugify } from '../../../lib/i18n.js';
+import { AdminPage, AdminCard, AdminInput, AdminBadge, AdminAlert, AdminButton, AdminLoader, AdminEmptyState } from '../../../components/ui/index.js';
 
 export default function OrganizationsListPage() {
   const t = useT();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const isSuperadmin = user?.platformRole === 'superadmin';
 
@@ -24,6 +26,7 @@ export default function OrganizationsListPage() {
   // Create form
   const [showCreate, setShowCreate] = useState(false);
   const [newOrg,     setNewOrg]     = useState({ name: '', slug: '', locale: 'en', country: '' });
+  const [slugEdited, setSlugEdited] = useState(false); // true = user manually edited slug
   const [creating,   setCreating]   = useState(false);
   const [createErr,  setCreateErr]  = useState('');
 
@@ -37,18 +40,34 @@ export default function OrganizationsListPage() {
 
   useEffect(load, []);
 
-  function setNew(field) {
-    return e => setNewOrg(f => ({ ...f, [field]: e.target.value }));
+  function handleNameChange(e) {
+    const name = e.target.value;
+    setNewOrg(f => ({
+      ...f,
+      name,
+      slug: slugEdited ? f.slug : slugify(name),
+    }));
+  }
+
+  function handleSlugChange(e) {
+    setSlugEdited(true);
+    setNewOrg(f => ({ ...f, slug: e.target.value }));
+  }
+
+  function resetForm() {
+    setNewOrg({ name: '', slug: '', locale: 'en', country: '' });
+    setSlugEdited(false);
+    setCreateErr('');
   }
 
   async function create(e) {
     e.preventDefault();
     setCreating(true); setCreateErr('');
     try {
-      await api.createOrganization(newOrg);
-      setNewOrg({ name: '', slug: '', locale: 'en', country: '' });
+      const org = await api.createOrganization(newOrg);
+      resetForm();
       setShowCreate(false);
-      load();
+      navigate(`/admin/organizations/${org.id}`);
     } catch (err) {
       setCreateErr(err.message);
     } finally {
@@ -56,12 +75,17 @@ export default function OrganizationsListPage() {
     }
   }
 
+  function openCreate() {
+    resetForm();
+    setShowCreate(true);
+  }
+
   return (
     <AdminPage
       title={t('orgs_page_title')}
       maxWidth="100%"
       actions={isSuperadmin && (
-        <AdminButton size="sm" icon="fas fa-plus" onClick={() => setShowCreate(v => !v)}>
+        <AdminButton size="sm" icon="fas fa-plus" onClick={openCreate}>
           {t('orgs_new_btn')}
         </AdminButton>
       )}
@@ -74,8 +98,9 @@ export default function OrganizationsListPage() {
                 <AdminInput
                   label={t('orgs_th_name')}
                   value={newOrg.name}
-                  onChange={setNew('name')}
+                  onChange={handleNameChange}
                   required
+                  autoFocus
                   className="mb-0"
                 />
               </div>
@@ -83,18 +108,19 @@ export default function OrganizationsListPage() {
                 <AdminInput
                   label={t('orgs_th_slug')}
                   value={newOrg.slug}
-                  onChange={setNew('slug')}
+                  onChange={handleSlugChange}
                   required
                   pattern="[a-z0-9-]+"
                   title={t('orgs_slug_hint')}
                   className="mb-0"
+                  hint={!slugEdited && newOrg.name ? t('slug_auto_hint') : undefined}
                 />
               </div>
               <div className="col-sm-2 mb-3">
                 <AdminInput
                   label={t('orgs_th_locale')}
                   value={newOrg.locale}
-                  onChange={setNew('locale')}
+                  onChange={e => setNewOrg(f => ({ ...f, locale: e.target.value }))}
                   placeholder="en"
                   className="mb-0"
                 />
@@ -103,7 +129,7 @@ export default function OrganizationsListPage() {
                 <AdminInput
                   label={t('orgs_th_country')}
                   value={newOrg.country}
-                  onChange={setNew('country')}
+                  onChange={e => setNewOrg(f => ({ ...f, country: e.target.value }))}
                   placeholder="CH"
                   maxLength={2}
                   className="mb-0"
@@ -129,10 +155,15 @@ export default function OrganizationsListPage() {
         {loading ? (
           <AdminLoader />
         ) : orgs.length === 0 ? (
-          <div className="text-center py-5 text-muted">
-            <i className="fas fa-building fa-2x mb-3" style={{ display: 'block' }} />
-            <p className="mb-0">{t('studios_empty')}</p>
-          </div>
+          <AdminEmptyState
+            icon="fas fa-building"
+            title={t('studios_empty')}
+            action={isSuperadmin && (
+              <AdminButton size="sm" icon="fas fa-plus" onClick={openCreate}>
+                {t('orgs_new_btn')}
+              </AdminButton>
+            )}
+          />
         ) : (
           <div className="table-responsive">
             <table className="table table-hover mb-0">
