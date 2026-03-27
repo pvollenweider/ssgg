@@ -6,38 +6,144 @@
 // Unauthorized use is strictly prohibited.
 
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
-import { AdminPage, AdminCard, AdminBadge, AdminAlert } from '../../../components/ui/index.js';
+import { slugify } from '../../../lib/i18n.js';
+import { AdminPage, AdminCard, AdminInput, AdminAlert, AdminButton, AdminBadge, AdminLoader, AdminEmptyState } from '../../../components/ui/index.js';
 
 const STATUS_BADGE = { done: 'success', error: 'danger', running: 'primary', queued: 'warning' };
 const ACCESS_BADGE = { public: 'success', private: 'secondary', password: 'warning' };
 
 export default function GalleriesListPage() {
   const t = useT();
+  const navigate = useNavigate();
   const [galleries, setGalleries] = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState('');
 
-  useEffect(() => {
+  // Create form
+  const [showCreate, setShowCreate] = useState(false);
+  const [newG,       setNewG]       = useState({ title: '', slug: '' });
+  const [slugEdited, setSlugEdited] = useState(false);
+  const [creating,   setCreating]   = useState(false);
+  const [createErr,  setCreateErr]  = useState('');
+
+  function load() {
+    setLoading(true);
     api.listGalleries()
       .then(setGalleries)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(load, []);
+
+  function handleTitleChange(e) {
+    const title = e.target.value;
+    setNewG(f => ({
+      ...f,
+      title,
+      slug: slugEdited ? f.slug : slugify(title),
+    }));
+  }
+
+  function handleSlugChange(e) {
+    setSlugEdited(true);
+    setNewG(f => ({ ...f, slug: e.target.value }));
+  }
+
+  function resetForm() {
+    setNewG({ title: '', slug: '' });
+    setSlugEdited(false);
+    setCreateErr('');
+  }
+
+  function openCreate() {
+    resetForm();
+    setShowCreate(true);
+  }
+
+  async function create(e) {
+    e.preventDefault();
+    setCreating(true); setCreateErr('');
+    try {
+      const gallery = await api.createGallery(newG);
+      resetForm();
+      setShowCreate(false);
+      navigate(`/admin/galleries/${gallery.id}/photos`);
+    } catch (err) {
+      setCreateErr(err.message);
+    } finally {
+      setCreating(false);
+    }
+  }
 
   return (
-    <AdminPage title={t('gal_list_title')}>
+    <AdminPage
+      title={t('gal_list_title')}
+      maxWidth="100%"
+      actions={
+        <AdminButton size="sm" icon="fas fa-plus" onClick={openCreate}>
+          {t('new_gallery')}
+        </AdminButton>
+      }
+    >
+      {showCreate && (
+        <AdminCard title={t('new_gallery')} className="mb-3">
+          <form onSubmit={create}>
+            <div className="row">
+              <div className="col-sm-5 mb-3">
+                <AdminInput
+                  label={t('field_title')}
+                  value={newG.title}
+                  onChange={handleTitleChange}
+                  required
+                  autoFocus
+                  className="mb-0"
+                />
+              </div>
+              <div className="col-sm-4 mb-3">
+                <AdminInput
+                  label={t('orgs_th_slug')}
+                  value={newG.slug}
+                  onChange={handleSlugChange}
+                  required
+                  pattern="[a-z0-9-]+"
+                  title={t('orgs_slug_hint')}
+                  className="mb-0"
+                  hint={!slugEdited && newG.title ? t('slug_auto_hint') : undefined}
+                />
+              </div>
+            </div>
+            <AdminAlert message={createErr} />
+            <div className="d-flex gap-2">
+              <AdminButton type="submit" size="sm" loading={creating} loadingLabel={t('proj_creating')}>
+                {t('create')}
+              </AdminButton>
+              <AdminButton variant="outline-secondary" size="sm" type="button" onClick={() => setShowCreate(false)}>
+                {t('cancel')}
+              </AdminButton>
+            </div>
+          </form>
+        </AdminCard>
+      )}
+
       <AdminAlert message={error} />
+
       <AdminCard noPadding>
         {loading ? (
-          <div className="text-center py-5 text-muted"><i className="fas fa-spinner fa-spin fa-2x" /></div>
+          <AdminLoader />
         ) : galleries.length === 0 ? (
-          <div className="text-center py-5 text-muted">
-            <i className="fas fa-images fa-2x mb-3" style={{ display: 'block' }} />
-            <p className="mb-0">{t('gal_list_no_galleries')}</p>
-          </div>
+          <AdminEmptyState
+            icon="fas fa-images"
+            title={t('gal_list_no_galleries')}
+            action={
+              <AdminButton size="sm" icon="fas fa-plus" onClick={openCreate}>
+                {t('new_gallery')}
+              </AdminButton>
+            }
+          />
         ) : (
           <div className="table-responsive">
             <table className="table table-hover mb-0">

@@ -6,9 +6,10 @@
 // Unauthorized use is strictly prohibited.
 
 import { useState, useEffect } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
+import { slugify } from '../../../lib/i18n.js';
 import { AdminPage, AdminCard, AdminInput, AdminAlert, AdminButton, AdminBadge } from '../../../components/ui/index.js';
 
 const STATUS_BADGE = { done: 'success', error: 'danger', running: 'primary', queued: 'warning', draft: 'secondary' };
@@ -16,6 +17,7 @@ const STATUS_BADGE = { done: 'success', error: 'danger', running: 'primary', que
 export default function ProjectGalleriesPage() {
   const t = useT();
   const { projectId } = useParams();
+  const navigate = useNavigate();
   const [galleries, setGalleries] = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState('');
@@ -23,6 +25,7 @@ export default function ProjectGalleriesPage() {
   // Create form
   const [showCreate, setShowCreate] = useState(false);
   const [newG,       setNewG]       = useState({ title: '', slug: '' });
+  const [slugEdited, setSlugEdited] = useState(false);
   const [creating,   setCreating]   = useState(false);
   const [createErr,  setCreateErr]  = useState('');
 
@@ -36,18 +39,39 @@ export default function ProjectGalleriesPage() {
 
   useEffect(load, [projectId]);
 
-  function setNew(field) {
-    return e => setNewG(f => ({ ...f, [field]: e.target.value }));
+  function handleTitleChange(e) {
+    const title = e.target.value;
+    setNewG(f => ({
+      ...f,
+      title,
+      slug: slugEdited ? f.slug : slugify(title),
+    }));
+  }
+
+  function handleSlugChange(e) {
+    setSlugEdited(true);
+    setNewG(f => ({ ...f, slug: e.target.value }));
+  }
+
+  function resetForm() {
+    setNewG({ title: '', slug: '' });
+    setSlugEdited(false);
+    setCreateErr('');
+  }
+
+  function openCreate() {
+    resetForm();
+    setShowCreate(true);
   }
 
   async function create(e) {
     e.preventDefault();
     setCreating(true); setCreateErr('');
     try {
-      await api.createProjectGallery(projectId, newG);
-      setNewG({ title: '', slug: '' });
+      const gallery = await api.createProjectGallery(projectId, newG);
+      resetForm();
       setShowCreate(false);
-      load();
+      navigate(`/admin/galleries/${gallery.id}/photos`);
     } catch (err) {
       setCreateErr(err.message);
     } finally {
@@ -60,7 +84,7 @@ export default function ProjectGalleriesPage() {
       title={t('proj_galleries_title')}
       maxWidth="100%"
       actions={
-        <AdminButton size="sm" onClick={() => setShowCreate(v => !v)} icon="fas fa-plus">
+        <AdminButton size="sm" onClick={openCreate} icon="fas fa-plus">
           {t('proj_new_gallery_btn')}
         </AdminButton>
       }
@@ -69,21 +93,26 @@ export default function ProjectGalleriesPage() {
         <AdminCard title={t('proj_new_gallery_btn')} className="mb-3">
           <form onSubmit={create}>
             <div className="row">
-              <div className="col-sm-5">
+              <div className="col-sm-5 mb-3">
                 <AdminInput
                   label={t('proj_th_title')}
                   value={newG.title}
-                  onChange={setNew('title')}
+                  onChange={handleTitleChange}
                   required
+                  autoFocus
+                  className="mb-0"
                 />
               </div>
-              <div className="col-sm-4">
+              <div className="col-sm-4 mb-3">
                 <AdminInput
                   label={t('proj_th_slug')}
                   value={newG.slug}
-                  onChange={setNew('slug')}
+                  onChange={handleSlugChange}
                   required
                   pattern="[a-z0-9-]+"
+                  title={t('orgs_slug_hint')}
+                  className="mb-0"
+                  hint={!slugEdited && newG.title ? t('slug_auto_hint') : undefined}
                 />
               </div>
             </div>
@@ -92,7 +121,7 @@ export default function ProjectGalleriesPage() {
               <AdminButton type="submit" size="sm" loading={creating} loadingLabel={t('proj_creating')}>
                 {t('create')}
               </AdminButton>
-              <AdminButton variant="outline-secondary" size="sm" onClick={() => setShowCreate(false)}>
+              <AdminButton variant="outline-secondary" size="sm" type="button" onClick={() => setShowCreate(false)}>
                 {t('cancel')}
               </AdminButton>
             </div>
@@ -110,7 +139,7 @@ export default function ProjectGalleriesPage() {
             <div className="text-center py-5 text-muted">
               <i className="fas fa-images fa-2x mb-3" style={{ display: 'block' }} />
               <p className="mb-1">{t('proj_no_galleries')}</p>
-              <AdminButton variant="outline-primary" size="sm" onClick={() => setShowCreate(true)} icon="fas fa-plus">
+              <AdminButton variant="outline-primary" size="sm" onClick={openCreate} icon="fas fa-plus">
                 {t('proj_create_first_gallery')}
               </AdminButton>
             </div>
