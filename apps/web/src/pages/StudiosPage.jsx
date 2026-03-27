@@ -6,8 +6,6 @@
 // Unauthorized use is strictly prohibited.
 
 // Page d'accueil : liste des studios accessibles
-// - superadmin : tous les studios + création
-// - utilisateur normal : son studio unique
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
@@ -20,6 +18,8 @@ function slugify(str) {
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
+
+const PLAN_BADGE = { free: 'g-secondary', pro: 'g-primary', agency: 'g-info' };
 
 export default function StudiosPage() {
   const t                   = useT();
@@ -35,7 +35,7 @@ export default function StudiosPage() {
   const [slugTouched, setSlugTouched] = useState(false);
   const [form, setForm] = useState({ name: '', slug: '', plan: 'free', ownerEmail: '' });
   const [inviteLink, setInviteLink] = useState('');
-  const [license,     setLicense]     = useState(null); // { source, features, limits, ... }
+  const [license,     setLicense]     = useState(null);
 
   // Photographers don't have studio access — redirect them to their gallery
   useEffect(() => {
@@ -59,7 +59,6 @@ export default function StudiosPage() {
         setStudios(studioList);
         setLicense(lic);
       } else {
-        // Regular user — show their studio
         if (user?.studioId) {
           setStudios([{ id: user.studioId, name: user.studioName || user.studioId, slug: '', is_default: 1, member_count: null, gallery_count: null }]);
         }
@@ -95,12 +94,11 @@ export default function StudiosPage() {
     }
   }
 
-  // Derived: is org creation blocked by the license?
   const orgLimitReached = isSuperadmin && license && (() => {
-    const hasMultiOrg = license.features?.includes('multi_organization');
-    const limit = hasMultiOrg
-      ? (license.limits?.organization_limit ?? Infinity)
-      : 1;
+    const explicitLimit = license.limits?.organization_limit;
+    const limit = explicitLimit != null
+      ? explicitLimit
+      : license.features?.includes('multi_organization') ? Infinity : 1;
     return limit !== Infinity && studios.length >= limit;
   })();
 
@@ -126,178 +124,202 @@ export default function StudiosPage() {
     } catch (e) { setToast(e.message); }
   }
 
-  const PLAN_COLORS = { free: '#888', pro: '#2563eb', agency: '#7c3aed' };
-
   return (
-    <div style={s.page}>
-      <header style={s.header}>
-        <span style={s.logo}>GalleryPack</span>
-        <div style={s.headerRight}>
-          <span style={s.userLabel}>{user?.email}</span>
-          {isSuperadmin && <Link to="/inspector" style={s.outlineBtn}>Inspector</Link>}
-          {isSuperadmin && (
-            <Link to="/settings#license" style={{ ...s.outlineBtn, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              {license?.source === 'license'
-                ? <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-                : <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />}
-              {t('section_license')}
-            </Link>
-          )}
-          <Link to="/settings" style={s.outlineBtn}>{t('settings')}</Link>
-          <button style={s.outlineBtn} onClick={logout}>{t('sign_out')}</button>
+    <>
+      {/* Content Header */}
+      <div className="content-header">
+        <div className="container-fluid">
+          <div className="row mb-2 align-items-center">
+            <div className="col-sm-6">
+              <h1 className="m-0">{t('studios_title')}</h1>
+            </div>
+            <div className="col-sm-6 text-sm-end">
+              {isSuperadmin && (
+                <button
+                  className="btn btn-primary"
+                  disabled={orgLimitReached}
+                  title={orgLimitReached ? t('license_org_limit_tooltip') : undefined}
+                  onClick={() => !orgLimitReached && setCreating(v => !v)}
+                >
+                  <i className="fas fa-plus me-1" />{t('studios_new')}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-      </header>
+      </div>
 
-      <main style={s.main}>
-        <div style={s.toolbar}>
-          <h2 style={s.heading}>{t('studios_title')}</h2>
-          {isSuperadmin && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <button
-                style={{ ...s.primaryBtn, opacity: orgLimitReached ? 0.45 : 1, cursor: orgLimitReached ? 'not-allowed' : 'pointer' }}
-                onClick={() => !orgLimitReached && setCreating(v => !v)}
-                title={orgLimitReached ? t('license_org_limit_tooltip') : undefined}
-              >
-                {t('studios_new')}
+      <section className="content">
+        <div className="container-fluid">
+
+          {/* Org limit banner */}
+          {orgLimitReached && (
+            <div className="alert alert-warning d-flex align-items-center">
+              <i className="fas fa-exclamation-triangle me-2" />
+              <div>
+                <strong>{t('license_org_limit_title')}</strong>{' '}
+                {t('license_org_limit_body')}{' '}
+                <Link to="/settings#license">{t('license_upgrade_link')}</Link>
+              </div>
+            </div>
+          )}
+
+          {/* Create form */}
+          {creating && (
+            <div className="card card-primary card-outline mb-4">
+              <div className="card-header">
+                <h3 className="card-title">{t('studios_new')}</h3>
+                <div className="card-tools">
+                  <button className="btn btn-tool" onClick={() => setCreating(false)}>
+                    <i className="fas fa-times" />
+                  </button>
+                </div>
+              </div>
+              <div className="card-body">
+                <form onSubmit={handleCreate}>
+                  <div className="row mb-3">
+                    <div className="col">
+                      <input
+                        className="form-control"
+                        placeholder={t('studios_name_placeholder')}
+                        value={form.name}
+                        onChange={e => handleNameChange(e.target.value)}
+                        required autoFocus
+                      />
+                    </div>
+                    <div className="col-auto">
+                      <input
+                        className="form-control font-monospace"
+                        style={{ fontFamily: 'monospace', maxWidth: 180 }}
+                        placeholder="slug"
+                        value={form.slug}
+                        onChange={e => { setSlugTouched(true); setForm(f => ({ ...f, slug: e.target.value })); }}
+                        required
+                      />
+                    </div>
+                    <div className="col-auto">
+                      <select className="form-control" value={form.plan} onChange={e => setForm(f => ({ ...f, plan: e.target.value }))}>
+                        {['free','pro','agency'].map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="row mb-3">
+                    <div className="col">
+                      <input
+                        className="form-control"
+                        type="email"
+                        placeholder={t('studios_owner_email_placeholder')}
+                        value={form.ownerEmail}
+                        onChange={e => setForm(f => ({ ...f, ownerEmail: e.target.value }))}
+                      />
+                    </div>
+                    {form.ownerEmail && (
+                      <div className="col-auto d-flex align-items-center">
+                        <small className="text-muted">{t('studios_owner_invite_hint')}</small>
+                      </div>
+                    )}
+                  </div>
+                  <div className="d-flex gap-2">
+                    <button className="btn btn-primary me-2" type="submit">{t('studios_create_btn')}</button>
+                    <button className="btn btn-secondary" type="button" onClick={() => setCreating(false)}>{t('cancel')}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Invite link banner */}
+          {inviteLink && (
+            <div className="alert alert-success d-flex align-items-center">
+              <i className="fas fa-link me-2" />
+              <span className="flex-grow-1" style={{ wordBreak: 'break-all', fontSize: '0.85rem' }}>{inviteLink}</span>
+              <button className="btn btn-sm btn-outline-success ms-2"
+                onClick={() => { navigator.clipboard.writeText(inviteLink); setToast(t('access_copied')); }}>
+                {t('team_invite_link_copy')}
+              </button>
+              <button className="btn btn-sm btn-link text-secondary ms-1" onClick={() => setInviteLink('')}>
+                <i className="fas fa-times" />
               </button>
             </div>
           )}
-        </div>
 
-        {orgLimitReached && (
-          <div style={s.upgradeBanner}>
-            <span style={{ fontWeight: 600 }}>{t('license_org_limit_title')}</span>
-            {' '}{t('license_org_limit_body')}
-            {' '}<Link to="/settings#license" style={{ color: '#2563eb' }}>{t('license_upgrade_link')}</Link>
-          </div>
-        )}
-
-        {creating && (
-          <form style={s.createForm} onSubmit={handleCreate}>
-            <div style={s.formRow}>
-              <input
-                style={s.input}
-                placeholder={t('studios_name_placeholder')}
-                value={form.name}
-                onChange={e => handleNameChange(e.target.value)}
-                required autoFocus
-              />
-              <input
-                style={{ ...s.input, fontFamily: 'monospace', fontSize: '0.8rem', maxWidth: 180 }}
-                placeholder="slug"
-                value={form.slug}
-                onChange={e => { setSlugTouched(true); setForm(f => ({ ...f, slug: e.target.value })); }}
-                required
-              />
-              <select style={{ ...s.input, maxWidth: 120 }} value={form.plan} onChange={e => setForm(f => ({ ...f, plan: e.target.value }))}>
-                {['free','pro','agency'].map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
+          {/* Studios list */}
+          {loading ? (
+            <div className="text-center text-muted py-5">
+              <i className="fas fa-spinner fa-spin fa-2x mb-2 d-block" />
+              {t('loading')}
             </div>
-            <div style={s.formRow}>
-              <input
-                style={s.input}
-                type="email"
-                placeholder={t('studios_owner_email_placeholder')}
-                value={form.ownerEmail}
-                onChange={e => setForm(f => ({ ...f, ownerEmail: e.target.value }))}
-              />
-              {form.ownerEmail && (
-                <span style={{ fontSize: '0.78rem', color: '#888', alignSelf: 'center' }}>
-                  {t('studios_owner_invite_hint')}
-                </span>
+          ) : studios.length === 0 ? (
+            <div className="text-center py-5">
+              <p className="text-muted">{t('studios_empty')}</p>
+              {isSuperadmin && (
+                <button className="btn btn-primary" onClick={() => setCreating(true)}>
+                  <i className="fas fa-plus me-1" />{t('studios_new')}
+                </button>
               )}
             </div>
-            <div style={{ display:'flex', gap:'0.5rem' }}>
-              <button style={s.primaryBtn} type="submit">{t('studios_create_btn')}</button>
-              <button style={s.outlineBtn} type="button" onClick={() => setCreating(false)}>{t('cancel')}</button>
-            </div>
-          </form>
-        )}
-
-        {inviteLink && (
-          <div style={s.inviteBanner}>
-            <span style={{ fontSize: '0.82rem', color: '#555', flex: 1, wordBreak: 'break-all' }}>
-              🔗 {inviteLink}
-            </span>
-            <button style={s.outlineBtn} onClick={() => { navigator.clipboard.writeText(inviteLink); setToast(t('access_copied')); }}>
-              {t('team_invite_link_copy')}
-            </button>
-            <button style={{ ...s.outlineBtn, color: '#999' }} onClick={() => setInviteLink('')}>✕</button>
-          </div>
-        )}
-
-        {loading ? (
-          <p style={s.dim}>{t('loading')}</p>
-        ) : studios.length === 0 ? (
-          <div style={s.empty}>
-            <p>{t('studios_empty')}</p>
-            {isSuperadmin && <button style={s.primaryBtn} onClick={() => setCreating(true)}>{t('studios_new')}</button>}
-          </div>
-        ) : (
-          <div style={s.grid}>
-            {studios.map(studio => (
-              <div key={studio.id} style={s.card}>
-                <div style={s.cardBody}>
-                  <div style={s.cardName}>
-                    {studio.name}
-                    {studio.is_default === 1 && <span style={s.defaultBadge}>{t('studios_default_badge')}</span>}
-                  </div>
-                  {isSuperadmin && (
-                    <div style={s.cardMeta}>
-                      <span style={{ color: PLAN_COLORS[studio.plan] || '#888', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase' }}>{studio.plan}</span>
-                      {studio.member_count != null && <span style={s.metaChip}>{studio.member_count} {t('studios_members_label')}</span>}
-                      {studio.gallery_count != null && <span style={s.metaChip}>{studio.gallery_count} {t('studios_galleries_label')}</span>}
+          ) : (
+            <div className="row">
+              {studios.map(studio => (
+                <div key={studio.id} className="col-md-6 col-lg-4">
+                  <div className="card">
+                    <div className="card-body">
+                      <div className="d-flex align-items-start justify-content-between">
+                        <div>
+                          <h5 className="card-title mb-1">
+                            {studio.name}
+                            {studio.is_default === 1 && (
+                              <span className="badge bg-secondary ms-2" style={{ fontSize: '0.65rem' }}>
+                                {t('studios_default_badge')}
+                              </span>
+                            )}
+                          </h5>
+                          {isSuperadmin && (
+                            <div className="d-flex flex-wrap gap-1 mt-1">
+                              <span className={`badge ${PLAN_BADGE[studio.plan] || 'g-secondary'}`}>
+                                {studio.plan}
+                              </span>
+                              {studio.member_count != null && (
+                                <span className="badge bg-light text-muted">
+                                  {studio.member_count} {t('studios_members_label')}
+                                </span>
+                              )}
+                              {studio.gallery_count != null && (
+                                <span className="badge bg-light text-muted">
+                                  {studio.gallery_count} {t('studios_galleries_label')}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  )}
+                    <div className="card-footer d-flex gap-2">
+                      <button
+                        className="btn btn-dark btn-sm"
+                        onClick={() => handleEnter(studio.id)}
+                        disabled={switching === studio.id}
+                      >
+                        {switching === studio.id
+                          ? <><i className="fas fa-spinner fa-spin me-1" />…</>
+                          : <><i className="fas fa-sign-in-alt me-1" />{t('studios_enter_btn')}</>
+                        }
+                      </button>
+                      {isSuperadmin && !studio.is_default && (
+                        <button className="btn btn-outline-danger btn-sm" onClick={() => handleDelete(studio.id)}>
+                          {t('delete')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div style={s.cardActions}>
-                  <button
-                    style={s.enterBtn}
-                    onClick={() => handleEnter(studio.id)}
-                    disabled={switching === studio.id}
-                  >
-                    {switching === studio.id ? '…' : t('studios_enter_btn')}
-                  </button>
-                  {isSuperadmin && !studio.is_default && (
-                    <button style={s.dangerBtn} onClick={() => handleDelete(studio.id)}>{t('delete')}</button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </main>
+              ))}
+            </div>
+          )}
+
+        </div>
+      </section>
       <Toast message={toast} onDone={() => setToast('')} />
-    </div>
+    </>
   );
 }
-
-const s = {
-  page:        { minHeight: '100vh', background: '#f8f8f8' },
-  header:      { background: '#fff', borderBottom: '1px solid #eee', padding: '0 1.5rem', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
-  logo:        { fontWeight: 700, letterSpacing: '-0.02em' },
-  headerRight: { display: 'flex', alignItems: 'center', gap: '0.75rem' },
-  userLabel:   { fontSize: '0.85rem', color: '#888' },
-  main:        { maxWidth: 900, margin: '0 auto', padding: '2rem 1.5rem' },
-  toolbar:     { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' },
-  heading:     { margin: 0, fontSize: '1.3rem', fontWeight: 700 },
-  createForm:  { background: '#fff', border: '1px solid #eee', borderRadius: 10, padding: '1.25rem', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' },
-  formRow:     { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' },
-  input:       { padding: '0.45rem 0.7rem', border: '1px solid #ddd', borderRadius: 6, fontSize: '0.875rem', outline: 'none', flex: '1 1 160px' },
-  grid:        { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1rem' },
-  card:        { background: '#fff', borderRadius: 10, border: '1px solid #eee', padding: '1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' },
-  cardBody:    { flex: 1, minWidth: 0 },
-  cardName:    { fontWeight: 600, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' },
-  cardMeta:    { display: 'flex', gap: '0.5rem', marginTop: '0.4rem', flexWrap: 'wrap', alignItems: 'center' },
-  metaChip:   { fontSize: '0.75rem', color: '#888', background: '#f5f5f5', padding: '0.1rem 0.5rem', borderRadius: 99 },
-  cardActions: { display: 'flex', gap: '0.5rem', flexShrink: 0 },
-  enterBtn:    { padding: '0.45rem 1.1rem', background: '#111', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem', whiteSpace: 'nowrap' },
-  dangerBtn:   { padding: '0.4rem 0.7rem', background: 'none', color: '#c00', border: '1px solid #fcc', borderRadius: 6, cursor: 'pointer', fontSize: '0.8rem' },
-  defaultBadge:{ fontSize: '0.68rem', background: '#f0f0f0', color: '#888', padding: '0.1rem 0.45rem', borderRadius: 3, fontWeight: 500 },
-  empty:       { textAlign: 'center', padding: '4rem', color: '#888', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' },
-  primaryBtn:   { padding: '0.45rem 1.1rem', background: '#111', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem', whiteSpace: 'nowrap' },
-  outlineBtn:   { padding: '0.45rem 0.9rem', background: 'none', color: '#111', border: '1px solid #ddd', borderRadius: 6, fontWeight: 500, cursor: 'pointer', fontSize: '0.875rem', textDecoration: 'none' },
-  dim:          { color: '#888', fontSize: '0.875rem' },
-  inviteBanner:  { display: 'flex', gap: '0.75rem', alignItems: 'center', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '0.75rem 1rem', marginBottom: '1rem' },
-  upgradeBanner: { background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.875rem', color: '#78350f', lineHeight: 1.5 },
-};

@@ -89,7 +89,7 @@ export function GalleryCard({ gallery, onBuild, onDelete, canBuild = true }) {
       <div style={s.cover}>
         {gallery.firstPhoto
           ? <img src={`/api/galleries/${gallery.id}/photos/${encodeURIComponent(gallery.firstPhoto)}/preview`} style={s.img} alt="" />
-          : <div style={s.placeholder}>📷</div>}
+          : <div style={s.placeholder}><i className="fas fa-image" /></div>}
 
         {/* Top-right corner badges on the image */}
         {gallery.access !== 'public' && (
@@ -114,7 +114,7 @@ export function GalleryCard({ gallery, onBuild, onDelete, canBuild = true }) {
 
           <div style={s.actions} onClick={e => e.stopPropagation()}>
             {gallery.buildStatus === 'done' && (
-              <a href={`/${gallery.slug}/`} target="_blank" rel="noreferrer" style={s.viewBtn} title={t('view_gallery')}>↗</a>
+              <a href={`/${gallery.slug}/`} target="_blank" rel="noreferrer" style={s.viewBtn} title={t('view_gallery')}><i className="fas fa-external-link-alt" /></a>
             )}
             {canBuild && (
               <button
@@ -122,9 +122,9 @@ export function GalleryCard({ gallery, onBuild, onDelete, canBuild = true }) {
                 onClick={() => onBuild(gallery.id)}
                 disabled={isUpToDate}
                 title={isUpToDate ? t('already_published') : t('build_action')}
-              >▶</button>
+              ><i className="fas fa-play" /></button>
             )}
-            <button style={{ ...s.btn, color: '#dc2626' }} onClick={() => onDelete(gallery.id)} title={t('delete')}>✕</button>
+            <button style={{ ...s.btn, color: '#dc2626' }} onClick={() => onDelete(gallery.id)} title={t('delete')}><i className="fas fa-times" /></button>
           </div>
         </div>
       </div>

@@ -58,6 +58,21 @@ router.get('/license', (req, res) => {
   res.json(getLicenseInfo());
 });
 
+
+// GET /api/platform/license/usage — current usage vs. quota limits
+router.get('/license/usage', async (req, res, next) => {
+  try {
+    const [[{ orgs }]]          = await query('SELECT COUNT(*) AS orgs FROM studios');
+    const [[{ galleries }]]     = await query('SELECT COUNT(*) AS galleries FROM galleries');
+    const [[{ collaborators }]] = await query("SELECT COUNT(*) AS collaborators FROM studio_memberships WHERE role != 'owner'");
+    const [[{ storageBytes }]]  = await query('SELECT COALESCE(SUM(size_bytes),0) AS storageBytes FROM photos');
+    const storageGb = Math.round((Number(storageBytes) / (1024 ** 3)) * 100) / 100;
+    res.json({ orgs: Number(orgs), galleries: Number(galleries), collaborators: Number(collaborators), storageGb });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // POST /api/platform/license — install a new license from JSON (superadmin only)
 router.post('/license', (req, res) => {
   const { licenseJson } = req.body || {};
@@ -146,6 +161,14 @@ router.delete('/studios/:id', async (req, res) => {
   if (!studio) return res.status(404).json({ error: 'Studio not found' });
   if (studio.is_default)
     return res.status(400).json({ error: 'Cannot delete the default studio' });
+
+  // Reassign any users whose studio_id points here to the default studio,
+  // so they survive the deletion (belt-and-suspenders on top of the FK SET NULL).
+  const [[defaultStudio]] = await query('SELECT id FROM studios WHERE is_default = 1 LIMIT 1');
+  if (defaultStudio) {
+    await query('UPDATE users SET studio_id = ? WHERE studio_id = ?', [defaultStudio.id, req.params.id]);
+  }
+
   await deleteStudio(req.params.id);
   res.json({ ok: true });
 });

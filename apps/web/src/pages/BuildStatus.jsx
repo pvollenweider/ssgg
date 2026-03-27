@@ -30,51 +30,69 @@ export default function BuildStatus() {
   }
 
   return (
-    <div style={s.page}>
-      <header style={s.header}>
-        <Link to={job ? `/galleries/${job.galleryId}` : '/studio'} style={s.back}>← Galerie</Link>
-        <span style={s.title}>Build {jobId.slice(-8)}</span>
-      </header>
-
-      <main style={s.main}>
-        {job && (
-          <div style={s.meta}>
-            <span>Gallery: <strong>{job.galleryId}</strong></span>
-            <span>Triggered: {new Date(job.createdAt).toLocaleString()}</span>
-            {job.durationMs && <span>Duration: {(job.durationMs / 1000).toFixed(1)}s</span>}
+    <>
+      {/* Content Header */}
+      <div className="content-header">
+        <div className="container-fluid">
+          <div className="row mb-2 align-items-center">
+            <div className="col-sm-6">
+              <h1 className="m-0">Build {jobId.slice(-8)}</h1>
+            </div>
           </div>
-        )}
+        </div>
+      </div>
 
-        <BuildLog jobId={jobId} onDone={handleDone} />
+      <section className="content">
+        <div className="container-fluid">
+          <div className="row justify-content-center">
+            <div className="col-lg-10">
 
-        {done && job && (
-          <div style={s.actions}>
-            <Link to={`/galleries/${job.galleryId}`} style={s.btn}>Back to gallery</Link>
-            {gallery && (() => {
-              const publicPath = (gallery.breadcrumb?.project?.slug && gallery.access !== 'password' && gallery.access !== 'private')
-                ? `/${gallery.breadcrumb.project.slug}/${gallery.slug}`
-                : `/${gallery.slug}`;
-              return (
-                <a href={`${publicPath}/`} target="_blank" rel="noreferrer" style={s.viewBtn}>
-                  View gallery ↗
-                </a>
-              );
-            })()}
+              {/* Build meta */}
+              {job && (
+                <div className="card">
+                  <div className="card-body py-2">
+                    <div className="d-flex flex-wrap" style={{ gap: '1.5rem', fontSize: '0.85rem', color: '#666' }}>
+                      <span><strong>Gallery:</strong> {job.galleryId}</span>
+                      <span><strong>Triggered:</strong> {new Date(job.createdAt).toLocaleString()}</span>
+                      {job.durationMs && <span><strong>Duration:</strong> {(job.durationMs / 1000).toFixed(1)}s</span>}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Build log */}
+              <div className="card">
+                <div className="card-header">
+                  <h3 className="card-title"><i className="fas fa-terminal me-2" />Build Log</h3>
+                </div>
+                <div className="card-body p-0">
+                  <BuildLog jobId={jobId} onDone={handleDone} />
+                </div>
+              </div>
+
+              {/* Post-build actions */}
+              {done && job && (
+                <div className="d-flex" style={{ gap: '0.75rem' }}>
+                  <Link to={`/galleries/${job.galleryId}`} className="btn btn-dark">
+                    <i className="fas fa-arrow-left me-1" />Back to gallery
+                  </Link>
+                  {gallery && (() => {
+                    const publicPath = (gallery.breadcrumb?.project?.slug && gallery.access !== 'password' && gallery.access !== 'private')
+                      ? `/${gallery.breadcrumb.project.slug}/${gallery.slug}`
+                      : `/${gallery.slug}`;
+                    return (
+                      <a href={`${publicPath}/`} target="_blank" rel="noreferrer" className="btn btn-success">
+                        View gallery <i className="fas fa-external-link-alt ms-1" />
+                      </a>
+                    );
+                  })()}
+                </div>
+              )}
+
+            </div>
           </div>
-        )}
-      </main>
-    </div>
+        </div>
+      </section>
+    </>
   );
 }
-
-const s = {
-  page:    { minHeight:'100vh', background:'#f8f8f8' },
-  header:  { background:'#fff', borderBottom:'1px solid #eee', padding:'0 1.5rem', height:52, display:'flex', alignItems:'center', gap:'1rem' },
-  back:    { color:'#111', textDecoration:'none', fontSize:'0.875rem' },
-  title:   { fontWeight:600, fontSize:'0.95rem' },
-  main:    { maxWidth:820, margin:'0 auto', padding:'1.5rem' },
-  meta:    { display:'flex', gap:'1.5rem', fontSize:'0.85rem', color:'#666', marginBottom:'1rem', flexWrap:'wrap' },
-  actions: { marginTop:'1rem', display:'flex', gap:'0.75rem', alignItems:'center' },
-  btn:     { padding:'0.5rem 1.25rem', background:'#111', color:'#fff', borderRadius:6, textDecoration:'none', fontWeight:600, fontSize:'0.875rem' },
-  viewBtn: { padding:'0.5rem 1.25rem', background:'#16a34a', color:'#fff', borderRadius:6, textDecoration:'none', fontWeight:600, fontSize:'0.875rem' },
-};

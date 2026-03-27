@@ -10,6 +10,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { useT } from '../lib/I18nContext.jsx';
+import LoginLayout from '../components/LoginLayout.jsx';
 
 const ROLE_COLORS = { owner: '#7c3aed', admin: '#2563eb', editor: '#0891b2', photographer: '#059669' };
 
@@ -64,84 +65,103 @@ export default function AcceptInvite() {
     photographer: t('role_photographer'),
   };
 
-  if (loading) return <div style={s.center}><div style={s.card}><p style={s.sub}>{t('loading')}</p></div></div>;
+  if (loading) return (
+    <LoginLayout>
+      <div className="text-center">
+        <i className="fas fa-spinner fa-spin fa-2x text-muted" />
+      </div>
+    </LoginLayout>
+  );
 
   if (error && !invite) return (
-    <div style={s.center}>
-      <div style={s.card}>
-        <div style={s.logo}>GalleryPack</div>
-        <p style={s.errorMsg}>{error || t('invite_invalid_link')}</p>
-        <a href="/login" style={s.link}>{t('back_to_login')}</a>
+    <LoginLayout>
+      <div className="text-center">
+        <div className="alert alert-danger py-2 px-3 mb-3" style={{ fontSize: '0.85rem' }}>
+          {error || t('invite_invalid_link')}
+        </div>
+        <p className="mb-0">
+          <a href="/login" className="text-muted" style={{ fontSize: '0.875rem' }}>
+            {t('back_to_login')}
+          </a>
+        </p>
       </div>
-    </div>
+    </LoginLayout>
   );
 
   if (invite?.alreadyAccepted) return (
-    <div style={s.center}>
-      <div style={s.card}>
-        <div style={s.logo}>GalleryPack</div>
-        <p style={s.sub}>{t('invite_already_accepted')}</p>
-        <a href="/login" style={s.link}>{t('invite_go_login')}</a>
+    <LoginLayout>
+      <div className="text-center">
+        <p className="text-muted mb-3">{t('invite_already_accepted')}</p>
+        <p className="mb-0">
+          <a href="/login" className="text-muted" style={{ fontSize: '0.875rem' }}>
+            {t('invite_go_login')}
+          </a>
+        </p>
       </div>
-    </div>
+    </LoginLayout>
   );
 
   return (
-    <div style={s.center}>
-      <div style={s.card}>
-        <div style={s.logo}>GalleryPack</div>
-        <h1 style={s.title}>{t('invite_title')}</h1>
-        <p style={s.sub}>
-          {t('invite_subtitle', { studio: invite?.studioName || '…' })}{' '}
-          <span style={{ ...s.roleBadge, background: ROLE_COLORS[invite?.role] + '18', color: ROLE_COLORS[invite?.role] }}>
-            {ROLE_LABELS[invite?.role] || invite?.role}
-          </span>
+    <LoginLayout maxWidth={420}>
+      <p className="text-center fw-bold mb-1">{t('invite_title')}</p>
+      <p className="text-center text-muted mb-1" style={{ fontSize: '0.875rem' }}>
+        {t('invite_subtitle', { studio: invite?.studioName || '…' })}{' '}
+        <span
+          className="badge"
+          style={{
+            background: (ROLE_COLORS[invite?.role] || '#888') + '22',
+            color: ROLE_COLORS[invite?.role] || '#888',
+            fontWeight: 600,
+          }}
+        >
+          {ROLE_LABELS[invite?.role] || invite?.role}
+        </span>
+      </p>
+      {invite?.galleryTitle && (
+        <p className="text-center text-muted mb-1" style={{ fontSize: '0.875rem' }}>
+          {t('invite_for_gallery', { gallery: invite.galleryTitle })}
         </p>
-        {invite?.galleryTitle && (
-          <p style={s.sub}>{t('invite_for_gallery', { gallery: invite.galleryTitle })}</p>
-        )}
-        <p style={s.email}>{invite?.email}</p>
+      )}
+      <p className="text-center text-muted mb-3" style={{ fontSize: '0.82rem' }}>{invite?.email}</p>
 
-        <form onSubmit={handleSubmit} style={s.form}>
-          <label style={s.label}>{t('invite_choose_password')}</label>
-          <input
-            style={s.input}
-            type="password"
-            placeholder={t('invite_password_placeholder')}
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required minLength={8} autoFocus
-          />
-          <input
-            style={s.input}
-            type="password"
-            placeholder={t('invite_confirm_placeholder')}
-            value={password2}
-            onChange={e => setPassword2(e.target.value)}
-            required
-          />
-          {error && <p style={s.errorMsg}>{error}</p>}
-          <button style={s.btn} type="submit" disabled={submitting}>
-            {submitting ? t('invite_creating') : t('invite_create')}
-          </button>
-        </form>
-      </div>
-    </div>
+      <form onSubmit={handleSubmit}>
+        <div className="mb-3">
+          <div className="input-group">
+            <input
+              type="password"
+              className="form-control"
+              placeholder={t('invite_password_placeholder')}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required minLength={8} autoFocus
+            />
+            <span className="input-group-text"><i className="fas fa-lock" /></span>
+          </div>
+        </div>
+        <div className="mb-3">
+          <div className="input-group">
+            <input
+              type="password"
+              className="form-control"
+              placeholder={t('invite_confirm_placeholder')}
+              value={password2}
+              onChange={e => setPassword2(e.target.value)}
+              required
+            />
+            <span className="input-group-text"><i className="fas fa-lock" /></span>
+          </div>
+        </div>
+        {error && (
+          <div className="alert alert-danger py-2 px-3 mb-3" style={{ fontSize: '0.85rem' }}>
+            {error}
+          </div>
+        )}
+        <button type="submit" className="btn btn-primary w-100" disabled={submitting}>
+          {submitting
+            ? <><i className="fas fa-spinner fa-spin me-1" />{t('invite_creating')}</>
+            : t('invite_create')}
+        </button>
+      </form>
+    </LoginLayout>
   );
 }
-
-const s = {
-  center:    { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f8f8' },
-  card:      { background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '2.5rem 2rem', width: '100%', maxWidth: 400, textAlign: 'center', boxShadow: '0 4px 24px rgba(0,0,0,0.06)' },
-  logo:      { fontWeight: 800, fontSize: '1.1rem', letterSpacing: '-0.02em', color: '#111', marginBottom: '1.5rem' },
-  title:     { fontSize: '1.3rem', fontWeight: 700, margin: '0 0 0.5rem', color: '#111' },
-  sub:       { color: '#666', fontSize: '0.9rem', margin: '0 0 0.25rem', lineHeight: 1.5 },
-  email:     { color: '#999', fontSize: '0.82rem', margin: '0 0 1.5rem' },
-  roleBadge: { display: 'inline-block', padding: '0.1rem 0.5rem', borderRadius: 4, fontSize: '0.82rem', fontWeight: 600 },
-  form:      { display: 'flex', flexDirection: 'column', gap: '0.75rem', textAlign: 'left' },
-  label:     { fontSize: '0.8rem', fontWeight: 600, color: '#555' },
-  input:     { padding: '0.55rem 0.75rem', border: '1px solid #ddd', borderRadius: 6, fontSize: '0.9rem', outline: 'none' },
-  btn:       { padding: '0.65rem', background: '#111', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem', marginTop: '0.25rem' },
-  errorMsg:  { color: '#dc2626', fontSize: '0.82rem', margin: 0 },
-  link:      { color: '#555', fontSize: '0.85rem', textDecoration: 'none', display: 'inline-block', marginTop: '1rem' },
-};

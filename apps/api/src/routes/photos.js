@@ -210,7 +210,12 @@ router.get('/:id/photos/inbox', async (req, res) => {
 const MAX_PHOTOS_PER_GALLERY = 500;
 
 // POST /api/galleries/:id/photos — upload one or more photos (authenticated)
-router.post('/:id/photos', upload.array('photos', 200), async (req, res) => {
+router.post('/:id/photos', (req, res, next) => {
+  upload.array('photos', 200)(req, res, (err) => {
+    if (err) return res.status(err.message === 'Gallery not found' ? 404 : 400).json({ error: err.message });
+    next();
+  });
+}, async (req, res) => {
   const gallery = await ensureGalleryBelongsToStudio(req, res);
   if (!gallery) return;
   const galleryRole = await getGalleryRole(req.userId, gallery.id);
