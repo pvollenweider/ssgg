@@ -13,10 +13,10 @@ services:
     volumes:
       - ./data/db:/var/lib/mysql
     environment:
-      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:-devroot}"
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is required — copy .env.example to .env}"
       MYSQL_DATABASE:      "${DB_NAME:-gallerypack}"
       MYSQL_USER:          "${DB_USER:-gallerypack}"
-      MYSQL_PASSWORD:      "${DB_PASS:-devpass}"
+      MYSQL_PASSWORD:      "${DB_PASS:?DB_PASS is required — copy .env.example to .env}"
     healthcheck:
       test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       interval: 10s
@@ -50,9 +50,9 @@ services:
       DB_USER:             "${DB_USER:-gallerypack}"
       DB_PASS:             "${DB_PASS:-devpass}"
       ADMIN_EMAIL:         "${ADMIN_EMAIL:-admin@localhost}"
-      ADMIN_PASSWORD:      "${ADMIN_PASSWORD:-REDACTED}"
-      SESSION_SECRET:      "${SESSION_SECRET:-dev-session-secret-not-for-production}"
-      VIEWER_TOKEN_SECRET: "${VIEWER_TOKEN_SECRET:-dev-viewer-secret-not-for-production}"
+      ADMIN_PASSWORD:      "${ADMIN_PASSWORD:?ADMIN_PASSWORD is required — copy .env.example to .env}"
+      SESSION_SECRET:      "${SESSION_SECRET:?SESSION_SECRET is required — copy .env.example to .env}"
+      VIEWER_TOKEN_SECRET: "${VIEWER_TOKEN_SECRET:?VIEWER_TOKEN_SECRET is required — copy .env.example to .env}"
       BASE_URL:            "${BASE_URL:-http://localhost:4001}"
       EMAIL_PROVIDER:      "${EMAIL_PROVIDER:-null}"
       ADMIN_DIST:          "/app/admin-dist"
