@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useT } from '../lib/I18nContext.jsx';
+import LoginLayout from '../components/LoginLayout.jsx';
 
 export default function ForgotPassword() {
   const t = useT();
@@ -37,69 +38,69 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div style={s.page}>
-      <div style={s.card}>
-        <h1 style={s.title}>GalleryPack</h1>
-        {sent ? (
-          <>
-            {emailSent ? (
-              mode === 'magic' ? (
-                <p style={s.sub}>{t('forgot_magic_sent', { email })}</p>
-              ) : (
-                <p style={s.sub}>{t('forgot_reset_sent', { email })}</p>
-              )
-            ) : (
-              <p style={s.sub}>{t('forgot_no_smtp')}</p>
-            )}
-            <Link to="/login" style={s.link}>{t('back_to_login')}</Link>
-          </>
-        ) : (
-          <>
-            <div style={s.toggle}>
-              <button
-                style={{ ...s.toggleBtn, ...(mode === 'magic' ? s.toggleBtnActive : {}) }}
-                onClick={() => setMode('magic')}
-                type="button"
-              >{t('forgot_mode_magic')}</button>
-              <button
-                style={{ ...s.toggleBtn, ...(mode === 'reset' ? s.toggleBtnActive : {}) }}
-                onClick={() => setMode('reset')}
-                type="button"
-              >{t('forgot_mode_reset')}</button>
-            </div>
-            <p style={s.sub}>
-              {mode === 'magic' ? t('forgot_magic_desc') : t('forgot_reset_desc')}
+    <LoginLayout>
+      {sent ? (
+        <>
+          {emailSent ? (
+            <p className="text-muted text-center mb-3">
+              {mode === 'magic' ? t('forgot_magic_sent', { email }) : t('forgot_reset_sent', { email })}
             </p>
-            <form onSubmit={handleSubmit} style={s.form}>
-              <input
-                style={s.input}
-                type="email" placeholder={t('login_email')} autoComplete="email"
-                value={email} onChange={e => setEmail(e.target.value)} required
-              />
-              {error && <p style={s.error}>{error}</p>}
-              <button style={s.btn} type="submit" disabled={loading}>
-                {loading ? t('sending') : t('forgot_send')}
-              </button>
-            </form>
-            <Link to="/login" style={s.link}>{t('back_to_login')}</Link>
-          </>
-        )}
-      </div>
-    </div>
+          ) : (
+            <p className="text-warning text-center mb-3">{t('forgot_no_smtp')}</p>
+          )}
+          <div className="text-center">
+            <Link to="/login" className="btn btn-outline-secondary btn-sm">{t('back_to_login')}</Link>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Mode toggle */}
+          <div className="btn-group btn-group-sm d-flex mb-3" role="group">
+            <button
+              type="button"
+              className={`btn ${mode === 'magic' ? 'btn-primary' : 'btn-outline-secondary'}`}
+              onClick={() => setMode('magic')}
+            >{t('forgot_mode_magic')}</button>
+            <button
+              type="button"
+              className={`btn ${mode === 'reset' ? 'btn-primary' : 'btn-outline-secondary'}`}
+              onClick={() => setMode('reset')}
+            >{t('forgot_mode_reset')}</button>
+          </div>
+
+          <p className="text-muted mb-3" style={{ fontSize: '0.875rem' }}>
+            {mode === 'magic' ? t('forgot_magic_desc') : t('forgot_reset_desc')}
+          </p>
+
+          <form onSubmit={handleSubmit}>
+            <div className="mb-3">
+              <div className="input-group">
+                <input
+                  type="email"
+                  className="form-control"
+                  placeholder={t('login_email')}
+                  autoComplete="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                />
+                <span className="input-group-text"><i className="fas fa-envelope" /></span>
+              </div>
+            </div>
+            {error && (
+              <div className="alert alert-danger py-2 px-3 mb-3" style={{ fontSize: '0.85rem' }}>
+                {error}
+              </div>
+            )}
+            <button type="submit" className="btn btn-primary w-100" disabled={loading}>
+              {loading ? t('sending') : t('forgot_send')}
+            </button>
+          </form>
+          <p className="mt-3 mb-0 text-center">
+            <Link to="/login" className="text-muted" style={{ fontSize: '0.875rem' }}>{t('back_to_login')}</Link>
+          </p>
+        </>
+      )}
+    </LoginLayout>
   );
 }
-
-const s = {
-  page:           { display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'#f0f0f0' },
-  card:           { background:'#fff', borderRadius:12, padding:'2.5rem 2rem', width:'100%', maxWidth:380, boxShadow:'0 2px 16px #0001' },
-  title:          { margin:'0 0 1.5rem', fontSize:'1.4rem', fontWeight:700, textAlign:'center', letterSpacing:'-0.02em' },
-  toggle:         { display:'flex', background:'#f3f3f3', borderRadius:8, padding:3, marginBottom:'1.25rem', gap:3 },
-  toggleBtn:      { flex:1, padding:'0.4rem 0', border:'none', borderRadius:6, background:'none', cursor:'pointer', fontSize:'0.82rem', fontWeight:500, color:'#888' },
-  toggleBtnActive:{ background:'#fff', color:'#111', boxShadow:'0 1px 3px #0002', fontWeight:600 },
-  sub:            { margin:'0 0 1.25rem', fontSize:'0.875rem', color:'#555', lineHeight:1.5 },
-  form:           { display:'flex', flexDirection:'column', gap:'0.75rem', marginBottom:'1rem' },
-  input:          { padding:'0.6rem 0.75rem', border:'1px solid #ddd', borderRadius:6, fontSize:'0.95rem', outline:'none' },
-  btn:            { padding:'0.65rem', background:'#111', color:'#fff', border:'none', borderRadius:6, fontWeight:600, cursor:'pointer', fontSize:'0.95rem' },
-  error:          { margin:0, color:'#c00', fontSize:'0.85rem' },
-  link:           { fontSize:'0.85rem', color:'#888', textDecoration:'none' },
-};

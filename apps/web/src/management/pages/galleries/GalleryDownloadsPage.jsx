@@ -5,7 +5,7 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
@@ -20,6 +20,9 @@ export default function GalleryDownloadsPage() {
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState('');
   const [error,  setError]  = useState('');
+  const [stripping, setStripping] = useState(false);
+  const [stripResult, setStripResult] = useState(null);
+  const [stripError, setStripError] = useState('');
 
   useEffect(() => {
     Promise.all([api.getGallery(galleryId), api.getSettings()]).then(([g, s]) => {
@@ -44,6 +47,20 @@ export default function GalleryDownloadsPage() {
       setSaving(false);
     }
   }
+
+  const stripOriginals = useCallback(async () => {
+    setStripping(true); setStripError(''); setStripResult(null);
+    try {
+      const r = await api.stripDistOriginals(galleryId);
+      setStripResult(r);
+    } catch (err) {
+      setStripError(err.message);
+    } finally {
+      setStripping(false);
+    }
+  }, [galleryId]);
+
+  const downloadsDisabled = !form.allowDownloadImage && !form.allowDownloadGallery;
 
   return (
     <AdminPage title={t('gal_downloads_title')}>
@@ -83,6 +100,24 @@ export default function GalleryDownloadsPage() {
 
             <AdminAlert variant="success" message={saved} />
             <AdminAlert message={error} />
+
+            {downloadsDisabled && (
+              <div className="alert alert-warning d-flex align-items-start gap-3 mt-3" role="alert">
+                <i className="fas fa-exclamation-triangle mt-1" />
+                <div style={{ flex: 1 }}>
+                  <strong>Downloads are disabled.</strong>
+                  <div className="mt-1" style={{ fontSize: '0.85rem' }}>
+                    Original files may still be present in the built output and waste disk space. Strip them now.
+                  </div>
+                  {stripResult && <div className="mt-1 text-success small">{stripResult.message}</div>}
+                  {stripError && <div className="mt-1 text-danger small">{stripError}</div>}
+                </div>
+                <AdminButton variant="outline-warning" size="sm" loading={stripping} loadingLabel="Stripping…" onClick={stripOriginals}>
+                  Strip originals
+                </AdminButton>
+              </div>
+            )}
+
             <AdminButton type="submit" loading={saving} loadingLabel={t('saving')} className="mb-4">
               {t('save')}
             </AdminButton>

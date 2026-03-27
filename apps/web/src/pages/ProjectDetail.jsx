@@ -7,7 +7,7 @@
 
 // Page d'un projet : liste + création des galeries
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useAuth } from '../lib/auth.jsx';
 import { useT } from '../lib/I18nContext.jsx';
@@ -122,154 +122,190 @@ export default function ProjectDetail() {
     finally { setSlugSaving(false); }
   }
 
-  if (loading) return <div style={s.center}>{t('loading')}</div>;
+  if (loading) return (
+    <section className="content">
+      <div className="container-fluid text-center py-5 text-muted">
+        <i className="fas fa-spinner fa-spin fa-2x" />
+      </div>
+    </section>
+  );
 
   return (
-    <div style={s.page}>
-      <header style={s.header}>
-        <div style={s.breadcrumb}>
-          <button style={s.back} onClick={() => navigate('/studio')}>
-            ← {user?.studioName || t('studio_back')}
-          </button>
-          <span style={s.sep}>/</span>
-          <span style={s.projectName}>{project?.name || '…'}</span>
-        </div>
-        <div style={s.headerRight}>
-          {canAdmin && (
-            <button
-              style={{ ...s.outlineBtn, ...(settingsOpen ? { background: '#f5f5f5' } : {}) }}
-              onClick={() => setSettingsOpen(v => !v)}
-              title={t('settings')}
-            >⚙</button>
-          )}
-          {canCreate && (
-            <button style={s.primaryBtn} onClick={() => setCreating(v => !v)}>
-              {t('new_gallery')}
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* Settings panel */}
-      {settingsOpen && (
-        <div style={s.settingsPanel}>
-          {/* Rename */}
-          <form style={s.settingsSection} onSubmit={handleRenameName}>
-            <p style={s.settingsLabel}>{t('project_name_label')}</p>
-            <div style={s.settingsRow}>
-              <input
-                style={s.input}
-                value={editName}
-                onChange={e => setEditName(e.target.value)}
-              />
-              <button style={s.primaryBtn} type="submit" disabled={saving || editName.trim() === project?.name}>
-                {saving ? t('saving') : t('save')}
-              </button>
+    <>
+      {/* Content Header */}
+      <div className="content-header">
+        <div className="container-fluid">
+          <div className="row mb-2 align-items-center">
+            <div className="col-sm-6 d-flex align-items-center" style={{ gap: '0.5rem' }}>
+              <h1 className="m-0">
+                <Link to="/studio" className="text-muted me-2" style={{ fontSize: '0.875rem' }}>
+                  {user?.studioName || t('studio_back')}
+                </Link>
+                <span className="text-muted me-1">/</span>
+                {project?.name || '…'}
+              </h1>
+              {canAdmin && (
+                <button
+                  className={`btn btn-sm ${settingsOpen ? 'btn-secondary' : 'btn-outline-secondary'}`}
+                  onClick={() => setSettingsOpen(v => !v)}
+                  title={t('settings')}
+                >
+                  <i className="fas fa-cog" />
+                </button>
+              )}
             </div>
-          </form>
-
-          {/* Danger zone — slug */}
-          <form style={{ ...s.settingsSection, borderTop: '1px solid #fee2e2', paddingTop: '1rem' }} onSubmit={handleRenameSlug}>
-            <p style={{ ...s.settingsLabel, color: '#dc2626' }}>{t('section_danger')}</p>
-            <p style={s.settingsHint}>{t('project_slug_hint')}</p>
-            <div style={s.settingsRow}>
-              <input
-                style={{ ...s.input, fontFamily: 'monospace' }}
-                value={editSlug}
-                onChange={e => setEditSlug(slugify(e.target.value) || e.target.value.toLowerCase())}
-                placeholder="slug-url"
-              />
+            <div className="col-sm-6 text-sm-end d-flex justify-content-end align-items-center">
+              {canCreate && (
+                <button className="btn btn-primary btn-sm" onClick={() => setCreating(v => !v)}>
+                  <i className="fas fa-plus me-1" />{t('new_gallery')}
+                </button>
+              )}
             </div>
-            <div style={{ ...s.settingsRow, marginTop: '0.5rem' }}>
-              <input
-                style={{ ...s.input, fontFamily: 'monospace', borderColor: '#fca5a5' }}
-                value={slugConfirm}
-                onChange={e => setSlugConfirm(e.target.value)}
-                placeholder={t('project_slug_confirm_placeholder', { slug: project?.slug })}
-              />
-              <button
-                style={{ ...s.primaryBtn, background: '#dc2626' }}
-                type="submit"
-                disabled={slugSaving || !editSlug || editSlug === project?.slug}
-              >
-                {slugSaving ? t('saving') : t('rename')}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      <main style={s.main}>
-        {creating && (
-          <form style={s.newForm} onSubmit={handleCreate}>
-            <div style={s.newInputGroup}>
-              <input
-                style={s.input}
-                placeholder={t('gallery_title_placeholder')}
-                value={newTitle}
-                onChange={e => handleTitleChange(e.target.value)}
-                autoFocus
-              />
-              <input
-                style={{ ...s.input, maxWidth: 200, fontFamily: 'monospace', fontSize: '0.8rem' }}
-                placeholder="slug"
-                value={newSlug}
-                onChange={e => { setNewSlug(e.target.value); setSlugTouched(true); }}
-              />
-            </div>
-            <button style={s.primaryBtn} type="submit">{t('create')}</button>
-            <button style={s.outlineBtn} type="button" onClick={() => { setCreating(false); setNewTitle(''); setNewSlug(''); setSlugTouched(false); }}>{t('cancel')}</button>
-          </form>
-        )}
-
-        {galleries.length === 0 && !creating ? (
-          <div style={s.empty}>
-            <p>{t('no_galleries')}</p>
-            {canCreate && (
-              <button style={s.primaryBtn} onClick={() => setCreating(true)}>
-                {t('create_first_gallery')}
-              </button>
-            )}
           </div>
-        ) : (
-          <div style={s.grid}>
-            {galleries.map(g => (
-              <GalleryCard
-                key={g.id}
-                gallery={g}
-                onBuild={handleBuild}
-                onDelete={handleDelete}
-                canBuild={canCreate}
-              />
-            ))}
-          </div>
-        )}
-      </main>
+        </div>
+      </div>
+
+      <section className="content">
+        <div className="container-fluid">
+
+          {/* Settings panel */}
+          {settingsOpen && (
+            <div className="card card-warning card-outline mb-4">
+              <div className="card-header">
+                <h3 className="card-title"><i className="fas fa-cog me-2" />{t('settings')}</h3>
+                <div className="card-tools">
+                  <button className="btn btn-tool" onClick={() => setSettingsOpen(false)}>
+                    <i className="fas fa-times" />
+                  </button>
+                </div>
+              </div>
+              <div className="card-body">
+                <div className="row">
+                  <div className="col-md-6">
+                    <form onSubmit={handleRenameName}>
+                      <div className="mb-3">
+                        <label className="text-muted text-uppercase" style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em' }}>
+                          {t('project_name_label')}
+                        </label>
+                        <div className="input-group input-group-sm">
+                          <input
+                            className="form-control"
+                            value={editName}
+                            onChange={e => setEditName(e.target.value)}
+                          />
+                          <button className="btn btn-primary" type="submit" disabled={saving || editName.trim() === project?.name}>
+                            {saving ? t('saving') : t('save')}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                  <div className="col-md-6">
+                    <form onSubmit={handleRenameSlug}>
+                      <div className="mb-3">
+                        <label className="text-danger text-uppercase" style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em' }}>
+                          {t('section_danger')} — Slug
+                        </label>
+                        <p className="text-muted" style={{ fontSize: '0.78rem' }}>{t('project_slug_hint')}</p>
+                        <div className="input-group input-group-sm mb-2">
+                          <input
+                            className="form-control font-monospace"
+                            style={{ fontFamily: 'monospace' }}
+                            value={editSlug}
+                            onChange={e => setEditSlug(slugify(e.target.value) || e.target.value.toLowerCase())}
+                            placeholder="slug-url"
+                          />
+                        </div>
+                        <div className="input-group input-group-sm">
+                          <input
+                            className="form-control font-monospace"
+                            style={{ fontFamily: 'monospace', borderColor: '#fca5a5' }}
+                            value={slugConfirm}
+                            onChange={e => setSlugConfirm(e.target.value)}
+                            placeholder={t('project_slug_confirm_placeholder', { slug: project?.slug })}
+                          />
+                          <button
+                            className="btn btn-danger" type="submit"
+                            disabled={slugSaving || !editSlug || editSlug === project?.slug}
+                          >
+                            {slugSaving ? t('saving') : t('rename')}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* New gallery form */}
+          {creating && (
+            <div className="card card-primary card-outline mb-4">
+              <div className="card-body">
+                <form onSubmit={handleCreate} className="row align-items-center">
+                  <div className="col">
+                    <input
+                      className="form-control form-control-sm"
+                      placeholder={t('gallery_title_placeholder')}
+                      value={newTitle}
+                      onChange={e => handleTitleChange(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
+                  <div className="col-auto">
+                    <input
+                      className="form-control form-control-sm"
+                      style={{ fontFamily: 'monospace', maxWidth: 200 }}
+                      placeholder="slug"
+                      value={newSlug}
+                      onChange={e => { setNewSlug(e.target.value); setSlugTouched(true); }}
+                    />
+                  </div>
+                  <div className="col-auto">
+                    <button className="btn btn-primary btn-sm me-1" type="submit">{t('create')}</button>
+                    <button className="btn btn-secondary btn-sm" type="button"
+                      onClick={() => { setCreating(false); setNewTitle(''); setNewSlug(''); setSlugTouched(false); }}>
+                      {t('cancel')}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Galleries grid */}
+          {galleries.length === 0 && !creating ? (
+            <div className="text-center py-5 text-muted">
+              <i className="fas fa-images fa-3x mb-3 d-block" style={{ opacity: 0.3 }} />
+              <p>{t('no_galleries')}</p>
+              {canCreate && (
+                <button className="btn btn-primary" onClick={() => setCreating(true)}>
+                  {t('create_first_gallery')}
+                </button>
+              )}
+            </div>
+          ) : (
+            <div style={s.grid}>
+              {galleries.map(g => (
+                <GalleryCard
+                  key={g.id}
+                  gallery={g}
+                  onBuild={handleBuild}
+                  onDelete={handleDelete}
+                  canBuild={canCreate}
+                />
+              ))}
+            </div>
+          )}
+
+        </div>
+      </section>
       <Toast message={toast} onDone={() => setToast('')} />
-    </div>
+    </>
   );
 }
 
 const s = {
-  page:          { minHeight: '100vh', background: '#f8f8f8' },
-  center:        { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#888' },
-  header:        { background: '#fff', borderBottom: '1px solid #eee', padding: '0 1.5rem', height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' },
-  breadcrumb:    { display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 },
-  back:          { background: 'none', border: 'none', color: '#888', fontSize: '0.875rem', cursor: 'pointer', padding: 0, whiteSpace: 'nowrap', flexShrink: 0 },
-  sep:           { color: '#ccc', fontSize: '0.9rem', flexShrink: 0 },
-  projectName:   { fontWeight: 700, fontSize: '0.95rem', color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  headerRight:   { display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 },
-  settingsPanel: { background: '#fff', borderBottom: '1px solid #eee', padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: 600 },
-  settingsSection:{ display: 'flex', flexDirection: 'column', gap: '0.5rem' },
-  settingsLabel: { margin: 0, fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#aaa' },
-  settingsRow:   { display: 'flex', gap: '0.5rem', alignItems: 'center' },
-  settingsHint:  { margin: 0, fontSize: '0.78rem', color: '#888' },
-  main:          { maxWidth: 1100, margin: '0 auto', padding: '1.5rem' },
-  newForm:       { display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', alignItems: 'flex-start', flexWrap: 'wrap', background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: '1rem' },
-  newInputGroup: { display: 'flex', gap: '0.5rem', flex: 1, flexWrap: 'wrap' },
-  input:         { padding: '0.45rem 0.7rem', border: '1px solid #ddd', borderRadius: 6, fontSize: '0.9rem', outline: 'none', flex: '1 1 180px' },
-  grid:          { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' },
-  empty:         { textAlign: 'center', padding: '4rem', color: '#888', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' },
-  primaryBtn:    { padding: '0.45rem 1.1rem', background: '#111', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem', whiteSpace: 'nowrap' },
-  outlineBtn:    { padding: '0.45rem 0.85rem', background: 'none', color: '#555', border: '1px solid #ddd', borderRadius: 6, cursor: 'pointer', fontSize: '0.875rem', whiteSpace: 'nowrap' },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' },
 };

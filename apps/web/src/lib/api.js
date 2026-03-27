@@ -163,7 +163,14 @@ export const api = {
   listPlatformUsers:    ()            => req('GET',    '/platform/users'),
   updatePlatformUser:   (id, data)    => req('PATCH',  `/platform/users/${id}`, data),
   getPlatformLicense:   ()            => req('GET',    '/platform/license'),
+  getPlatformLicenseUsage: ()         => req('GET',    '/platform/license/usage'),
   installPlatformLicense: (licenseJson) => req('POST', '/platform/license', { licenseJson }),
+
+  // Gallery maintenance
+  flushGalleryDist:       (id)         => req('DELETE', `/galleries/${id}/dist`),
+  stripDistOriginals:     (id)         => req('DELETE', `/galleries/${id}/dist/originals`),
+  reconcilePhotos:        (id)         => req('POST',   `/galleries/${id}/photos/reconcile`),
+  deduplicatePhotos:      (id, dryRun = true) => req('POST', `/galleries/${id}/photos/deduplicate?dry_run=${dryRun}`),
 
   // Upload (multipart — handled separately)
   uploadPhotos(galleryId, files, onProgress) {

@@ -29,8 +29,16 @@ const LIMITS = [
   { key: 'collaborator_limit',  label: 'Collaborators' },
 ];
 
+const USAGE_KEY = {
+  organization_limit: 'orgs',
+  gallery_limit:      'galleries',
+  storage_gb:         'storageGb',
+  collaborator_limit: 'collaborators',
+};
+
 export default function LicensePage() {
   const [license, setLicense]   = useState(null);
+  const [usage,   setUsage]     = useState(null);
   const [loading, setLoading]   = useState(true);
   const [json,    setJson]      = useState('');
   const [saving,  setSaving]    = useState(false);
@@ -39,8 +47,11 @@ export default function LicensePage() {
 
   function load() {
     setLoading(true);
-    api.getPlatformLicense()
-      .then(setLicense)
+    Promise.all([
+      api.getPlatformLicense(),
+      api.getPlatformLicenseUsage().catch(() => null),
+    ])
+      .then(([lic, use]) => { setLicense(lic); setUsage(use); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }
@@ -128,20 +139,30 @@ export default function LicensePage() {
                 </div>
 
                 <p className="text-uppercase fw-semibold text-muted mb-2" style={{ fontSize: '0.72rem', letterSpacing: '0.08em' }}>
-                  Limits
+                  Limits &amp; Usage
                 </p>
                 <div className="row g-2">
                   {LIMITS.map(({ key, label }) => {
                     const val = lim[key];
                     const display = val === undefined || val === null ? '∞' : val;
                     const unlimited = val === undefined || val === null;
+                    const currentUse = usage ? (usage[USAGE_KEY[key]] ?? 0) : null;
+                    const pct = (!unlimited && val > 0 && currentUse !== null) ? Math.min(100, Math.round((currentUse / val) * 100)) : null;
+                    const barColor = pct === null ? null : pct >= 90 ? '#dc3545' : pct >= 70 ? '#fd7e14' : '#198754';
                     return (
                       <div key={key} className="col-sm-6">
-                        <div className="d-flex align-items-center justify-content-between px-3 py-2 rounded border bg-light">
-                          <span className="text-muted" style={{ fontSize: '0.85rem' }}>{label}</span>
-                          <span className={`fw-semibold ${unlimited ? 'text-success' : ''}`} style={{ fontSize: '0.9rem' }}>
-                            {display}
-                          </span>
+                        <div className="px-3 py-2 rounded border bg-light">
+                          <div className="d-flex align-items-center justify-content-between mb-1">
+                            <span className="text-muted" style={{ fontSize: '0.85rem' }}>{label}</span>
+                            <span className={`fw-semibold ${unlimited ? 'text-success' : ''}`} style={{ fontSize: '0.9rem' }}>
+                              {currentUse !== null && <span className="text-muted fw-normal me-1" style={{ fontSize: '0.8rem' }}>{currentUse} /</span>}{display}
+                            </span>
+                          </div>
+                          {pct !== null && (
+                            <div className="progress" style={{ height: 4 }}>
+                              <div className="progress-bar" style={{ width: `${pct}%`, background: barColor }} />
+                            </div>
+                          )}
                         </div>
                       </div>
                     );

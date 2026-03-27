@@ -5,11 +5,14 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
+import { useT } from '../../lib/I18nContext.jsx';
+
 /**
  * Temporary placeholder for pages not yet implemented.
  * Replaced sprint by sprint as real pages are built.
  */
 export default function PlaceholderPage({ title, description }) {
+  const t = useT();
   return (
     <div className="app-content-header">
       <div className="container-fluid">
@@ -25,9 +28,9 @@ export default function PlaceholderPage({ title, description }) {
             <div className="card-body text-center py-5">
               <i className="fas fa-hammer fa-2x text-muted mb-3" style={{ display: 'block' }} />
               <p className="text-muted mb-1">
-                {description ?? 'This page is being built.'}
+                {description ?? t('placeholder_building')}
               </p>
-              <small className="text-muted">Coming in a future sprint.</small>
+              <small className="text-muted">{t('placeholder_coming_soon')}</small>
             </div>
           </div>
         </div>

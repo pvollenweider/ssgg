@@ -9,6 +9,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useT } from '../lib/I18nContext.jsx';
+import { useAuth } from '../lib/auth.jsx';
 import { Toast } from '../components/Toast.jsx';
 
 const STUDIO_ROLES = ['photographer', 'editor', 'admin', 'owner'];
@@ -19,6 +20,7 @@ export default function MemberProfile() {
   const { userId }  = useParams();
   const navigate    = useNavigate();
   const t           = useT();
+  const { user }    = useAuth();
   const [member,    setMember]    = useState(null);
   const [loading,   setLoading]   = useState(true);
   const [toast,     setToast]     = useState('');
@@ -85,111 +87,138 @@ export default function MemberProfile() {
   }
 
   return (
-    <div style={s.page}>
-      <header style={s.header}>
-        <Link to="/team" style={s.back}>{t('member_back')}</Link>
-      </header>
+    <>
+      {/* Content Header */}
+      <div className="content-header">
+        <div className="container-fluid">
+          <div className="row mb-2 align-items-center">
+            <div className="col-sm-6">
+              <h1 className="m-0">
+                <Link to="/team" className="text-muted me-1" style={{ fontSize: '0.875rem' }}>
+                  {user?.studioName || t('studio_back')}
+                </Link>
+                <span className="text-muted me-1">/</span>
+                <Link to="/team" className="text-muted me-1" style={{ fontSize: '0.875rem' }}>
+                  {t('team_title')}
+                </Link>
+                <span className="text-muted me-1">/</span>
+                {member ? (member.user.name || member.user.email) : t('loading')}
+              </h1>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <main style={s.main}>
-        {loading ? (
-          <p style={s.empty}>{t('loading')}</p>
-        ) : !member ? null : (
-          <>
-            {/* ── Identity card ── */}
-            <div style={s.card}>
-              <div style={s.avatar}>{(member.user.name || member.user.email)[0].toUpperCase()}</div>
-              <div>
-                <div style={s.name}>{member.user.name || member.user.email}</div>
-                {member.user.name && <div style={s.email}>{member.user.email}</div>}
-                <div style={s.meta}>{t('member_joined')} {formatDate(member.user.createdAt)}</div>
+      <section className="content">
+        <div className="container-fluid">
+          {loading ? (
+            <div className="text-center text-muted py-5">
+              <i className="fas fa-spinner fa-spin fa-2x" />
+            </div>
+          ) : !member ? null : (
+            <div className="row">
+              <div className="col-md-4">
+
+                {/* Identity card */}
+                <div className="card card-primary card-outline">
+                  <div className="card-body text-center">
+                    <div className="d-flex align-items-center justify-content-center mb-3"
+                      style={{ width: 64, height: 64, borderRadius: '50%', background: '#e5e5e5', fontSize: '1.5rem', fontWeight: 700, color: '#555', margin: '0 auto' }}>
+                      {(member.user.name || member.user.email)[0].toUpperCase()}
+                    </div>
+                    <h5 className="mb-0">{member.user.name || member.user.email}</h5>
+                    {member.user.name && <p className="text-muted mb-1" style={{ fontSize: '0.85rem' }}>{member.user.email}</p>}
+                    <p className="text-muted" style={{ fontSize: '0.78rem' }}>
+                      {t('member_joined')} {formatDate(member.user.createdAt)}
+                    </p>
+                  </div>
+                  <div className="card-footer">
+                    <div className="d-flex flex-column" style={{ gap: '0.5rem' }}>
+                      <button className="btn btn-outline-secondary btn-sm w-100" onClick={handleResetLink}>
+                        <i className="fas fa-key me-1" />{t('team_reset_link_title')}
+                      </button>
+                      <button
+                        className="btn btn-outline-danger btn-sm w-100"
+                        style={{ opacity: removing ? 0.6 : 1 }}
+                        disabled={removing}
+                        onClick={handleRemoveRights}
+                      >
+                        {t('member_remove_rights')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+              <div className="col-md-8">
+
+                {/* Studio role */}
+                <div className="card">
+                  <div className="card-header">
+                    <h3 className="card-title">{t('member_studio_role')}</h3>
+                  </div>
+                  <div className="card-body">
+                    <div className="mb-3 mb-1">
+                      <select
+                        className="form-control"
+                        style={{ borderColor: ROLE_COLORS[member.role] || '#ced4da', color: ROLE_COLORS[member.role] || '#495057', fontWeight: 600, maxWidth: 220 }}
+                        value={member.role}
+                        onChange={e => handleRoleChange(e.target.value)}
+                      >
+                        {STUDIO_ROLES.map(r => (
+                          <option key={r} value={r}>{STUDIO_ROLE_LABELS[r]}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <small className="text-muted">{STUDIO_ROLE_DESC[member.role]}</small>
+                  </div>
+                </div>
+
+                {/* Gallery accesses */}
+                <div className="card">
+                  <div className="card-header">
+                    <h3 className="card-title">{t('member_gallery_access')}</h3>
+                  </div>
+                  <div className="card-body p-0">
+                    {member.galleries.length === 0 ? (
+                      <div className="text-center text-muted py-4" style={{ fontSize: '0.875rem' }}>
+                        {t('member_no_gallery_access')}
+                      </div>
+                    ) : (
+                      <table className="table table-sm table-hover mb-0">
+                        <tbody>
+                          {member.galleries.map(g => (
+                            <tr key={g.galleryId}>
+                              <td>
+                                <Link to={`/galleries/${g.galleryId}`}>{g.galleryTitle}</Link>
+                              </td>
+                              <td>
+                                <span
+                                  className="badge"
+                                  style={{
+                                    background: (GALLERY_ROLE_COLORS[g.role] || '#888') + '20',
+                                    color: GALLERY_ROLE_COLORS[g.role] || '#888',
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  {GALLERY_ROLE_LABELS[g.role] || g.role}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+
               </div>
             </div>
-
-            {/* ── Studio role ── */}
-            <Section label={t('member_studio_role')}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                <select
-                  style={{ ...s.roleSelect, borderColor: ROLE_COLORS[member.role] || '#ddd', color: ROLE_COLORS[member.role] || '#555', width: 180 }}
-                  value={member.role}
-                  onChange={e => handleRoleChange(e.target.value)}
-                >
-                  {STUDIO_ROLES.map(r => (
-                    <option key={r} value={r}>{STUDIO_ROLE_LABELS[r]}</option>
-                  ))}
-                </select>
-                <div style={s.roleDesc}>{STUDIO_ROLE_DESC[member.role]}</div>
-              </div>
-            </Section>
-
-            {/* ── Gallery accesses ── */}
-            <Section label={t('member_gallery_access')}>
-              {member.galleries.length === 0 ? (
-                <p style={s.empty}>{t('member_no_gallery_access')}</p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                  {member.galleries.map(g => (
-                    <div key={g.galleryId} style={s.galleryRow}>
-                      <Link to={`/galleries/${g.galleryId}`} style={s.galleryTitle}>{g.galleryTitle}</Link>
-                      <span style={{ ...s.roleBadge, background: (GALLERY_ROLE_COLORS[g.role] || '#888') + '18', color: GALLERY_ROLE_COLORS[g.role] || '#888' }}>
-                        {GALLERY_ROLE_LABELS[g.role] || g.role}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Section>
-
-            {/* ── Actions ── */}
-            <Section label="">
-              <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
-                <button style={s.secondaryBtn} onClick={handleResetLink}>
-                  🔑 {t('team_reset_link_title')}
-                </button>
-                <button
-                  style={{ ...s.dangerBtn, opacity: removing ? 0.6 : 1 }}
-                  disabled={removing}
-                  onClick={handleRemoveRights}
-                >
-                  {t('member_remove_rights')}
-                </button>
-              </div>
-            </Section>
-          </>
-        )}
-      </main>
+          )}
+        </div>
+      </section>
 
       <Toast message={toast} onDone={() => setToast('')} />
-    </div>
+    </>
   );
 }
-
-function Section({ label, children }) {
-  return (
-    <div style={s.section}>
-      {label && <h3 style={s.sectionLabel}>{label}</h3>}
-      {children}
-    </div>
-  );
-}
-
-const s = {
-  page:        { minHeight: '100vh', background: '#f8f8f8' },
-  header:      { background: '#fff', borderBottom: '1px solid #eee', padding: '0 1.5rem', height: 52, display: 'flex', alignItems: 'center' },
-  back:        { color: '#111', textDecoration: 'none', fontSize: '0.875rem' },
-  main:        { maxWidth: 560, margin: '0 auto', padding: '1.5rem' },
-  card:        { background: '#fff', borderRadius: 10, padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', boxShadow: '0 1px 4px #0001' },
-  avatar:      { width: 48, height: 48, borderRadius: '50%', background: '#e5e5e5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1.3rem', color: '#555', flexShrink: 0 },
-  name:        { fontWeight: 600, fontSize: '1rem' },
-  email:       { fontSize: '0.825rem', color: '#888', marginTop: 2 },
-  meta:        { fontSize: '0.78rem', color: '#bbb', marginTop: 4 },
-  section:     { background: '#fff', borderRadius: 10, padding: '1rem 1.25rem', marginBottom: '1rem', boxShadow: '0 1px 4px #0001' },
-  sectionLabel:{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#aaa', marginBottom: '0.75rem', paddingBottom: '0.4rem', borderBottom: '1px solid #f0f0f0', margin: '0 0 0.75rem' },
-  empty:       { color: '#bbb', fontSize: '0.875rem', margin: 0 },
-  roleSelect:  { padding: '0.3rem 0.5rem', border: '1px solid', borderRadius: 4, fontSize: '0.85rem', fontWeight: 600, background: '#fff', cursor: 'pointer' },
-  roleDesc:    { fontSize: '0.75rem', color: '#aaa' },
-  roleBadge:   { display: 'inline-block', padding: '0.15rem 0.5rem', borderRadius: 4, fontSize: '0.78rem', fontWeight: 600 },
-  galleryRow:  { display: 'flex', alignItems: 'center', gap: '0.5rem' },
-  galleryTitle:{ fontSize: '0.875rem', color: '#333', textDecoration: 'none', flex: 1 },
-  secondaryBtn:{ padding: '0.45rem 0.9rem', background: '#f5f5f5', color: '#555', border: '1px solid #ddd', borderRadius: 6, fontSize: '0.85rem', cursor: 'pointer' },
-  dangerBtn:   { padding: '0.45rem 0.9rem', background: '#fff', color: '#c00', border: '1px solid #fca5a5', borderRadius: 6, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' },
-};

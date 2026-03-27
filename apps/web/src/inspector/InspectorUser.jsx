@@ -9,31 +9,72 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { useT } from '../lib/I18nContext.jsx';
 
 export function InspectorUserList() {
+  const t = useT();
   const [users, setUsers] = useState(null);
 
   useEffect(() => {
     api.inspectorUsers().then(setUsers).catch(() => setUsers([]));
   }, []);
 
-  if (!users) return <p style={{ color: '#555' }}>Loading…</p>;
-
   return (
-    <div>
-      <h2 style={s.pageTitle}>Users — {users.length}</h2>
-      {users.map(u => (
-        <Link key={u.id} to={`/inspector/users/${u.id}`} style={s.row}>
-          <span style={s.rowName}>{u.email}</span>
-          <span style={s.rowMeta}>{u.name}</span>
-          {u.platform_role === 'superadmin' && <span style={s.superBadge}>superadmin</span>}
-        </Link>
-      ))}
-    </div>
+    <>
+      <div className="content-header" style={s.header}>
+        <div className="container-fluid">
+          <div className="row mb-2 align-items-center">
+            <div className="col-sm-6">
+              <h1 className="m-0" style={s.pageTitle}>
+                {t('inspector_users_title')} {users && `— ${users.length}`}
+              </h1>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section className="content">
+        <div className="container-fluid pt-3">
+          {!users ? (
+            <p style={{ color: '#555' }}>{t('loading')}</p>
+          ) : (
+            <div className="card" style={s.card}>
+              <div className="card-body p-0">
+                <table className="table table-sm mb-0" style={{ background: 'transparent' }}>
+                  <thead>
+                    <tr>
+                      <th style={s.th}>{t('inspector_th_email')}</th>
+                      <th style={s.th}>{t('inspector_th_name')}</th>
+                      <th style={s.th}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map(u => (
+                      <tr key={u.id}>
+                        <td style={s.td}>
+                          <Link to={`/inspector/users/${u.id}`} style={s.link}>{u.email}</Link>
+                        </td>
+                        <td style={{ ...s.td, color: '#666' }}>{u.name}</td>
+                        <td style={s.td}>
+                          {u.platform_role === 'superadmin' && (
+                            <span className="badge" style={{ background: '#3b0764', color: '#c4b5fd', fontSize: '0.65rem' }}>{t('inspector_superadmin_badge')}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+    </>
   );
 }
 
 export function InspectorUserDetail() {
+  const t = useT();
   const { id } = useParams();
   const [data, setData] = useState(null);
 
@@ -41,34 +82,72 @@ export function InspectorUserDetail() {
     api.inspectorUser(id).then(setData).catch(() => {});
   }, [id]);
 
-  if (!data) return <p style={{ color: '#555' }}>Loading…</p>;
-
   return (
-    <div style={{ maxWidth: 600 }}>
-      <h2 style={s.pageTitle}>{data.email}</h2>
-      {data.name && <p style={s.meta}>{data.name}</p>}
-      {data.platform_role && <span style={s.superBadge}>{data.platform_role}</span>}
+    <>
+      <div className="content-header" style={s.header}>
+        <div className="container-fluid">
+          <div className="row mb-2 align-items-center">
+            <div className="col-sm-6">
+              <h1 className="m-0" style={s.pageTitle}>{data?.email || '…'}</h1>
+              {data?.name && <p className="m-0" style={{ color: '#555', fontSize: '0.8rem' }}>{data.name}</p>}
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <section style={{ marginTop: '1.25rem' }}>
-        <h3 style={s.sectionTitle}>Studio memberships</h3>
-        {data.memberships?.length === 0 && <p style={{ color: '#555', fontSize: '0.82rem' }}>No studio memberships.</p>}
-        {data.memberships?.map((m, i) => (
-          <Link key={i} to={`/inspector/studios/${m.studio_id}`} style={s.row}>
-            <span style={s.rowName}>{m.studio_name}</span>
-            <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: '#888' }}>{m.role}</span>
-          </Link>
-        ))}
+      <section className="content">
+        <div className="container-fluid pt-3">
+          {!data ? (
+            <p style={{ color: '#555' }}>{t('loading')}</p>
+          ) : (
+            <div className="row">
+              <div className="col-md-8">
+                {data.platform_role && (
+                  <span className="badge mb-3 d-inline-block" style={{ background: '#3b0764', color: '#c4b5fd', fontSize: '0.75rem' }}>
+                    {data.platform_role}
+                  </span>
+                )}
+                <div className="card" style={s.card}>
+                  <div className="card-header" style={s.cardHeader}>
+                    <h3 className="card-title" style={s.cardTitle}>{t('inspector_user_studios')}</h3>
+                  </div>
+                  <div className="card-body p-0">
+                    {data.memberships?.length === 0 ? (
+                      <p style={{ color: '#555', fontSize: '0.82rem', margin: '0.75rem' }}>{t('inspector_no_memberships')}</p>
+                    ) : (
+                      <table className="table table-sm mb-0" style={{ background: 'transparent' }}>
+                        <tbody>
+                          {data.memberships?.map((m, i) => (
+                            <tr key={i}>
+                              <td style={s.td}>
+                                <Link to={`/inspector/studios/${m.studio_id}`} style={s.link}>{m.studio_name}</Link>
+                              </td>
+                              <td style={{ ...s.td, textAlign: 'right' }}>
+                                <span className="badge" style={{ background: '#2a2a3e', color: '#aaa', fontSize: '0.68rem' }}>{m.role}</span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </section>
-    </div>
+    </>
   );
 }
 
 const s = {
-  pageTitle:    { margin: '0 0 0.5rem', fontSize: '1.2rem', fontWeight: 600, color: '#eee' },
-  meta:         { margin: '0 0 0.5rem', color: '#555', fontSize: '0.82rem' },
-  sectionTitle: { margin: '0 0 0.5rem', fontSize: '0.72rem', fontWeight: 600, color: '#666', textTransform: 'uppercase', letterSpacing: '0.06em' },
-  row:          { display: 'flex', gap: '0.75rem', alignItems: 'center', padding: '0.5rem 0.75rem', background: '#1a1a1a', border: '1px solid #222', borderRadius: 5, marginBottom: '0.3rem', textDecoration: 'none', color: '#ccc', fontSize: '0.85rem' },
-  rowName:      { fontWeight: 500, color: '#eee' },
-  rowMeta:      { color: '#555', fontSize: '0.78rem' },
-  superBadge:   { padding: '0.1rem 0.5rem', background: '#3b0764', color: '#c4b5fd', borderRadius: 3, fontSize: '0.7rem', fontWeight: 600 },
+  header:    { background: '#0f1117', borderBottom: '1px solid #1e1e2e' },
+  pageTitle: { color: '#eee', fontSize: '1.3rem' },
+  card:      { background: '#1a1a2e', border: '1px solid #2a2a3e' },
+  cardHeader:{ background: '#1a1a2e', borderBottom: '1px solid #2a2a3e' },
+  cardTitle: { color: '#eee', fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.05em' },
+  th:        { background: '#111', color: '#666', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', border: 'none', borderBottom: '1px solid #2a2a3e', padding: '0.5rem 0.75rem' },
+  td:        { border: 'none', borderBottom: '1px solid #1e1e2e', padding: '0.5rem 0.75rem', color: '#ccc', fontSize: '0.85rem' },
+  link:      { color: '#7dd3fc', textDecoration: 'none' },
 };
