@@ -8,6 +8,8 @@
 // apps/api/src/routes/projects.js — Project CRUD + membership management
 // Projects sit between Studio and Gallery in the hierarchy.
 import { Router } from 'express';
+import fs   from 'fs';
+import path from 'path';
 import { requireAuth, requireStudioRole } from '../middleware/auth.js';
 import galleryRouter from './projectGalleries.js';
 import {
@@ -22,6 +24,7 @@ import {
 import { can } from '../authorization/index.js';
 import { query } from '../db/database.js';
 import { randomUUID } from 'crypto';
+import { SRC_ROOT, DIST_ROOT, INTERNAL_ROOT } from '../../../../packages/engine/src/fs.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -31,18 +34,19 @@ router.use(requireAuth);
 function projectToJson(p) {
   if (!p) return null;
   return {
-    id:             p.id,
-    organizationId: p.organization_id ?? p.studio_id,  // canonical (Sprint 22)
-    studioId:       p.studio_id,                        // legacy alias
-    slug:           p.slug,
-    name:        p.name,
-    description: p.description,
-    visibility:  p.visibility,
-    startsAt:    p.starts_at,
-    endsAt:      p.ends_at,
-    status:      p.status,
-    createdAt:   p.created_at,
-    updatedAt:   p.updated_at,
+    id:               p.id,
+    organizationId:   p.organization_id ?? p.studio_id,  // canonical (Sprint 22)
+    studioId:         p.studio_id,                        // legacy alias
+    slug:             p.slug,
+    name:             p.name,
+    description:      p.description,
+    visibility:       p.visibility,
+    standaloneDefault: !!p.standalone_default,
+    startsAt:         p.starts_at,
+    endsAt:           p.ends_at,
+    status:           p.status,
+    createdAt:        p.created_at,
+    updatedAt:        p.updated_at,
   };
 }
 
@@ -97,12 +101,13 @@ router.patch('/:id', async (req, res) => {
     return res.status(403).json({ error: 'Forbidden: requires project manager or studio admin' });
   }
 
-  const camelToSnake = { startsAt: 'starts_at', endsAt: 'ends_at' };
-  const allowed = ['slug', 'name', 'description', 'visibility', 'starts_at', 'ends_at'];
+  const camelToSnake = { startsAt: 'starts_at', endsAt: 'ends_at', standaloneDefault: 'standalone_default' };
+  const allowed = ['slug', 'name', 'description', 'visibility', 'starts_at', 'ends_at', 'standalone_default'];
+  const boolCols = new Set(['standalone_default']);
   const updates = {};
   for (const [key, val] of Object.entries(req.body || {})) {
     const col = camelToSnake[key] || key;
-    if (allowed.includes(col)) updates[col] = val;
+    if (allowed.includes(col)) updates[col] = boolCols.has(col) ? (val ? 1 : 0) : val;
   }
 
   if (updates.slug && updates.slug !== project.slug) {
@@ -115,25 +120,47 @@ router.patch('/:id', async (req, res) => {
   res.json(projectToJson(updated));
 });
 
-// DELETE /api/projects/:id — archive (admin+)
+// DELETE /api/projects/:id — permanently delete project and all its galleries (admin+)
 router.delete('/:id', requireStudioRole('admin'), async (req, res) => {
   const project = await getProject(req.params.id);
   if (!project || project.studio_id !== req.studioId) return res.status(404).json({ error: 'Project not found' });
 
-  // Prevent archiving if it still contains active galleries
-  const [galleryRows] = await query(
-    'SELECT COUNT(*) AS n FROM galleries WHERE project_id = ?',
+  // Load all galleries in this project
+  const [galleries] = await query(
+    'SELECT id, slug FROM galleries WHERE project_id = ?',
     [project.id]
   );
-  if (galleryRows[0].n > 0) {
-    return res.status(409).json({
-      error: `Cannot archive project: ${galleryRows[0].n} gallery(ies) still attached. Move or delete them first.`,
-    });
+
+  // For each gallery: collect photo IDs, delete thumbnails, delete src + dist dirs
+  const THUMB_ROOT = path.join(INTERNAL_ROOT, 'thumbnails');
+  for (const gallery of galleries) {
+    // Collect photo IDs for thumbnail cleanup
+    const [photos] = await query('SELECT id FROM photos WHERE gallery_id = ?', [gallery.id]);
+    for (const photo of photos) {
+      for (const size of ['sm', 'md']) {
+        const p = path.join(THUMB_ROOT, size, `${photo.id}.webp`);
+        try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch {}
+      }
+    }
+    // Delete source photos dir (private/<slug>)
+    const srcDir = path.join(SRC_ROOT, gallery.slug);
+    try { if (fs.existsSync(srcDir)) fs.rmSync(srcDir, { recursive: true, force: true }); } catch {}
+    // Delete built dist dir (public/<project_slug>/<gallery_slug>)
+    const distDir = path.join(DIST_ROOT, project.slug, gallery.slug);
+    try { if (fs.existsSync(distDir)) fs.rmSync(distDir, { recursive: true, force: true }); } catch {}
   }
 
-  await archiveProject(project.id);
-  try { await audit(req.studioId, req.userId, 'project.archive', 'project', project.id, { slug: project.slug }); } catch {}
-  res.json({ ok: true });
+  // Delete all galleries (photos cascade via FK)
+  if (galleries.length > 0) {
+    const placeholders = galleries.map(() => '?').join(',');
+    await query(`DELETE FROM galleries WHERE id IN (${placeholders})`, galleries.map(g => g.id));
+  }
+
+  // Delete project itself (role assignments, tokens cascade via FK)
+  await query('DELETE FROM projects WHERE id = ?', [project.id]);
+
+  try { await audit(req.studioId, req.userId, 'project.delete', 'project', project.id, { slug: project.slug, galleriesDeleted: galleries.length }); } catch {}
+  res.json({ ok: true, galleriesDeleted: galleries.length });
 });
 
 // ── Project member routes ──────────────────────────────────────────────────────

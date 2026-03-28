@@ -26,13 +26,15 @@ const piexif  = require('piexifjs');
 import crypto from 'crypto';
 import { extractExif } from './exif.js';
 import { buildName, MANIFEST_SCHEMA_VERSION } from './utils.js';
+import { INTERNAL_ROOT } from './fs.js';
 
 /**
  * Compute a stable 16-char hex ID for a photo based on filename + size + mtime.
  * Content-addressed: changes only when the file is replaced/modified.
  * Does NOT change on gallery rename or photo reorder.
+ * Exported so the API prerender service can compute the same hash at upload time.
  */
-function photoHash(photo) {
+export function photoHash(photo) {
   const stat = fs.statSync(photo.full);
   return crypto.createHash('sha256')
     .update(`${photo.file}:${stat.size}:${stat.mtimeMs}`)
@@ -147,15 +149,25 @@ export async function convertOne(photo, cfg, idx, cachedIsDark = null, paths, ca
           fullSize, quality } = cfg.build;
   const gridSize    = isBig ? gridSizeBig    : gridSizeSmall;
   const gridSizeMob = isBig ? gridSizeMobileBig : gridSizeMobileSmall;
-  const skipOriginals = cfg.project.allowDownloadImage === false
-                     && cfg.project.allowDownloadGallery === false;
+  // Originals folder only needed for ORIGINAL download mode (or legacy: both old flags false = skip)
+  const _dlMode = cfg.project.downloadMode || (cfg.project.allowDownloadImage !== false ? 'display' : 'none');
+  const skipOriginals = _dlMode !== 'original';
 
   const origReady = skipOriginals || fs.existsSync(origOut);
-  const positionUnchanged = cachedName === null || cachedName === name; // hash matches → skip reprocessing
-  if (!FORCE && positionUnchanged && fs.existsSync(gridOut) && fs.existsSync(gridSmOut) && fs.existsSync(fullOut) && origReady) {
+  const positionUnchanged = cachedName === null || cachedName === name;
+
+  // ── Prerender sidecar cache (written by API after upload, before any build) ──
+  // grid and grid-sm are stored as {hash}-{small|big}.webp so both size variants
+  // can co-exist in the cache regardless of gallery layout.
+  const prerenderBase = path.join(INTERNAL_ROOT, 'prerender', name);
+
+  // Fast-path: all outputs already on disk — nothing to do.
+  if (!FORCE && positionUnchanged
+      && fs.existsSync(gridOut) && fs.existsSync(gridSmOut)
+      && fs.existsSync(fullOut) && origReady) {
     ok(`${name} (skip)`);
     const [meta, isDark] = await Promise.all([
-      sharp(photo.full).metadata(),
+      sharp(photo.full, { failOn: 'none' }).metadata(),
       cachedIsDark !== null ? Promise.resolve(cachedIsDark) : computeIsDark(gridOut, gridSize),
     ]);
     return { name, dlName, width: meta.width, height: meta.height, isDark };
@@ -163,33 +175,72 @@ export async function convertOne(photo, cfg, idx, cachedIsDark = null, paths, ca
 
   info(`${photo.file}  →  ${name}  [${isBig ? 'big' : 'small'}]`);
 
-  await sharp(photo.full)
-    .rotate()
-    .resize(gridSize, gridSize, { fit: 'cover', position: 'centre' })
-    .webp({ quality: quality.grid })
-    .toFile(gridOut);
-  ok(`grid  ${gridSize}×${gridSize}`);
+  // ── grid ──────────────────────────────────────────────────────────────────
+  let gridIsDarkSource = gridOut; // path used for brightness analysis
+  if (!FORCE && fs.existsSync(gridOut)) {
+    ok(`grid  (cached)`);
+  } else {
+    const sizeKey  = isBig ? 'big' : 'small';
+    const preGrid  = path.join(prerenderBase, `grid-${sizeKey}.webp`);
+    if (!FORCE && fs.existsSync(preGrid)) {
+      fs.mkdirSync(path.dirname(gridOut), { recursive: true });
+      fs.copyFileSync(preGrid, gridOut);
+      ok(`grid  (prerendered ${sizeKey})`);
+    } else {
+      await sharp(photo.full, { failOn: 'none' })
+        .rotate()
+        .resize(gridSize, gridSize, { fit: 'cover', position: 'centre' })
+        .webp({ quality: quality.grid })
+        .toFile(gridOut);
+      ok(`grid  ${gridSize}×${gridSize}`);
+    }
+  }
 
-  await sharp(photo.full)
-    .rotate()
-    .resize(gridSizeMob, gridSizeMob, { fit: 'cover', position: 'centre' })
-    .webp({ quality: quality.grid })
-    .toFile(gridSmOut);
-  ok(`grid-sm  ${gridSizeMob}×${gridSizeMob}`);
+  // ── grid-sm ───────────────────────────────────────────────────────────────
+  if (!FORCE && fs.existsSync(gridSmOut)) {
+    ok(`grid-sm  (cached)`);
+  } else {
+    const sizeKey    = isBig ? 'big' : 'small';
+    const preGridSm  = path.join(prerenderBase, `grid-sm-${sizeKey}.webp`);
+    if (!FORCE && fs.existsSync(preGridSm)) {
+      fs.mkdirSync(path.dirname(gridSmOut), { recursive: true });
+      fs.copyFileSync(preGridSm, gridSmOut);
+      ok(`grid-sm  (prerendered ${sizeKey})`);
+    } else {
+      await sharp(photo.full, { failOn: 'none' })
+        .rotate()
+        .resize(gridSizeMob, gridSizeMob, { fit: 'cover', position: 'centre' })
+        .webp({ quality: quality.grid })
+        .toFile(gridSmOut);
+      ok(`grid-sm  ${gridSizeMob}×${gridSizeMob}`);
+    }
+  }
 
-  await sharp(photo.full)
-    .rotate()
-    .resize(fullSize, fullSize, { fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: quality.full })
-    .toFile(fullOut);
-  ok(`full  ≤${fullSize}px`);
+  // ── full ──────────────────────────────────────────────────────────────────
+  if (!FORCE && fs.existsSync(fullOut)) {
+    ok(`full  (cached)`);
+  } else {
+    const preFull = path.join(prerenderBase, 'full.webp');
+    if (!FORCE && fs.existsSync(preFull)) {
+      fs.mkdirSync(path.dirname(fullOut), { recursive: true });
+      fs.copyFileSync(preFull, fullOut);
+      ok(`full  (prerendered)`);
+    } else {
+      await sharp(photo.full, { failOn: 'none' })
+        .rotate()
+        .resize(fullSize, fullSize, { fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: quality.full })
+        .toFile(fullOut);
+      ok(`full  ≤${fullSize}px`);
+    }
+  }
 
   if (!skipOriginals) {
     const ext = path.extname(photo.file).toLowerCase();
     if (['.jpg','.jpeg'].includes(ext)) {
       fs.copyFileSync(photo.full, origOut);
     } else {
-      await sharp(photo.full).rotate().jpeg({ quality: 95 }).toFile(origOut);
+      await sharp(photo.full, { failOn: 'none' }).rotate().jpeg({ quality: 95 }).toFile(origOut);
     }
     ok(`orig  → originals/${name}.jpg`);
 
@@ -205,7 +256,7 @@ export async function convertOne(photo, cfg, idx, cachedIsDark = null, paths, ca
   }
 
   const [meta, isDark] = await Promise.all([
-    sharp(photo.full).rotate().metadata(),
+    sharp(photo.full, { failOn: 'none' }).rotate().metadata(),
     computeIsDark(gridOut, gridSize),
   ]);
   return { name, dlName, width: meta.width, height: meta.height, isDark };
