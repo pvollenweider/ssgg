@@ -104,6 +104,8 @@ function rowToGallery(row, { dateRange = null, studio = null, project = null } =
     access:               row.access,
     private:              row.access !== 'public',
     standalone:           !!row.standalone,
+    downloadMode:          row.download_mode || 'display',
+    apacheProtection:      !!row.apache_protection,
     allowDownloadImage:   !!row.allow_download_image,
     allowDownloadGallery: !!row.allow_download_gallery,
     coverPhoto:           row.cover_photo,
@@ -250,6 +252,7 @@ router.patch('/:id', resolveGallery, async (req, res) => {
   const allowed = [
     'title','description','subtitle','author','author_email','date','location',
     'locale','access','password','standalone',
+    'download_mode','apache_protection',
     'allow_download_image','allow_download_gallery','cover_photo',
     'slideshow_interval','copyright',
   ];
@@ -257,8 +260,9 @@ router.patch('/:id', resolveGallery, async (req, res) => {
     authorEmail: 'author_email', allowDownloadImage: 'allow_download_image',
     allowDownloadGallery: 'allow_download_gallery', coverPhoto: 'cover_photo',
     slideshowInterval: 'slideshow_interval',
+    downloadMode: 'download_mode', apacheProtection: 'apache_protection',
   };
-  const boolCols = new Set(['standalone','allow_download_image','allow_download_gallery']);
+  const boolCols = new Set(['standalone','allow_download_image','allow_download_gallery','apache_protection']);
 
   const updates = {};
   for (const [key, val] of Object.entries(req.body || {})) {

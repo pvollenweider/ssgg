@@ -26,7 +26,7 @@ import { discoverGalleries, readConfig } from './config.js';
 import { galleryDistName } from './utils.js';
 import { listPhotos, processPhotos } from './images.js';
 import { resolveGpsLocations } from './exif.js';
-import { buildHTML, buildIndexHTML, buildLegalNotice, buildBasicAuth, applyLegalTokens } from './html.js';
+import { buildHTML, buildIndexHTML, buildLegalNotice, buildBasicAuth, buildApacheReadme, applyLegalTokens } from './html.js';
 
 // ── Path constant for this file (packages/engine/src/) ────────────────────────
 const __DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -81,8 +81,10 @@ export function buildDeliveryMessage(project, summary, authInfo) {
     if (authInfo) lines.push('Entrez le mot de passe ci-dessus pour accéder à la galerie.');
     lines.push('- Naviguez entre les photos avec les flèches ou en swipant');
     lines.push('- Cliquez sur ⛶ pour passer en plein écran');
-    if (project.allowDownloadImage !== false) lines.push('- Téléchargez une photo avec le bouton ↓');
-    if (project.allowDownloadGallery !== false) lines.push('- Téléchargez toutes les photos (ZIP) avec le bouton ZIP');
+    { const dm = project.downloadMode || (project.allowDownloadImage !== false ? 'display' : 'none');
+      if (dm === 'display')   lines.push('- Téléchargez une version 4K avec le bouton ↓');
+      else if (dm === 'original') lines.push('- Téléchargez l\'original avec le bouton ↓');
+      if (dm !== 'none') lines.push('- Téléchargez toutes les photos (ZIP) avec le bouton ZIP'); }
   } else {
     lines.push(`# Delivery — ${project.title}`);
     lines.push('');
@@ -104,8 +106,10 @@ export function buildDeliveryMessage(project, summary, authInfo) {
     if (authInfo) lines.push('Enter the password above to access the gallery.');
     lines.push('- Navigate with arrow keys or swipe');
     lines.push('- Click ⛶ for fullscreen');
-    if (project.allowDownloadImage !== false) lines.push('- Download a single photo with the ↓ button');
-    if (project.allowDownloadGallery !== false) lines.push('- Download all photos (ZIP) with the ZIP button');
+    { const dm = project.downloadMode || (project.allowDownloadImage !== false ? 'display' : 'none');
+      if (dm === 'display')   lines.push('- Download a 4K version with the ↓ button');
+      else if (dm === 'original') lines.push('- Download the original with the ↓ button');
+      if (dm !== 'none') lines.push('- Download all photos (ZIP) with the ZIP button'); }
   }
 
   lines.push('');
@@ -152,8 +156,8 @@ export async function buildGallery(srcName, { build, project: projectOverride, d
   log(`   Source : ${paths.srcDir}`);
   log(`   Dist   : ${paths.dist}\n`);
 
-  const noDownloads = galCfg.project.allowDownloadImage   === false
-                   && galCfg.project.allowDownloadGallery === false;
+  const _dlMode = galCfg.project.downloadMode || (galCfg.project.allowDownloadImage !== false ? 'display' : 'none');
+  const noDownloads = _dlMode === 'none';
   fs.mkdirSync(path.join(paths.distImg, 'grid'),    { recursive: true });
   fs.mkdirSync(path.join(paths.distImg, 'grid-sm'), { recursive: true });
   fs.mkdirSync(path.join(paths.distImg, 'full'),    { recursive: true });
@@ -272,6 +276,27 @@ export async function buildGallery(srcName, { build, project: projectOverride, d
         ok(`cover → dist/covers/${distName}.webp  (outside protected zone)`);
       }
     }
+  }
+
+  // ── Apache standalone protection (V1) ────────────────────────────────────
+  // Only when all three conditions are met: standalone build + password access + apacheProtection flag.
+  // Generates .htaccess (with __HTPASSWD_ABSOLUTE_PATH__ placeholder) + README-protection.md.
+  // Does NOT generate .htpasswd — the deployer must create it manually (see README).
+  if (!WEBP_ONLY && isStandalone && galCfg.project.access === 'password' && galCfg.project.apacheProtection) {
+    const htaccessContent = [
+      `AuthType Basic`,
+      `AuthName "${galCfg.project.title || 'Protected Gallery'}"`,
+      `AuthUserFile __HTPASSWD_ABSOLUTE_PATH__`,
+      `Require valid-user`,
+      ``,
+      `# Protect all assets (images, scripts, data)`,
+      `<FilesMatch "\\.(webp|js|json|zip|md)$">`,
+      `  Require valid-user`,
+      `</FilesMatch>`,
+    ].join('\n') + '\n';
+    fs.writeFileSync(path.join(paths.dist, '.htaccess'), htaccessContent, 'utf8');
+    fs.writeFileSync(path.join(paths.dist, 'README-protection.md'), buildApacheReadme(galCfg.project), 'utf8');
+    ok(`.htaccess + README-protection.md → Apache standalone protection`);
   }
 
   // ── Build summary ─────────────────────────────────────────────────────────

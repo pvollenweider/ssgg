@@ -16,8 +16,9 @@ import { genId, hashPassword, getSettings, getProject,
 import { requireAdmin, requireStudioRole, requireAuth } from '../middleware/auth.js';
 import { sendPhotosReadyEmail } from '../services/email.js';
 import { can } from '../authorization/index.js';
-import { SRC_ROOT, DIST_ROOT } from '../../../../packages/engine/src/fs.js';
+import { SRC_ROOT, DIST_ROOT, INTERNAL_ROOT } from '../../../../packages/engine/src/fs.js';
 import { createStorage } from '../../../../packages/shared/src/storage/index.js';
+import { photoThumbnails } from '../services/thumbnailService.js';
 
 const fileStorage = createStorage();
 
@@ -101,6 +102,8 @@ function rowToGallery(row, { dateRange = null } = {}) {
     access:               row.access,
     private:              row.access !== 'public',
     standalone:           !!row.standalone,
+    downloadMode:          row.download_mode || 'display',
+    apacheProtection:      !!row.apache_protection,
     allowDownloadImage:    !!row.allow_download_image,
     allowDownloadGallery:  !!row.allow_download_gallery,
     allowDownloadOriginal: !!row.allow_download_original,
@@ -144,7 +147,33 @@ router.get('/', async (req, res) => {
       [req.studioId]
     );
   }
-  res.json(await Promise.all(rows.map(rowToGalleryAsync)));
+
+  // Batch-fetch first photo ID per gallery for cover thumbnails (1 query for all galleries)
+  const galleryIds = rows.map(r => r.id);
+  let coverPhotoMap = {};
+  if (galleryIds.length > 0) {
+    const placeholders = galleryIds.map(() => '?').join(',');
+    const [coverRows] = await query(
+      `SELECT gallery_id, id AS photo_id
+       FROM photos
+       WHERE gallery_id IN (${placeholders}) AND status != 'rejected'
+       ORDER BY sort_order ASC, created_at ASC`,
+      galleryIds
+    );
+    // Keep only the first photo per gallery
+    for (const r of coverRows) {
+      if (!coverPhotoMap[r.gallery_id]) coverPhotoMap[r.gallery_id] = r.photo_id;
+    }
+  }
+
+  const galleries = await Promise.all(rows.map(async row => {
+    const g = await rowToGalleryAsync(row);
+    const photoId = coverPhotoMap[row.id];
+    g.coverThumbnailUrl = photoId ? (photoThumbnails(photoId).md ?? null) : null;
+    return g;
+  }));
+
+  res.json(galleries);
 });
 
 // GET /api/galleries/:id
@@ -247,6 +276,7 @@ router.patch('/:id', async (req, res) => {
   const allowed = [
     'title','description','subtitle','author','author_email','date','location',
     'locale','access','password','standalone',
+    'download_mode','apache_protection',
     'allow_download_image','allow_download_gallery','allow_download_original','cover_photo',
     'slideshow_interval','copyright',
   ];
@@ -255,9 +285,10 @@ router.patch('/:id', async (req, res) => {
     authorEmail: 'author_email', allowDownloadImage: 'allow_download_image',
     allowDownloadGallery: 'allow_download_gallery', allowDownloadOriginal: 'allow_download_original', coverPhoto: 'cover_photo',
     slideshowInterval: 'slideshow_interval',
+    downloadMode: 'download_mode', apacheProtection: 'apache_protection',
   };
 
-  const boolCols = new Set(['standalone','allow_download_image','allow_download_gallery','allow_download_original']);
+  const boolCols = new Set(['standalone','allow_download_image','allow_download_gallery','allow_download_original','apache_protection']);
 
   const updates = {};
   for (const [key, val] of Object.entries(req.body || {})) {
@@ -341,17 +372,26 @@ router.delete('/:id', async (req, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
+  // Delete thumbnails for all photos in this gallery
+  const THUMB_ROOT = path.join(INTERNAL_ROOT, 'thumbnails');
+  const [photos] = await query('SELECT id FROM photos WHERE gallery_id = ?', [req.params.id]);
+  for (const photo of photos) {
+    for (const size of ['sm', 'md']) {
+      const p = path.join(THUMB_ROOT, size, `${photo.id}.webp`);
+      try { if (fs.existsSync(p)) fs.unlinkSync(p); } catch {}
+    }
+  }
+
   await query('DELETE FROM galleries WHERE id = ?', [req.params.id]);
 
+  // Always delete source dir; always purge dist on explicit delete
   const srcDir = path.join(SRC_ROOT, row.slug);
   try { if (fs.existsSync(srcDir)) fs.rmSync(srcDir, { recursive: true, force: true }); } catch {}
 
-  if (req.query.purge === '1') {
-    const distDir = path.join(DIST_ROOT, row.slug);
-    try { if (fs.existsSync(distDir)) fs.rmSync(distDir, { recursive: true, force: true }); } catch {}
-  }
+  const distDir = path.join(DIST_ROOT, row.slug);
+  try { if (fs.existsSync(distDir)) fs.rmSync(distDir, { recursive: true, force: true }); } catch {}
 
-  try { await audit(req.studioId, req.userId, 'gallery.delete', 'gallery', req.params.id, { slug: row.slug, purge: req.query.purge === '1' }); } catch {}
+  try { await audit(req.studioId, req.userId, 'gallery.delete', 'gallery', req.params.id, { slug: row.slug }); } catch {}
   res.json({ ok: true });
 });
 

@@ -50,6 +50,9 @@ function galleryToProjectConfig(g) {
   if (g.slideshow_interval) proj.autoplay           = { slideshowInterval: g.slideshow_interval };
   proj.private              = g.access !== 'public';
   proj.standalone           = !!g.standalone;
+  proj.downloadMode         = g.download_mode || 'display';
+  proj.apacheProtection     = !!g.apache_protection;
+  // Legacy fields kept for backward compat with CLI builds
   if (g.allow_download_image   !== null) proj.allowDownloadImage   = g.allow_download_image   !== 0;
   if (g.allow_download_gallery !== null) proj.allowDownloadGallery = g.allow_download_gallery !== 0;
   return proj;

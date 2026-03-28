@@ -9,31 +9,27 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
-import InheritedValue from '../../components/InheritedValue.jsx';
 import { AdminPage, AdminCard, AdminButton, AdminAlert } from '../../../components/ui/index.js';
 
 export default function GalleryDownloadsPage() {
   const t = useT();
   const { galleryId } = useParams();
-  const [form,      setForm]      = useState({ allowDownloadImage: true, allowDownloadGallery: false, allowDownloadOriginal: false });
-  const [orgDef,    setOrgDef]    = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [saved,  setSaved]  = useState('');
-  const [error,  setError]  = useState('');
+
+  const [gallery,   setGallery]   = useState(null);
+  const [form,      setForm]      = useState({ downloadMode: 'display', apacheProtection: false });
+  const [saving,    setSaving]    = useState(false);
+  const [saved,     setSaved]     = useState('');
+  const [error,     setError]     = useState('');
   const [stripping, setStripping] = useState(false);
   const [stripResult, setStripResult] = useState(null);
-  const [stripError, setStripError] = useState('');
+  const [stripError,  setStripError]  = useState('');
 
   useEffect(() => {
-    Promise.all([api.getGallery(galleryId), api.getSettings()]).then(([g, s]) => {
-      setForm({ allowDownloadImage: !!g.allowDownloadImage, allowDownloadGallery: !!g.allowDownloadGallery, allowDownloadOriginal: !!g.allowDownloadOriginal });
-      if (s) setOrgDef({ img: !!s.allowDownloadImage, zip: !!s.allowDownloadGallery });
+    api.getGallery(galleryId).then(g => {
+      setGallery(g);
+      setForm({ downloadMode: g.downloadMode || 'display', apacheProtection: !!g.apacheProtection });
     }).catch(() => {});
   }, [galleryId]);
-
-  function set(field) {
-    return e => setForm(f => ({ ...f, [field]: e.target.checked }));
-  }
 
   async function save(e) {
     e.preventDefault();
@@ -60,7 +56,8 @@ export default function GalleryDownloadsPage() {
     }
   }, [galleryId]);
 
-  const downloadsDisabled = !form.allowDownloadImage && !form.allowDownloadGallery;
+  const downloadsDisabled = form.downloadMode === 'none';
+  const showApacheToggle  = gallery?.standalone && gallery?.access === 'password';
 
   return (
     <AdminPage title={t('gal_downloads_title')}>
@@ -68,45 +65,42 @@ export default function GalleryDownloadsPage() {
         <div className="col-lg-6">
           <form onSubmit={save}>
             <AdminCard title={t('gal_downloads_section')}>
-              <div className="mb-3">
-                <div className="form-check form-switch">
-                  <input className="form-check-input" type="checkbox" id="dlImg"
-                    checked={form.allowDownloadImage} onChange={set('allowDownloadImage')} />
-                  <label className="form-check-label" htmlFor="dlImg">
-                    {t('gal_downloads_photo_label')}
-                    <small className="text-muted d-block">{t('gal_downloads_photo_hint')}</small>
-                  </label>
-                </div>
+              <label className="form-label">{t('download_mode_label')}</label>
+              <select
+                className="form-select mb-0"
+                value={form.downloadMode}
+                onChange={e => setForm(f => ({ ...f, downloadMode: e.target.value }))}
+              >
+                <option value="none">{t('download_mode_none')}</option>
+                <option value="display">{t('download_mode_display')}</option>
+                <option value="original">{t('download_mode_original')}</option>
+              </select>
+              <div className="text-muted mt-2" style={{ fontSize: '0.8rem' }}>
+                {form.downloadMode === 'none'     && t('download_mode_none_hint')}
+                {form.downloadMode === 'display'  && t('download_mode_display_hint')}
+                {form.downloadMode === 'original' && t('download_mode_original_hint')}
               </div>
-              <div className="mb-3">
-                <div className="form-check form-switch">
-                  <input className="form-check-input" type="checkbox" id="dlGal"
-                    checked={form.allowDownloadGallery} onChange={set('allowDownloadGallery')} />
-                  <label className="form-check-label" htmlFor="dlGal">
-                    {t('gal_downloads_zip_label')}
-                    <small className="text-muted d-block">{t('gal_downloads_zip_hint')}</small>
-                  </label>
-                </div>
-              </div>
-              <div className="mb-0">
-                <div className="form-check form-switch">
-                  <input className="form-check-input" type="checkbox" id="dlOrig"
-                    checked={form.allowDownloadOriginal} onChange={set('allowDownloadOriginal')} />
-                  <label className="form-check-label" htmlFor="dlOrig">
-                    {t('gal_downloads_original_label')}
-                    <small className="text-muted d-block">{t('gal_downloads_original_hint')}</small>
-                  </label>
-                </div>
-              </div>
-
-              {orgDef && (
-                <div className="mt-3 pt-3 border-top">
-                  <InheritedValue label={t('org_default_label')}>
-                    {t('allow_photo_download')}: {orgDef.img ? t('status_allowed') : t('status_disabled_val')} &nbsp;·&nbsp; {t('allow_zip_download')}: {orgDef.zip ? t('status_allowed') : t('status_disabled_val')}
-                  </InheritedValue>
-                </div>
-              )}
             </AdminCard>
+
+            {showApacheToggle && (
+              <AdminCard title={t('gal_downloads_apache_section')}>
+                <div className="form-check form-switch mb-0">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="apacheProtection"
+                    checked={form.apacheProtection}
+                    onChange={e => setForm(f => ({ ...f, apacheProtection: e.target.checked }))}
+                  />
+                  <label className="form-check-label" htmlFor="apacheProtection">
+                    {t('gal_downloads_apache_label')}
+                  </label>
+                  <div className="text-muted mt-1" style={{ fontSize: '0.8rem' }}>
+                    {t('gal_downloads_apache_hint')}
+                  </div>
+                </div>
+              </AdminCard>
+            )}
 
             <AdminAlert variant="success" message={saved} />
             <AdminAlert message={error} />
@@ -120,7 +114,7 @@ export default function GalleryDownloadsPage() {
                     {t('gal_downloads_strip_hint')}
                   </div>
                   {stripResult && <div className="mt-1 text-success small">{stripResult.message}</div>}
-                  {stripError && <div className="mt-1 text-danger small">{stripError}</div>}
+                  {stripError  && <div className="mt-1 text-danger  small">{stripError}</div>}
                 </div>
                 <AdminButton variant="outline-warning" size="sm" loading={stripping} loadingLabel={t('gal_downloads_stripping')} onClick={stripOriginals}>
                   {t('gal_downloads_strip_btn')}

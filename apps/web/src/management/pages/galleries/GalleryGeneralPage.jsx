@@ -15,7 +15,7 @@ import { AdminPage, AdminCard, AdminButton, AdminAlert } from '../../../componen
 export default function GalleryGeneralPage() {
   const t = useT();
   const { galleryId } = useParams();
-  const [form,       setForm]       = useState({ title: '', slug: '', author: '', authorEmail: '', locale: 'en' });
+  const [form,       setForm]       = useState({ title: '', slug: '', author: '', authorEmail: '', locale: 'en', standalone: false });
   const [slugEdited, setSlugEdited] = useState(false);
   const [saving,     setSaving]     = useState(false);
   const [saved,      setSaved]      = useState('');
@@ -25,11 +25,19 @@ export default function GalleryGeneralPage() {
   const [flushError,   setFlushError]   = useState('');
   const navigate = useNavigate();
 
+  // Delete gallery state
+  const [photoCount,   setPhotoCount]   = useState(null);
+  const [showDelete,   setShowDelete]   = useState(false);
+  const [confirmTitle, setConfirmTitle] = useState('');
+  const [deleting,     setDeleting]     = useState(false);
+  const [deleteError,  setDeleteError]  = useState('');
+
   useEffect(() => {
     api.getGallery(galleryId).then(g => {
-      setForm({ title: g.title || '', slug: g.slug || '', author: g.author || '', authorEmail: g.authorEmail || '', locale: g.locale || 'en' });
-      setSlugEdited(true); // existing gallery: don't auto-update slug from title
+      setForm({ title: g.title || '', slug: g.slug || '', author: g.author || '', authorEmail: g.authorEmail || '', locale: g.locale || 'en', standalone: !!g.standalone });
+      setSlugEdited(true);
     }).catch(() => {});
+    api.listPhotos(galleryId).then(photos => setPhotoCount(photos.length)).catch(() => {});
   }, [galleryId]);
 
   function handleTitleChange(e) {
@@ -63,6 +71,20 @@ export default function GalleryGeneralPage() {
     }
   }
 
+  async function deleteGallery() {
+    if (confirmTitle.trim() !== form.title) return;
+    setDeleting(true); setDeleteError('');
+    try {
+      await api.deleteGallery(galleryId);
+      navigate('/admin/galleries');
+    } catch (err) {
+      setDeleteError(err.message);
+      setDeleting(false);
+    }
+  }
+
+  const canDelete = confirmTitle.trim() === form.title;
+
   const flushDist = useCallback(async () => {
     setFlushing(true); setFlushError('');
     try {
@@ -90,7 +112,7 @@ export default function GalleryGeneralPage() {
                 <label className="form-label">{t('orgs_th_slug')}</label>
                 <div className="input-group">
                   <span className="input-group-text text-muted">/</span>
-                  <input className="form-control" value={form.slug} onChange={handleSlugChange} required pattern="[a-z0-9-]+" />
+                  <input className="form-control" value={form.slug} onChange={handleSlugChange} required pattern="[-a-z0-9]+" />
                 </div>
               </div>
               <div className="mb-0">
@@ -112,6 +134,22 @@ export default function GalleryGeneralPage() {
               </div>
             </AdminCard>
 
+            <AdminCard title={t('gal_general_build_section')}>
+              <div className="form-check form-switch mb-0">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="standalone-toggle"
+                  checked={form.standalone}
+                  onChange={e => setForm(f => ({ ...f, standalone: e.target.checked }))}
+                />
+                <label className="form-check-label" htmlFor="standalone-toggle">
+                  {t('gal_general_standalone_label')}
+                </label>
+                <div className="text-muted mt-1" style={{ fontSize: '0.8rem' }}>{t('gal_general_standalone_hint')}</div>
+              </div>
+            </AdminCard>
+
             <AdminAlert variant="success" message={saved} />
             <AdminAlert message={error} />
             <AdminButton type="submit" loading={saving} loadingLabel={t('saving')} className="mb-4">
@@ -123,23 +161,79 @@ export default function GalleryGeneralPage() {
           {/* Danger zone */}
       <div className="row mt-4">
         <div className="col-lg-7">
-          <AdminCard>
-            <p className="text-uppercase fw-semibold text-danger mb-2" style={{ fontSize: '0.72rem', letterSpacing: '0.08em' }}>
-              {t('gal_general_danger_zone')}
-            </p>
-            <div className="d-flex align-items-center justify-content-between gap-3">
+          <h6 className="text-danger fw-bold mb-2" style={{ letterSpacing: '0.04em', textTransform: 'uppercase', fontSize: '0.75rem' }}>
+            <i className="fas fa-exclamation-triangle me-1" />{t('gal_general_danger_zone')}
+          </h6>
+          <div style={{ border: '1px solid #f87171', borderRadius: 8 }}>
+
+            {/* Flush dist */}
+            <div className="d-flex align-items-center justify-content-between gap-3 p-3">
               <div>
                 <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>{t('gal_general_flush_title')}</div>
-                <div className="text-muted" style={{ fontSize: '0.8rem' }}>
-                  {t('gal_general_flush_desc')}
-                </div>
+                <div className="text-muted" style={{ fontSize: '0.8rem' }}>{t('gal_general_flush_desc')}</div>
               </div>
               <AdminButton variant="outline-danger" size="sm" onClick={() => setFlushConfirm(true)}>
                 {t('gal_general_flush_btn')}
               </AdminButton>
             </div>
-            {flushError && <AdminAlert message={flushError} className="mt-2 mb-0" />}
-          </AdminCard>
+            {flushError && <div className="px-3 pb-2"><AdminAlert message={flushError} className="mb-0" /></div>}
+
+            {/* Delete gallery */}
+            <div style={{ borderTop: '1px solid #fca5a5' }}>
+              <div className="d-flex align-items-center justify-content-between gap-3 p-3">
+                <div>
+                  <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>{t('gal_delete_title')}</div>
+                  <div className="text-muted" style={{ fontSize: '0.8rem' }}>{t('gal_delete_desc')}</div>
+                </div>
+                <AdminButton
+                  variant="outline-danger"
+                  size="sm"
+                  onClick={() => { setShowDelete(v => !v); setConfirmTitle(''); setDeleteError(''); }}
+                >
+                  {t('gal_delete_btn')}
+                </AdminButton>
+              </div>
+
+              {showDelete && (
+                <div style={{ borderTop: '1px solid #fca5a5', background: '#fff5f5', borderRadius: '0 0 7px 7px', padding: '1rem 1.25rem' }}>
+                  {photoCount > 0 && (
+                    <div className="mb-3 fw-semibold" style={{ fontSize: '0.82rem', color: '#b91c1c' }}>
+                      <i className="fas fa-images me-1" />
+                      {t('gal_delete_photos_warning', { n: photoCount })}
+                    </div>
+                  )}
+                  <label className="form-label fw-semibold" style={{ fontSize: '0.82rem' }}>
+                    {t('gal_delete_confirm_label', { title: form.title })}
+                  </label>
+                  <input
+                    className="form-control form-control-sm mb-2"
+                    style={{ borderColor: '#f87171', maxWidth: 320 }}
+                    value={confirmTitle}
+                    onChange={e => setConfirmTitle(e.target.value)}
+                    placeholder={form.title}
+                    autoFocus
+                  />
+                  {deleteError && <div className="text-danger small mb-2">{deleteError}</div>}
+                  <div className="d-flex gap-2">
+                    <AdminButton
+                      variant="danger"
+                      size="sm"
+                      disabled={!canDelete}
+                      loading={deleting}
+                      loadingLabel={t('gal_deleting')}
+                      onClick={deleteGallery}
+                    >
+                      <i className="fas fa-trash me-1" />{t('gal_delete_confirm_btn')}
+                    </AdminButton>
+                    <AdminButton variant="outline-secondary" size="sm" onClick={() => setShowDelete(false)} disabled={deleting}>
+                      {t('cancel')}
+                    </AdminButton>
+                  </div>
+                </div>
+              )}
+            </div>
+
+          </div>
         </div>
       </div>
 
