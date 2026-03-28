@@ -112,6 +112,7 @@ function rowToGallery(row, { dateRange = null } = {}) {
     copyright:            row.copyright,
     buildStatus:          row.build_status,
     builtAt:              row.built_at,
+    distName:             row.dist_name || null,
     createdAt:            row.created_at,
     updatedAt:            row.updated_at,
     description:          row.description,

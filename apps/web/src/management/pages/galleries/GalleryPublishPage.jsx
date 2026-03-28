@@ -49,6 +49,18 @@ export default function GalleryPublishPage() {
 
   const status = gallery?.buildStatus;
 
+  // Compute the public gallery URL from gallery data (client-side).
+  // Password galleries are served at a hash-based distName, not the user-defined slug.
+  function galleryPublicUrl(g) {
+    if (!g || g.buildStatus !== 'done' || g.access === 'private') return null;
+    const name     = g.distName || g.slug;
+    const projSlug = g.breadcrumb?.project?.slug;
+    const path     = projSlug ? `/${projSlug}/${name}/` : `/${name}/`;
+    return window.location.origin + path;
+  }
+
+  const publicUrl = galleryPublicUrl(gallery);
+
   return (
     <AdminPage
       title={t('gal_publish_title')}
@@ -95,10 +107,20 @@ export default function GalleryPublishPage() {
                         }
                       </td>
                     </tr>
-                    {gallery.buildDate && (
+                    {gallery.builtAt && (
                       <tr>
                         <th>{t('gal_publish_last_build')}</th>
-                        <td>{new Date(gallery.buildDate).toLocaleString()}</td>
+                        <td>{new Date(gallery.builtAt).toLocaleString()}</td>
+                      </tr>
+                    )}
+                    {publicUrl && (
+                      <tr>
+                        <th>{t('gal_publish_url')}</th>
+                        <td>
+                          <a href={publicUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.85rem' }}>
+                            {publicUrl} <i className="fas fa-external-link-alt ms-1" />
+                          </a>
+                        </td>
                       </tr>
                     )}
                     {gallery.lastJobId && (
@@ -108,16 +130,6 @@ export default function GalleryPublishPage() {
                           <Link to={`/admin/jobs/${gallery.lastJobId}`} className="font-monospace" style={{ fontSize: '0.85rem' }}>
                             {gallery.lastJobId} <i className="fas fa-arrow-right ms-1" />
                           </Link>
-                        </td>
-                      </tr>
-                    )}
-                    {gallery.baseUrl && (
-                      <tr>
-                        <th>{t('gal_publish_url')}</th>
-                        <td>
-                          <a href={gallery.baseUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.85rem' }}>
-                            {gallery.baseUrl} <i className="fas fa-external-link-alt ms-1" />
-                          </a>
                         </td>
                       </tr>
                     )}
@@ -147,7 +159,11 @@ export default function GalleryPublishPage() {
           <div className="col-lg-10">
             <BuildLog
               jobId={activeJobId}
-              onDone={(finalStatus) => { load(); if (finalStatus !== 'done') return; setActiveJobId(null); }}
+              onDone={(finalStatus) => {
+                load();
+                setActiveJobId(null);
+                if (finalStatus === 'done') setBuildMsg('');
+              }}
             />
             <div className="mt-2">
               <Link to={`/admin/jobs/${activeJobId}`} className="small text-muted">
