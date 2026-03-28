@@ -182,8 +182,8 @@ export async function runJob(jobId) {
 
     // Persist artifact metadata back to the gallery row
     await query(
-      'UPDATE galleries SET build_status = ?, built_at = ?, needs_rebuild = 0, workflow_status = \'published\', updated_at = ? WHERE id = ?',
-      ['done', Date.now(), Date.now(), gallery.id]
+      'UPDATE galleries SET build_status = ?, built_at = ?, dist_name = ?, needs_rebuild = 0, workflow_status = \'published\', updated_at = ? WHERE id = ?',
+      ['done', Date.now(), result?.distName || null, Date.now(), gallery.id]
     );
 
     await updateJobStatus(jobId, 'done', { finished_at: Date.now() });
