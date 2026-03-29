@@ -682,6 +682,7 @@
   "gal_reconcile_corrupt": "{n} fichier(s) corrompu(s) supprimé(s)",
   "gal_reconcile_missing": "{n} fichier(s) présent(s) en DB mais absent(s) sur disque",
   "gal_reanalyze_errors": "erreur(s) de génération de miniature",
+  "gal_reanalyze_force": "Forcer la régénération de toutes les miniatures",
   "gal_upload_th_label": "Libellé",
   "gal_upload_th_token": "Token",
   "gal_upload_th_created": "Créé le",

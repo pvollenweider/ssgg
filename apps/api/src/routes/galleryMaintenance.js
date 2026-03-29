@@ -356,6 +356,9 @@ router.post('/:id/photos/reanalyze', async (req, res, next) => {
       [gallery.id]
     );
 
+    // force=true → delete and regenerate ALL thumbnails, even existing ones
+    const force = req.body?.force === true || req.query.force === 'true';
+
     let thumbsGenerated = 0;
     let exifExtracted   = 0;
     let skipped         = 0;
@@ -388,8 +391,10 @@ router.post('/:id/photos/reanalyze', async (req, res, next) => {
 
       // Check each thumbnail size individually.
       // A thumbnail is considered missing if the file doesn't exist OR is 0 bytes.
+      // When force=true, delete existing thumbnails first so they are always regenerated.
       for (const size of Object.keys(THUMB_SIZES)) {
-        if (thumbOk(p.id, size)) continue;
+        if (!force && thumbOk(p.id, size)) continue;
+        if (force) { try { await fs.unlink(thumbPath(p.id, size)); } catch {} }
         try {
           await generateSingleThumbnail(srcPath, p.id, size);
           thumbsGenerated++;
@@ -399,7 +404,7 @@ router.post('/:id/photos/reanalyze', async (req, res, next) => {
       }
 
       const hasExif = p.exif !== null && p.exif !== undefined;
-      if (!hasExif) {
+      if (!hasExif || force) {
         try {
           const exif = await extractExif(srcPath);
           if (exif && Object.keys(exif).length > 0) {
