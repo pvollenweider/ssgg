@@ -42,25 +42,29 @@ Both the API (for uploads) and the worker (for reading source photos and writing
 
 ---
 
-## Multi-studio architecture
+## Multi-studio / multi-organization architecture
 
-The data model is: **Platform → Studio → Project → Gallery**.
+The data model is: **Platform → Organization (Studio) → Project → Gallery**.
 
-In `PLATFORM_MODE=single` (default) the hierarchy collapses — there is one studio and requests always resolve to it. This is fully backwards-compatible with earlier single-tenant deployments.
+"Organization" is the UI term for what is stored as "studio" in the database and legacy routes. The two terms are interchangeable.
+
+In `PLATFORM_MODE=single` (default) the hierarchy collapses — there is one organization and requests always resolve to it. This is fully backwards-compatible with earlier single-tenant deployments.
 
 In `PLATFORM_MODE=multi`:
-- Each request is resolved to a studio via the `Host` header
-- Studio domains are stored in a `studio_domains` table
+- Each request is resolved to an organization via the `Host` header
+- Custom domains are stored in a `studio_domains` table
 - Subdomains of `BASE_DOMAIN` are automatically routed by slug
-- A `superadmin` can switch studio context with an `studio_override` cookie
+- A `superadmin` can switch organization context with a `studio_override` cookie
 
 **Authorization** uses a hierarchical `can(user, action, resource)` function that checks permissions in order: platform role → studio role → project role → gallery role → viewer token → public access.
+
+`getOrgRole` resolves membership via both `organization_id` and `studio_id` fields to support both the new and legacy membership schema.
 
 ---
 
 ## Static gallery delivery
 
-Built galleries are pure static files written to `dist/<project>/<gallery>/`. Caddy serves this directory directly — no API call is made when a visitor loads a gallery. This means:
+Built galleries are pure static files written to `public/<project-slug>/<gallery-slug>/`. For project galleries the `distName` is `{project-slug}/{gallery-slug}` (set by the builder). Caddy serves the `public/` directory directly — no API call is made when a visitor loads a gallery. This means:
 - Galleries are fast (no server-side rendering)
 - The API can be down without affecting public galleries
 - Galleries can be copied to any CDN or static host
@@ -84,5 +88,20 @@ Sessions are stored in the database (`sessions` table) with an opaque token in a
 Additional token types:
 - **Invitation tokens** — one-time, expire after 72 hours, create a user account on acceptance
 - **Viewer tokens** — long-lived, scoped to a gallery or project, grant read-only access without login
+- **Personal upload tokens** — bearer tokens for programmatic/CLI uploads, scoped to a gallery or project
 - **Magic links** — one-time login links sent by email (passwordless flow)
 - **Password reset tokens** — one-time, expire after 1 hour
+
+---
+
+## Admin SPA routing
+
+The React admin application is mounted at the `/admin` basename. All management routes are under `/admin/organizations/...`. The app redirects legacy paths (`/manage/*`, `/studio`, `/dashboard`) to their current equivalents for backwards compatibility.
+
+The Inspector (`/inspector`) is a superadmin-only diagnostic tool that provides a cross-organization view of studios, projects, galleries, photos, users, and anomalies.
+
+---
+
+## Internationalisation
+
+The admin UI supports 18 locales: `en`, `fr`, `de`, `es`, `it`, `pt-BR`, `pt-PT`, `nl`, `ja`, `ko`, `pl`, `sv`, `tr`, `cs`, `uk`, `el`, `nb`, `da`. Locale files live in `apps/web/src/locales/`. The gallery viewer is localised separately at build time by the engine.

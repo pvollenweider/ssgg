@@ -29,19 +29,21 @@ PLATFORM_MODE=single
 | Variable | Default | Description |
 |---|---|---|
 | `ADMIN_EMAIL` | `admin@localhost` | Bootstrap admin email |
-| `ADMIN_PASSWORD` | — | Bootstrap admin password (required) |
-| `SESSION_SECRET` | — | Signs session cookies — use `openssl rand -hex 32` |
-| `VIEWER_TOKEN_SECRET` | — | Signs viewer tokens for private galleries |
+| `ADMIN_PASSWORD` | — | Bootstrap admin password **(required)** |
+| `SESSION_SECRET` | — | Signs session cookies — use `openssl rand -hex 32` **(required)** |
+| `VIEWER_TOKEN_SECRET` | `change-me-in-production` | Signs viewer tokens for private galleries |
 | `BASE_URL` | `http://localhost` | Public URL — used in emails and links |
-| `PLATFORM_MODE` | `single` | `single` = one studio; `multi` = multiple studios with domain routing |
-| `BASE_DOMAIN` | — | Root domain for subdomain-based studio routing (multi mode) |
+| `PLATFORM_MODE` | `single` | `single` = one organization; `multi` = multiple organizations with domain routing |
+| `BASE_DOMAIN` | — | Root domain for subdomain-based organization routing (multi mode) |
 | `DB_HOST` | `127.0.0.1` | MariaDB host |
 | `DB_PORT` | `3306` | MariaDB port |
 | `DB_NAME` | `gallerypack` | Database name |
 | `DB_USER` | `gallerypack` | Database user |
-| `DB_PASS` | — | Database password |
+| `DB_PASS` | — | Database password **(required)** |
+| `DB_ROOT_PASSWORD` | — | MariaDB root password (required by the `db` service in Docker Compose) |
+| `LICENSE_FILE` | `/app/data/gallerypack.license` | Path to the license file inside the container |
 | `STORAGE_DRIVER` | `local` | `local` or `s3` |
-| `STORAGE_ROOT` | `/app/storage` | Root path for local storage (inside container) |
+| `STORAGE_ROOT` | `/srv/gallerypack` | Root path for local storage (inside container) |
 | `S3_BUCKET` | — | S3 / R2 / MinIO bucket name |
 | `S3_REGION` | — | S3 region |
 | `S3_ENDPOINT` | — | S3-compatible endpoint URL |
@@ -83,7 +85,7 @@ For multi-studio with subdomains, also set `BASE_DOMAIN=yourdomain.com` and crea
 
 ## 4. S3-compatible storage
 
-Set `STORAGE_DRIVER=s3` and the `S3_*` variables. Both source photos and built gallery files are stored in the bucket under `src/` and `dist/` prefixes respectively.
+Set `STORAGE_DRIVER=s3` and the `S3_*` variables. Both source photos and built gallery files are stored in the bucket under `private/` and `public/` prefixes respectively.
 
 Compatible with AWS S3, Cloudflare R2, MinIO, and any S3-compatible API.
 

@@ -6,7 +6,7 @@
 No. Built galleries are pure static files (HTML + images). Caddy serves them directly without hitting the database or the API. You could copy the `dist/<gallery>/` folder to any static host.
 
 **What image formats are supported for upload?**
-JPEG, PNG, HEIC, and WebP. The engine converts everything to optimized JPEG for output.
+JPEG, PNG, TIFF, HEIC, HEIF, and AVIF. Files are validated with Sharp on upload. The engine converts source photos to optimized WebP for gallery output.
 
 **How long does a build take?**
 Roughly 1–3 seconds per photo. A 50-photo gallery typically builds in under a minute. The build progress bar in the admin gives real-time feedback via SSE.
@@ -26,7 +26,7 @@ Vendors and fonts are downloaded on first build and cached locally. Subsequent b
 - `password` — anyone with the password can view it, no account required.
 
 **How do photographer invitations work?**
-An admin creates an invite for the photographer's email address. The invite link creates their account, adds them to the gallery, and lets them upload photos immediately — no further admin action required.
+An admin creates an invite with the photographer's email address and an optional display name. The invite link creates their account, adds them to the organization and (optionally) the gallery, and lets them upload photos immediately — no further admin action required. The invite link is also copyable if email delivery is not configured.
 
 **Can a client view a private gallery without creating an account?**
 Yes — use a **viewer token**. Create one from the gallery's Access tab and share the link. It grants read-only access to that gallery (or all galleries in a project) without requiring login.
@@ -36,27 +36,27 @@ Yes. Each viewer token can be revoked individually from the Access tab at any ti
 
 ---
 
-## Multi-studio
+## Multi-organization
 
 **What is `PLATFORM_MODE=single` vs `multi`?**
-- `single` — one studio, one domain. Simpler setup, fully backwards-compatible.
-- `multi` — multiple studios, each with its own domain or subdomain, managed by a superadmin.
+- `single` — one organization, one domain. Simpler setup, fully backwards-compatible.
+- `multi` — multiple organizations, each with its own domain or subdomain, managed by a superadmin.
 
-**How does studio routing work in multi mode?**
+**How does organization routing work in multi mode?**
 Each request's `Host` header is matched against: the `studio_override` cookie (superadmin context switch) → custom domain entries in the database → `<slug>.BASE_DOMAIN` subdomains → the platform root.
 
-**Can a user belong to multiple studios?**
-Yes. A user account can be a member of multiple studios with different roles in each.
+**Can a user belong to multiple organizations?**
+Yes. A user account can be a member of multiple organizations with different roles in each.
 
 ---
 
 ## Storage
 
 **Where are photos stored?**
-In `local` mode: source photos under `storage/src/<galleryId>/`, built output under `storage/dist/<project>/<gallery>/`. In `s3` mode: same structure inside the configured bucket.
+In `local` mode: original uploads under `data/private/<gallery-slug>/photos/`, built gallery output under `data/public/<project-slug>/<gallery-slug>/`, admin thumbnails under `data/internal/thumbnails/`. In `s3` mode: same structure inside the configured bucket using `private/`, `public/`, and `internal/` key prefixes.
 
 **Can I switch from local storage to S3 later?**
-Yes — copy the files to the bucket and set `STORAGE_DRIVER=s3`. Galleries need to be rebuilt after the switch so the worker reads from the new location.
+Yes — copy the files to the bucket preserving the key structure, then set `STORAGE_DRIVER=s3`. Galleries need to be rebuilt after the switch so the worker reads from the new location.
 
 ---
 
