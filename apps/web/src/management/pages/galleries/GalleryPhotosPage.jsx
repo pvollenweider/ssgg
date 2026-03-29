@@ -6,14 +6,16 @@
 // Unauthorized use is strictly prohibited.
 
 import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
 import { useAuth } from '../../../lib/auth.jsx';
 import { UploadZone } from '../../../components/UploadZone.jsx';
-import { AdminPage, AdminCard, AdminButton, AdminAlert, AdminToast } from '../../../components/ui/index.js';
+import { BuildLog } from '../../../components/BuildLog.jsx';
+import { AdminPage, AdminCard, AdminButton, AdminAlert, AdminToast, AdminBadge } from '../../../components/ui/index.js';
 
 const CAN_EDIT_ROLES = ['collaborator', 'admin', 'owner'];
+const STATUS_BADGE   = { done: 'success', error: 'danger', running: 'primary', queued: 'warning' };
 
 export default function GalleryPhotosPage() {
   const t = useT();
@@ -30,21 +32,28 @@ export default function GalleryPhotosPage() {
   const [reordering, setReordering] = useState(false);
   const [sortAsc,    setSortAsc]    = useState(true);
   const [deleting,   setDeleting]   = useState(null);
+
+  // Publish state
+  const [building,    setBuilding]    = useState(false);
+  const [buildError,  setBuildError]  = useState('');
+  const [activeJobId, setActiveJobId] = useState(null);
+
   const pollRef = useRef(null);
+
+  function loadGallery() {
+    return api.getGallery(galleryId).then(g => { setGallery(g); return g; });
+  }
 
   function refreshPhotos() {
     return api.listPhotos(galleryId).then(p => { setPhotos(p); return p; });
   }
 
-  // Start polling every 2s while any photo is missing its sm thumbnail.
-  // Stops automatically once all sm thumbnails are present.
   function startPolling() {
     if (pollRef.current) return;
     pollRef.current = setInterval(() => {
       api.listPhotos(galleryId).then(p => {
         setPhotos(p);
-        const anyMissing = p.some(x => !x.thumbnail?.sm);
-        if (!anyMissing) {
+        if (!p.some(x => !x.thumbnail?.sm)) {
           clearInterval(pollRef.current);
           pollRef.current = null;
         }
@@ -63,6 +72,20 @@ export default function GalleryPhotosPage() {
       .finally(() => setLoading(false));
     return () => { clearInterval(pollRef.current); pollRef.current = null; };
   }, [galleryId]); // eslint-disable-line
+
+  async function build(force = false) {
+    setBuilding(true); setBuildError(''); setActiveJobId(null);
+    try {
+      const job = await api.triggerBuild(galleryId, force);
+      if (job?.id) setActiveJobId(job.id);
+      // Reload gallery state after short delay so status badge updates
+      setTimeout(loadGallery, 1500);
+    } catch (err) {
+      setBuildError(err.message);
+    } finally {
+      setBuilding(false);
+    }
+  }
 
   async function handleDelete(filename) {
     if (!confirm(t('delete_photo_confirm', { file: filename }))) return;
@@ -102,9 +125,17 @@ export default function GalleryPhotosPage() {
     finally { setReordering(false); }
   }
 
-  const publicPath = (gallery?.breadcrumb?.project?.slug && gallery?.access !== 'password' && gallery?.access !== 'private')
-    ? `/${gallery.breadcrumb.project.slug}/${gallery.slug}`
-    : `/${gallery?.slug}`;
+  // Compute public gallery URL
+  function galleryPublicUrl(g) {
+    if (!g || g.buildStatus !== 'done' || g.access === 'private') return null;
+    const name     = g.distName || g.slug;
+    const projSlug = g.breadcrumb?.project?.slug;
+    const path     = projSlug ? `/${projSlug}/${name}/` : `/${name}/`;
+    return window.location.origin + path;
+  }
+
+  const publicUrl = gallery ? galleryPublicUrl(gallery) : null;
+  const buildStatus = gallery?.buildStatus;
 
   return (
     <AdminPage
@@ -116,11 +147,28 @@ export default function GalleryPhotosPage() {
             variant="outline-secondary"
             size="sm"
             icon={`fas fa-sort-alpha-${sortAsc ? 'down' : 'up'}`}
-            title={sortAsc ? t('gal_photos_sort_asc') : t('gal_photos_sort_desc')}
             onClick={() => { const next = !sortAsc; setSortAsc(next); sortPhotos(next ? 'asc' : 'desc'); }}
           >
             {sortAsc ? t('gal_photos_sort_asc') : t('gal_photos_sort_desc')}
           </AdminButton>
+          <AdminButton
+            size="sm"
+            icon="fas fa-rocket"
+            loading={building}
+            loadingLabel={t('gal_publish_building')}
+            disabled={loading}
+            onClick={() => build(false)}
+          >
+            {t('gal_publish_title')}
+          </AdminButton>
+          <AdminButton
+            variant="outline-secondary"
+            size="sm"
+            icon="fas fa-redo"
+            disabled={building || loading}
+            onClick={() => build(true)}
+            title={t('gal_publish_force')}
+          />
         </div>
       }
     >
@@ -130,6 +178,53 @@ export default function GalleryPhotosPage() {
 
       {!loading && gallery && (
         <>
+          {/* Publish status bar */}
+          <div className="d-flex align-items-center gap-3 mb-4 p-3 rounded"
+            style={{ background: '#f8f9fa', border: '1px solid #dee2e6', flexWrap: 'wrap' }}>
+            <div className="d-flex align-items-center gap-2">
+              {buildStatus
+                ? <AdminBadge color={STATUS_BADGE[buildStatus] || 'secondary'}>{buildStatus}</AdminBadge>
+                : <span className="text-muted" style={{ fontSize: '0.85rem' }}>{t('gal_publish_never_built')}</span>
+              }
+              {gallery.builtAt && (
+                <span className="text-muted" style={{ fontSize: '0.8rem' }}>
+                  {new Date(gallery.builtAt).toLocaleString()}
+                </span>
+              )}
+            </div>
+            {publicUrl && (
+              <a href={publicUrl} target="_blank" rel="noreferrer"
+                className="text-decoration-none" style={{ fontSize: '0.82rem' }}>
+                {publicUrl} <i className="fas fa-external-link-alt ms-1" />
+              </a>
+            )}
+            {gallery.lastJobId && buildStatus === 'error' && (
+              <Link to={`/admin/jobs/${gallery.lastJobId}`} className="text-danger small">
+                <i className="fas fa-exclamation-triangle me-1" />{t('gal_publish_view_logs')}
+              </Link>
+            )}
+          </div>
+
+          {buildError && <AdminAlert message={buildError} className="mb-3" />}
+
+          {activeJobId && (
+            <div className="mb-4">
+              <BuildLog
+                jobId={activeJobId}
+                onDone={(finalStatus) => {
+                  loadGallery();
+                  setActiveJobId(null);
+                }}
+              />
+              <div className="mt-2">
+                <Link to={`/admin/jobs/${activeJobId}`} className="small text-muted">
+                  <i className="fas fa-external-link-alt me-1" />{t('gal_publish_view_logs')}
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Upload zone */}
           <AdminCard title={t('upload_photos')} className="mb-4">
             <UploadZone
               galleryId={galleryId}
@@ -137,6 +232,7 @@ export default function GalleryPhotosPage() {
             />
           </AdminCard>
 
+          {/* Photo grid */}
           <AdminCard title={t('photos_list_title', { n: photos.length })} noPadding>
             {photos.length === 0 ? (
               <div className="text-center text-muted py-5">{t('no_photos')}</div>
