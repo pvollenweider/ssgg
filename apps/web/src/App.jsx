@@ -23,7 +23,7 @@ import ProfilePage     from './management/pages/profile/ProfilePage.jsx';
 import { PlatformOverviewPage, SmtpPage, LicensePage, BrandingPage } from './management/pages/platform/index.jsx';
 import { OrganizationsListPage, OrganizationGeneralPage, OrganizationTeamPage, OrganizationProjectsPage } from './management/pages/organizations/index.jsx';
 import { ProjectGeneralPage, ProjectGalleriesPage } from './management/pages/projects/index.jsx';
-import { GalleryGeneralPage, GalleryJobsPage, GalleryInsightsPage, GalleryPhotosPage, GalleryPublishPage } from './management/pages/galleries/index.jsx';
+import { GalleryGeneralPage, GalleryJobsPage, GalleryInsightsPage, GalleryPhotosPage } from './management/pages/galleries/index.jsx';
 
 // Inspector
 import InspectorLayout     from './inspector/InspectorLayout.jsx';
@@ -131,7 +131,7 @@ export default function App() {
       <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/settings"    element={<W><GalleryGeneralPage /></W>} />
       <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/jobs"        element={<W><GalleryJobsPage /></W>} />
       <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/statistics"  element={<W><GalleryInsightsPage /></W>} />
-      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/publish"     element={<W><GalleryPublishPage /></W>} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/publish"     element={<GalleryPhotosRedirect />} />
       <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/general"     element={<GallerySettingsRedirect />} />
       <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/access"      element={<GallerySettingsRedirect />} />
       <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/downloads"   element={<GallerySettingsRedirect />} />
