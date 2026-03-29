@@ -95,10 +95,10 @@ export default function GalleryPhotosPage() {
     }
   }
 
-  async function reanalyze() {
+  async function reanalyze(force = false) {
     setReanalyzing(true); setReanalyzeResult(null); setReconcileResult(null);
     try {
-      const r = await api.reanalyzePhotos(galleryId);
+      const r = await api.reanalyzePhotos(galleryId, force);
       setReanalyzeResult(r);
       refreshPhotos().then(p => { if (p.some(x => !x.thumbnail?.sm)) startPolling(); });
     } catch (err) {
@@ -222,8 +222,16 @@ export default function GalleryPhotosPage() {
             loading={reanalyzing}
             loadingLabel="…"
             disabled={loading}
-            onClick={reanalyze}
+            onClick={() => reanalyze(false)}
             title={t('gal_reanalyze_title')}
+          />
+          <AdminButton
+            variant="outline-secondary"
+            size="sm"
+            icon="fas fa-sync-alt"
+            disabled={reanalyzing || loading}
+            onClick={() => reanalyze(true)}
+            title={t('gal_reanalyze_force')}
           />
         </div>
       }

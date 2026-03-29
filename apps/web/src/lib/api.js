@@ -181,7 +181,7 @@ export const api = {
   reconcilePhotos:        (id)         => req('POST',   `/galleries/${id}/photos/reconcile`),
   deduplicatePhotos:      (id, dryRun = true) => req('POST', `/galleries/${id}/photos/deduplicate?dry_run=${dryRun}`),
   reanalyzeStatus:        (id)         => req('GET',    `/galleries/${id}/photos/reanalyze`),
-  reanalyzePhotos:        (id)         => req('POST',   `/galleries/${id}/photos/reanalyze`),
+  reanalyzePhotos:        (id, force)  => req('POST',   `/galleries/${id}/photos/reanalyze`, force ? { force: true } : undefined),
 
   // Upload (multipart — handled separately)
   uploadPhotos(galleryId, files, onProgress) {
