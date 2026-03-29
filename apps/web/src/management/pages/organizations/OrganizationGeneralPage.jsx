@@ -21,31 +21,64 @@ const LOCALES = [
 export default function OrganizationGeneralPage() {
   const t = useT();
   const { orgId } = useParams();
-  const [form,    setForm]    = useState({ name: '', slug: '', locale: 'en', country: '' });
-  const [saving,  setSaving]  = useState(false);
-  const [saved,   setSaved]   = useState('');
-  const [error,   setError]   = useState('');
+
+  // Identity form → api.updateOrganization
+  const [identity,        setIdentity]        = useState({ name: '', slug: '', locale: 'en', country: '' });
+  const [savingIdentity,  setSavingIdentity]  = useState(false);
+  const [savedIdentity,   setSavedIdentity]   = useState('');
+  const [errorIdentity,   setErrorIdentity]   = useState('');
+
+  // Defaults form → api.saveSettings
+  const [defaults,       setDefaults]       = useState({ defaultAccess: 'public', defaultDownloadMode: 'display', defaultAuthor: '', defaultAuthorEmail: '' });
+  const [savingDefaults, setSavingDefaults] = useState(false);
+  const [savedDefaults,  setSavedDefaults]  = useState('');
+  const [errorDefaults,  setErrorDefaults]  = useState('');
 
   useEffect(() => {
     api.getOrganization(orgId).then(org => {
-      setForm({ name: org.name || '', slug: org.slug || '', locale: org.locale || 'en', country: org.country || '' });
+      setIdentity({ name: org.name || '', slug: org.slug || '', locale: org.locale || 'en', country: org.country || '' });
+    }).catch(() => {});
+    api.getSettings().then(s => {
+      setDefaults({
+        defaultAccess:       s?.defaultAccess       || 'public',
+        defaultDownloadMode: s?.defaultDownloadMode || 'display',
+        defaultAuthor:       s?.defaultAuthor       || '',
+        defaultAuthorEmail:  s?.defaultAuthorEmail  || '',
+      });
     }).catch(() => {});
   }, [orgId]);
 
-  function set(field) {
-    return e => setForm(f => ({ ...f, [field]: e.target.value }));
+  function setId(field) {
+    return e => setIdentity(f => ({ ...f, [field]: e.target.value }));
   }
 
-  async function save(e) {
+  function setDef(field) {
+    return e => setDefaults(f => ({ ...f, [field]: e.target.value }));
+  }
+
+  async function saveIdentity(e) {
     e.preventDefault();
-    setSaving(true); setSaved(''); setError('');
+    setSavingIdentity(true); setSavedIdentity(''); setErrorIdentity('');
     try {
-      await api.updateOrganization(orgId, form);
-      setSaved(t('changes_saved'));
+      await api.updateOrganization(orgId, identity);
+      setSavedIdentity(t('changes_saved'));
     } catch (err) {
-      setError(err.message);
+      setErrorIdentity(err.message);
     } finally {
-      setSaving(false);
+      setSavingIdentity(false);
+    }
+  }
+
+  async function saveDefaults(e) {
+    e.preventDefault();
+    setSavingDefaults(true); setSavedDefaults(''); setErrorDefaults('');
+    try {
+      await api.saveSettings(defaults);
+      setSavedDefaults(t('changes_saved'));
+    } catch (err) {
+      setErrorDefaults(err.message);
+    } finally {
+      setSavingDefaults(false);
     }
   }
 
@@ -53,23 +86,14 @@ export default function OrganizationGeneralPage() {
     <AdminPage title={t('org_general_title')} maxWidth="100%">
       <div className="row">
         <div className="col-lg-7">
-          <form onSubmit={save}>
+
+          {/* Identity */}
+          <form onSubmit={saveIdentity}>
             <AdminCard title={t('branding_identity_section')}>
+              <AdminInput label={t('orgs_th_name')} value={identity.name} onChange={setId('name')} required />
               <AdminInput
-                label={t('orgs_th_name')}
-                value={form.name}
-                onChange={set('name')}
-                required
-              />
-              <AdminInput
-                label={t('orgs_th_slug')}
-                prefix="/"
-                value={form.slug}
-                onChange={set('slug')}
-                pattern="[-a-z0-9]+"
-                title={t('orgs_slug_hint')}
-                required
-                hint={t('org_slug_hint')}
+                label={t('orgs_th_slug')} prefix="/" value={identity.slug} onChange={setId('slug')}
+                pattern="[-a-z0-9]+" title={t('orgs_slug_hint')} required hint={t('org_slug_hint')}
               />
             </AdminCard>
 
@@ -77,32 +101,74 @@ export default function OrganizationGeneralPage() {
               <div className="row">
                 <div className="col-sm-6 mb-3">
                   <label className="form-label">{t('field_language')}</label>
-                  <select className="form-select" value={form.locale} onChange={set('locale')}>
+                  <select className="form-select" value={identity.locale} onChange={setId('locale')}>
                     {LOCALES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
                   </select>
                 </div>
                 <div className="col-sm-6 mb-3">
                   <AdminInput
-                    label={t('org_country_label')}
-                    value={form.country}
-                    onChange={set('country')}
-                    placeholder={t('org_country_placeholder')}
-                    maxLength={2}
-                    style={{ textTransform: 'uppercase' }}
-                    hint={t('org_country_hint')}
-                    className="mb-0"
+                    label={t('org_country_label')} value={identity.country} onChange={setId('country')}
+                    placeholder={t('org_country_placeholder')} maxLength={2}
+                    style={{ textTransform: 'uppercase' }} hint={t('org_country_hint')} className="mb-0"
                   />
                 </div>
               </div>
             </AdminCard>
 
-            <AdminAlert variant="success" message={saved} />
-            <AdminAlert message={error} />
-
-            <AdminButton type="submit" loading={saving} loadingLabel={t('saving')} className="mb-4">
+            <AdminAlert variant="success" message={savedIdentity} />
+            <AdminAlert message={errorIdentity} />
+            <AdminButton type="submit" loading={savingIdentity} loadingLabel={t('saving')} className="mb-5">
               {t('save')}
             </AdminButton>
           </form>
+
+          {/* Gallery Defaults */}
+          <form onSubmit={saveDefaults}>
+            <AdminCard title={t('org_defaults_title')}>
+              <p className="text-muted mb-4" style={{ fontSize: '0.875rem' }}>{t('org_defaults_hint')}</p>
+
+              <h6 className="fw-semibold mb-3" style={{ fontSize: '0.85rem' }}>{t('org_defaults_photographer_section')}</h6>
+              <div className="row mb-4">
+                <div className="col-sm-6">
+                  <label className="form-label">{t('org_defaults_photo_name_label')}</label>
+                  <input className="form-control" value={defaults.defaultAuthor}
+                    onChange={setDef('defaultAuthor')} placeholder={t('org_defaults_photo_name_placeholder')} />
+                </div>
+                <div className="col-sm-6">
+                  <label className="form-label">{t('org_defaults_photo_email_label')}</label>
+                  <input className="form-control" type="email" value={defaults.defaultAuthorEmail}
+                    onChange={setDef('defaultAuthorEmail')} placeholder={t('org_defaults_photo_email_placeholder')} />
+                </div>
+              </div>
+
+              <h6 className="fw-semibold mb-3" style={{ fontSize: '0.85rem' }}>{t('org_defaults_access_section')}</h6>
+              <div className="row mb-0">
+                <div className="col-sm-6 mb-3">
+                  <label className="form-label">{t('org_defaults_access_label')}</label>
+                  <select className="form-select" value={defaults.defaultAccess} onChange={setDef('defaultAccess')}>
+                    <option value="public">{t('access_public')}</option>
+                    <option value="private">{t('access_private')}</option>
+                    <option value="password">{t('access_password_full')}</option>
+                  </select>
+                </div>
+                <div className="col-sm-6 mb-3">
+                  <label className="form-label">{t('download_mode_label')}</label>
+                  <select className="form-select" value={defaults.defaultDownloadMode} onChange={setDef('defaultDownloadMode')}>
+                    <option value="none">{t('download_mode_none')}</option>
+                    <option value="display">{t('download_mode_display')}</option>
+                    <option value="original">{t('download_mode_original')}</option>
+                  </select>
+                </div>
+              </div>
+            </AdminCard>
+
+            <AdminAlert variant="success" message={savedDefaults} />
+            <AdminAlert message={errorDefaults} />
+            <AdminButton type="submit" loading={savingDefaults} loadingLabel={t('saving')} className="mb-4">
+              {t('save')}
+            </AdminButton>
+          </form>
+
         </div>
       </div>
     </AdminPage>
