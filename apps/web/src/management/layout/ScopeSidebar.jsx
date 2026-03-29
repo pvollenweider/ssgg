@@ -259,7 +259,14 @@ export default function ScopeSidebar({ scope, params = {}, isMobileDrawer = fals
           <ul className="nav sidebar-menu flex-column">
             {isSuperadmin && (
               <>
-                <TreeLink to="/admin/platform" label={t('nav_platform')} icon="fas fa-server"  depth={0} onClick={click} />
+                <TreeLink to="/admin/platform" label={t('nav_platform')} icon="fas fa-server"  depth={0} end onClick={click} />
+                {scope === 'platform' && (
+                  <>
+                    <TreeLink to="/admin/platform/smtp"     label={t('nav_smtp')}     depth={1} onClick={click} />
+                    <TreeLink to="/admin/platform/license"  label={t('nav_license')}  depth={1} onClick={click} />
+                    <TreeLink to="/admin/platform/branding" label={t('nav_branding')} depth={1} onClick={click} />
+                  </>
+                )}
                 <TreeLink to="/inspector"      label={t('nav_inspector')} icon="fas fa-search" depth={0} onClick={click} />
               </>
             )}
