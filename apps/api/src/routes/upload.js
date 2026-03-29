@@ -16,6 +16,7 @@ import { getUploadLinkByToken, getPhotographerByUploadLink } from '../db/helpers
 import { emit, EVENTS } from '../services/events.js';
 import { SRC_ROOT }       from '../../../../packages/engine/src/fs.js';
 import { generateThumbnails, photoThumbnails } from '../services/thumbnailService.js';
+import { extractExif } from '../../../../packages/engine/src/exif.js';
 
 const router = Router();
 
@@ -105,7 +106,7 @@ router.post('/:token/photos', upload.array('photos', 50), async (req, res) => {
     const photoId = randomUUID();
     await query(
       `INSERT INTO photos (id, gallery_id, filename, original_name, size_bytes, status, upload_link_id, photographer_id)
-       VALUES (?, ?, ?, ?, ?, 'uploaded', ?, ?)
+       VALUES (?, ?, ?, ?, ?, 'approved', ?, ?)
        ON DUPLICATE KEY UPDATE
          size_bytes = VALUES(size_bytes),
          original_name = VALUES(original_name),
@@ -118,6 +119,12 @@ router.post('/:token/photos', upload.array('photos', 50), async (req, res) => {
     } catch (err) {
       console.error(`[upload-token] thumbnail generation failed for ${photoId}: ${err.message}`);
     }
+    // Extract EXIF and persist to DB — fire-and-forget, does not block response
+    extractExif(f.path).then(exif => {
+      if (exif && Object.keys(exif).length > 0) {
+        query('UPDATE photos SET exif = ? WHERE id = ?', [JSON.stringify(exif), photoId]).catch(() => {});
+      }
+    }).catch(() => {});
 
     uploaded.push({ id: photoId, file: f.filename, size: f.size, photographerId: photographer?.id ?? null, thumbnail: photoThumbnails(photoId) });
   }

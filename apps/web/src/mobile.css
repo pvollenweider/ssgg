@@ -177,3 +177,8 @@
     margin-left: 0 !important;
   }
 }
+
+@keyframes pulse-bar {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}

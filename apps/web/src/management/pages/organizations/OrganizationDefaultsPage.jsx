@@ -8,14 +8,14 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
-import { AdminPage, AdminCard, AdminInput, AdminSwitch, AdminAlert, AdminButton } from '../../../components/ui/index.js';
+import { AdminPage, AdminCard, AdminInput, AdminAlert, AdminButton } from '../../../components/ui/index.js';
 
 export default function OrganizationDefaultsPage() {
   const t = useT();
   const [form,   setForm]   = useState({
     defaultAuthor: '', defaultAuthorEmail: '',
     defaultLocale: 'en', defaultAccess: 'public',
-    defaultAllowDownloadImage: true, defaultAllowDownloadGallery: false,
+    defaultDownloadMode: 'display',
   });
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState('');
@@ -23,12 +23,11 @@ export default function OrganizationDefaultsPage() {
 
   useEffect(() => {
     api.getSettings().then(s => setForm({
-      defaultAuthor:               s.defaultAuthor              || '',
-      defaultAuthorEmail:          s.defaultAuthorEmail         || '',
-      defaultLocale:               s.defaultLocale              || 'en',
-      defaultAccess:               s.defaultAccess              || 'public',
-      defaultAllowDownloadImage:   s.defaultAllowDownloadImage  !== false,
-      defaultAllowDownloadGallery: !!s.defaultAllowDownloadGallery,
+      defaultAuthor:       s.defaultAuthor       || '',
+      defaultAuthorEmail:  s.defaultAuthorEmail  || '',
+      defaultLocale:       s.defaultLocale       || 'en',
+      defaultAccess:       s.defaultAccess       || 'public',
+      defaultDownloadMode: s.defaultDownloadMode || 'display',
     })).catch(() => {});
   }, []);
 
@@ -92,17 +91,14 @@ export default function OrganizationDefaultsPage() {
                   <option value="password">{t('field_password')}</option>
                 </select>
               </div>
-              <AdminSwitch
-                label={t('allow_photo_download')}
-                checked={form.defaultAllowDownloadImage}
-                onChange={set('defaultAllowDownloadImage')}
-              />
-              <AdminSwitch
-                label={t('allow_zip_download')}
-                checked={form.defaultAllowDownloadGallery}
-                onChange={set('defaultAllowDownloadGallery')}
-                className="mb-0"
-              />
+              <div className="mb-0 mt-3 pt-3 border-top">
+                <label className="form-label">{t('download_mode_label')}</label>
+                <select className="form-select" value={form.defaultDownloadMode} onChange={set('defaultDownloadMode')}>
+                  <option value="none">{t('download_mode_none')}</option>
+                  <option value="display">{t('download_mode_display')}</option>
+                  <option value="original">{t('download_mode_original')}</option>
+                </select>
+              </div>
             </AdminCard>
 
             <AdminAlert variant="success" message={saved} />

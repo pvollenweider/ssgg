@@ -5,7 +5,7 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
@@ -30,13 +30,39 @@ export default function GalleryPhotosPage() {
   const [reordering, setReordering] = useState(false);
   const [sortAsc,    setSortAsc]    = useState(true);
   const [deleting,   setDeleting]   = useState(null);
+  const pollRef = useRef(null);
+
+  function refreshPhotos() {
+    return api.listPhotos(galleryId).then(p => { setPhotos(p); return p; });
+  }
+
+  // Start polling every 2s while any photo is missing its sm thumbnail.
+  // Stops automatically once all sm thumbnails are present.
+  function startPolling() {
+    if (pollRef.current) return;
+    pollRef.current = setInterval(() => {
+      api.listPhotos(galleryId).then(p => {
+        setPhotos(p);
+        const anyMissing = p.some(x => !x.thumbnail?.sm);
+        if (!anyMissing) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      }).catch(() => {});
+    }, 2000);
+  }
 
   useEffect(() => {
     Promise.all([api.getGallery(galleryId), api.listPhotos(galleryId)])
-      .then(([g, p]) => { setGallery(g); setPhotos(p); })
+      .then(([g, p]) => {
+        setGallery(g);
+        setPhotos(p);
+        if (p.some(x => !x.thumbnail?.sm)) startPolling();
+      })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
-  }, [galleryId]);
+    return () => { clearInterval(pollRef.current); pollRef.current = null; };
+  }, [galleryId]); // eslint-disable-line
 
   async function handleDelete(filename) {
     if (!confirm(t('delete_photo_confirm', { file: filename }))) return;
@@ -107,7 +133,7 @@ export default function GalleryPhotosPage() {
           <AdminCard title={t('upload_photos')} className="mb-4">
             <UploadZone
               galleryId={galleryId}
-              onDone={() => api.listPhotos(galleryId).then(setPhotos)}
+              onDone={() => refreshPhotos().then(p => { if (p.some(x => !x.thumbnail?.sm)) startPolling(); })}
             />
           </AdminCard>
 
@@ -125,13 +151,19 @@ export default function GalleryPhotosPage() {
                     onDragOver={e => onDragOver(e, i)}
                     onDragEnd={onDragEnd}
                   >
-                    <img
-                      src={p.thumb
-                        ? `${publicPath}/img/grid/${p.thumb}.webp`
-                        : `/api/galleries/${galleryId}/photos/${encodeURIComponent(p.file)}/preview`}
-                      alt={p.file}
-                      style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }}
-                    />
+                    {p.thumbnail?.sm ? (
+                      <img
+                        src={p.thumbnail.sm}
+                        alt={p.file}
+                        style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover', display: 'block' }}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <div style={{ width: '100%', aspectRatio: '4/3', background: 'linear-gradient(135deg,#e5e7eb,#d1d5db)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <i className="fas fa-image" style={{ fontSize: '1.5rem', color: '#9ca3af' }} />
+                      </div>
+                    )}
                     <div style={{ padding: '0.25rem 0.4rem', fontSize: '0.7rem', color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {p.file}
                     </div>

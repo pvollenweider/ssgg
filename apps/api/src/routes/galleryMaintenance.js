@@ -14,12 +14,15 @@
 import { Router }        from 'express';
 import { createHash }    from 'node:crypto';
 import fs                from 'node:fs/promises';
+import { existsSync, statSync } from 'node:fs';
 import path              from 'node:path';
 import { query }         from '../db/database.js';
 import { requireAuth }   from '../middleware/auth.js';
 import { can }           from '../authorization/index.js';
 import { getGalleryRole, genId } from '../db/helpers.js';
 import { DIST_ROOT, SRC_ROOT } from '../../../../packages/engine/src/fs.js';
+import { generateSingleThumbnail, thumbPath, THUMB_SIZES } from '../services/thumbnailService.js';
+import { extractExif }   from '../../../../packages/engine/src/exif.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -69,14 +72,13 @@ router.delete('/:id/dist', async (req, res, next) => {
     await fs.rm(distPath, { recursive: true, force: true });
 
     // Reset gallery build state
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
     await query(
       `UPDATE galleries
        SET build_status = 'pending', workflow_status = 'draft',
-           build_date = NULL, last_job_id = NULL, needs_rebuild = 0,
+           built_at = NULL, needs_rebuild = 0,
            updated_at = ?
        WHERE id = ?`,
-      [now, gallery.id]
+      [Date.now(), gallery.id]
     );
 
     res.json({ ok: true, message: 'Built output flushed. Gallery is now in draft.' });
@@ -134,24 +136,55 @@ router.post('/:id/photos/reconcile', async (req, res, next) => {
       diskFiles = [];
     }
 
+    const { default: sharp } = await import('sharp');
+
     // List files in DB
-    const [dbRows] = await query('SELECT filename FROM photos WHERE gallery_id = ?', [gallery.id]);
+    const [dbRows] = await query('SELECT id, filename FROM photos WHERE gallery_id = ?', [gallery.id]);
     const dbSet = new Set(dbRows.map(r => r.filename));
 
-    // Insert missing
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    let added = 0;
-    const alreadyPresent = dbRows.length;
+    let added   = 0;
+    let purged  = 0;
+    const corruptFiles = [];
 
-    for (const filename of diskFiles) {
-      if (dbSet.has(filename)) continue;
-      const fullPath = path.join(photosDir, filename);
-      let sizeBytes = null;
+    // Remove DB entries whose source file is corrupt (undecodable by Sharp even with failOn:none)
+    for (const row of dbRows) {
+      const fullPath = path.join(photosDir, row.filename);
+      if (!existsSync(fullPath)) continue; // missing-from-disk handled separately
       try {
-        const stat = await fs.stat(fullPath);
-        sizeBytes = stat.size;
-      } catch { /* ignore */ }
+        await sharp(fullPath, { failOn: 'none' }).metadata();
+      } catch {
+        console.warn(`[reconcile] corrupt source — removing ${row.filename} (${row.id})`);
+        try { await fs.unlink(fullPath); } catch {}
+        for (const size of Object.keys(THUMB_SIZES)) {
+          try { await fs.unlink(thumbPath(row.id, size)); } catch {}
+        }
+        await query('DELETE FROM photos WHERE id = ?', [row.id]);
+        corruptFiles.push(row.filename);
+        purged++;
+      }
+    }
 
+    // Re-read DB set after purge
+    const [freshRows] = await query('SELECT filename FROM photos WHERE gallery_id = ?', [gallery.id]);
+    const freshSet = new Set(freshRows.map(r => r.filename));
+
+    // Insert disk files not yet in DB (skip corrupt ones just purged)
+    const corruptSet = new Set(corruptFiles);
+    const alreadyPresent = freshRows.length;
+    for (const filename of diskFiles) {
+      if (freshSet.has(filename) || corruptSet.has(filename)) continue;
+      const fullPath = path.join(photosDir, filename);
+      // Validate new file before inserting
+      try {
+        await sharp(fullPath, { failOn: 'none' }).metadata();
+      } catch {
+        try { await fs.unlink(fullPath); } catch {}
+        corruptFiles.push(filename);
+        continue;
+      }
+      let sizeBytes = null;
+      try { const stat = await fs.stat(fullPath); sizeBytes = stat.size; } catch {}
       const id = genId();
       await query(
         `INSERT IGNORE INTO photos (id, gallery_id, filename, size_bytes, sort_order, status, created_at)
@@ -161,16 +194,16 @@ router.post('/:id/photos/reconcile', async (req, res, next) => {
       added++;
     }
 
-    // Flag for rebuild if anything changed
-    if (added > 0) {
+    if (added > 0 || purged > 0) {
       await query('UPDATE galleries SET needs_rebuild = 1, updated_at = ? WHERE id = ?', [now, gallery.id]);
     }
 
     res.json({
       ok: true,
       added,
+      purged,
+      corruptFiles,
       alreadyPresent,
-      skipped: 0,
       total: diskFiles.length,
     });
   } catch (err) {
@@ -258,6 +291,127 @@ router.post('/:id/photos/deduplicate', async (req, res, next) => {
         deleted: s.dupes.map(d => d.filename),
       })),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Returns true if a thumbnail file exists on disk and is non-empty.
+function thumbOk(photoId, size) {
+  const p = thumbPath(photoId, size);
+  if (!existsSync(p)) return false;
+  try { return statSync(p).size > 0; } catch { return false; }
+}
+
+// ── GET /:id/photos/reanalyze — count photos missing thumbnails or EXIF ───────
+
+router.get('/:id/photos/reanalyze', async (req, res, next) => {
+  try {
+    const gallery = await loadGallery(req.params.id, req.studioId);
+    if (!gallery) return res.status(404).json({ error: 'Gallery not found' });
+    if (!await requireOwner(req, res, gallery)) return;
+
+    const photosDir = path.join(SRC_ROOT, gallery.slug, 'photos');
+    const [photos] = await query(
+      'SELECT id, filename, exif FROM photos WHERE gallery_id = ?',
+      [gallery.id]
+    );
+
+    let missingThumbs = 0;
+    let missingExif   = 0;
+
+    for (const p of photos) {
+      const anyMissing = Object.keys(THUMB_SIZES).some(size => !thumbOk(p.id, size));
+      if (anyMissing) missingThumbs++;
+
+      const hasExif = p.exif !== null && p.exif !== undefined;
+      if (!hasExif) {
+        const srcPath = path.join(photosDir, p.filename);
+        if (existsSync(srcPath)) missingExif++;
+      }
+    }
+
+    res.json({ total: photos.length, missingThumbs, missingExif });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── POST /:id/photos/reanalyze — regenerate missing thumbnails + EXIF ─────────
+
+router.post('/:id/photos/reanalyze', async (req, res, next) => {
+  try {
+    const gallery = await loadGallery(req.params.id, req.studioId);
+    if (!gallery) return res.status(404).json({ error: 'Gallery not found' });
+    if (!await requireOwner(req, res, gallery)) return;
+
+    const photosDir = path.join(SRC_ROOT, gallery.slug, 'photos');
+    const [photos] = await query(
+      'SELECT id, filename, exif FROM photos WHERE gallery_id = ?',
+      [gallery.id]
+    );
+
+    let thumbsGenerated = 0;
+    let exifExtracted   = 0;
+    let skipped         = 0;
+    const errors        = [];
+    const deleted       = [];
+
+    const { default: sharp } = await import('sharp');
+
+    for (const p of photos) {
+      const srcPath   = path.join(photosDir, p.filename);
+      const srcExists = existsSync(srcPath);
+      if (!srcExists) { skipped++; continue; }
+
+      // Validate the source file with Sharp before doing any work.
+      // If it can't be decoded (corrupt upload, all-zero file, etc.) delete it
+      // from disk and from the DB so the gallery stays consistent.
+      try {
+        await sharp(srcPath, { failOn: 'none' }).metadata();
+      } catch {
+        console.warn(`[reanalyze] corrupt source — deleting ${p.filename} (${p.id})`);
+        try { await fs.unlink(srcPath); } catch {}
+        // Clean up any partial thumbnails
+        for (const size of Object.keys(THUMB_SIZES)) {
+          try { await fs.unlink(thumbPath(p.id, size)); } catch {}
+        }
+        await query('DELETE FROM photos WHERE id = ?', [p.id]);
+        deleted.push(p.filename);
+        continue;
+      }
+
+      // Check each thumbnail size individually.
+      // A thumbnail is considered missing if the file doesn't exist OR is 0 bytes.
+      for (const size of Object.keys(THUMB_SIZES)) {
+        if (thumbOk(p.id, size)) continue;
+        try {
+          await generateSingleThumbnail(srcPath, p.id, size);
+          thumbsGenerated++;
+        } catch (err) {
+          errors.push(`thumb:${size}:${p.filename}: ${err.message}`);
+        }
+      }
+
+      const hasExif = p.exif !== null && p.exif !== undefined;
+      if (!hasExif) {
+        try {
+          const exif = await extractExif(srcPath);
+          if (exif && Object.keys(exif).length > 0) {
+            await query('UPDATE photos SET exif = ? WHERE id = ?', [JSON.stringify(exif), p.id]);
+            exifExtracted++;
+          }
+        } catch (err) {
+          errors.push(`exif:${p.filename}: ${err.message}`);
+        }
+      }
+    }
+
+    if (deleted.length > 0) {
+      await query('UPDATE galleries SET needs_rebuild = 1, updated_at = ? WHERE id = ?', [Date.now(), gallery.id]);
+    }
+
+    res.json({ ok: true, total: photos.length, thumbsGenerated, exifExtracted, skipped, deleted, errors });
   } catch (err) {
     next(err);
   }

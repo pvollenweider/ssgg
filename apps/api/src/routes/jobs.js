@@ -78,6 +78,24 @@ router.get('/:id/jobs', async (req, res) => {
   res.json(jobs.map(jobToJson));
 });
 
+// ── GET /api/jobs — active jobs for the current studio ───────────────────────
+router.get('/', async (req, res) => {
+  const [rows] = await query(
+    `SELECT id, gallery_id, status, created_at, started_at
+     FROM build_jobs
+     WHERE studio_id = ? AND status IN ('queued','running')
+     ORDER BY created_at ASC`,
+    [req.studioId]
+  );
+  res.json(rows.map(r => ({
+    id:        r.id,
+    galleryId: r.gallery_id,
+    status:    r.status,
+    createdAt: r.created_at,
+    startedAt: r.started_at,
+  })));
+});
+
 // ── GET /api/jobs/:jobId — single job ────────────────────────────────────────
 router.get('/:jobId', async (req, res) => {
   const job = await getJob(req.params.jobId);

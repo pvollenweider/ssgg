@@ -7,8 +7,6 @@
 
 /**
  * Replace :param placeholders with actual route param values.
- * @param {string} path - e.g. '/manage/organizations/:orgId/general'
- * @param {Record<string,string>} params - e.g. { orgId: 'abc123' }
  */
 export function interpolatePath(path, params = {}) {
   return path.replace(/:(\w+)/g, (_, key) => params[key] ?? `:${key}`);
@@ -16,28 +14,31 @@ export function interpolatePath(path, params = {}) {
 
 /**
  * Detect the active management scope from the current pathname.
+ * Hierarchy: gallery > project > organization > platform
  * @returns {'platform'|'organization'|'project'|'gallery'|null}
  */
 export function detectScope(pathname) {
   if (pathname.startsWith('/admin/platform')) return 'platform';
+  if (/^\/admin\/organizations\/[^/]+\/projects\/[^/]+\/galleries\/[^/]+/.test(pathname)) return 'gallery';
+  if (/^\/admin\/organizations\/[^/]+\/projects\/[^/]+/.test(pathname)) return 'project';
   if (/^\/admin\/organizations\/[^/]+/.test(pathname)) return 'organization';
-  if (/^\/admin\/projects\/[^/]+/.test(pathname)) return 'project';
-  if (/^\/admin\/galleries\/[^/]+/.test(pathname)) return 'gallery';
   return null;
 }
 
 /**
- * Extract scope params from the current pathname.
+ * Extract all scope params from the hierarchical URL.
  * @returns {{ orgId?: string, projectId?: string, galleryId?: string }}
  */
 export function extractScopeParams(pathname) {
-  const org     = pathname.match(/^\/admin\/organizations\/([^/]+)/);
-  const project = pathname.match(/^\/admin\/projects\/([^/]+)/);
-  const gallery = pathname.match(/^\/admin\/galleries\/([^/]+)/);
+  const gallery = pathname.match(/^\/admin\/organizations\/([^/]+)\/projects\/([^/]+)\/galleries\/([^/]+)/);
+  if (gallery) return { orgId: gallery[1], projectId: gallery[2], galleryId: gallery[3] };
 
-  if (org)     return { orgId: org[1] };
-  if (project) return { projectId: project[1] };
-  if (gallery) return { galleryId: gallery[1] };
+  const project = pathname.match(/^\/admin\/organizations\/([^/]+)\/projects\/([^/]+)/);
+  if (project) return { orgId: project[1], projectId: project[2] };
+
+  const org = pathname.match(/^\/admin\/organizations\/([^/]+)/);
+  if (org) return { orgId: org[1] };
+
   return {};
 }
 
@@ -51,29 +52,26 @@ const SEGMENT_LABELS = {
   organizations: 'Organizations',
   projects:      'Projects',
   galleries:     'Galleries',
-  general:       'General',
-  defaults:      'Defaults',
-  access:        'Access & Privacy',
+  general:       null,
+  defaults:      null,
+  access:        null,
+  settings:      'Settings',
   team:          'Team',
-  delivery:      'Delivery',
-  downloads:     'Downloads',
-  upload:        'Upload',
-  publish:       'Publish',
-  insights:      'Insights',
-  overview:      'Overview',
+  delivery:      null,
+  downloads:     null,
+  upload:        null,
+  publish:       null,
+  statistics:    'Statistics',
+  insights:      null,
+  overview:      null,
   photos:        'Photos',
-  inbox:         'Inbox',
+  inbox:         null,
   jobs:          'Jobs',
   profile:       'Profile',
 };
 
 /**
  * Build a breadcrumb array from a pathname.
- * Entity IDs are passed as-is — callers can replace them with real names later.
- *
- * @param {string} pathname
- * @param {Record<string,string>} entityNames - { orgId: 'Acme', projectId: 'Paris 2024', ... }
- * @returns {{ label: string, href: string }[]}
  */
 export function buildBreadcrumb(pathname, entityNames = {}) {
   const segments = pathname.split('/').filter(Boolean);
@@ -83,17 +81,15 @@ export function buildBreadcrumb(pathname, entityNames = {}) {
   for (const seg of segments) {
     path += '/' + seg;
 
-    // If this segment is a known entity ID, show its human name
     if (entityNames[seg]) {
       crumbs.push({ label: entityNames[seg], href: path });
       continue;
     }
 
     const label = SEGMENT_LABELS[seg];
-    if (label === null) continue;        // skip 'admin', 'manage'
+    if (label === null || label === undefined && seg.length > 8) continue;
     if (label === undefined) {
-      // Unknown segment — likely an entity ID with no name loaded yet
-      crumbs.push({ label: seg.length > 12 ? seg.slice(0, 8) + '…' : seg, href: path });
+      crumbs.push({ label: seg.slice(0, 8) + '…', href: path });
     } else {
       crumbs.push({ label, href: path });
     }

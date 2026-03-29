@@ -14,7 +14,7 @@ import { AdminPage, AdminCard, AdminButton, AdminAlert } from '../../../componen
 
 export default function GalleryGeneralPage() {
   const t = useT();
-  const { galleryId } = useParams();
+  const { orgId, projectId, galleryId } = useParams();
   const [form,       setForm]       = useState({ title: '', slug: '', author: '', authorEmail: '', locale: 'en', standalone: false });
   const [slugEdited, setSlugEdited] = useState(false);
   const [saving,     setSaving]     = useState(false);
@@ -76,7 +76,7 @@ export default function GalleryGeneralPage() {
     setDeleting(true); setDeleteError('');
     try {
       await api.deleteGallery(galleryId);
-      navigate('/admin/galleries');
+      navigate(`/admin/organizations/${orgId}/projects/${projectId}`);
     } catch (err) {
       setDeleteError(err.message);
       setDeleting(false);

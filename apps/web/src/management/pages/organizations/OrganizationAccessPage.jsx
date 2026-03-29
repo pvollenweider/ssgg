@@ -8,20 +8,18 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
-import { AdminPage, AdminCard, AdminSwitch, AdminAlert, AdminButton } from '../../../components/ui/index.js';
+import { AdminPage, AdminCard, AdminAlert, AdminButton } from '../../../components/ui/index.js';
 
 export default function OrganizationAccessPage() {
   const t = useT();
-  const [form,   setForm]   = useState({ defaultAccess: 'public', defaultAllowDownloadImage: true, defaultAllowDownloadGallery: false });
+  const [form,   setForm]   = useState({ defaultAccess: 'public' });
   const [saving, setSaving] = useState(false);
   const [saved,  setSaved]  = useState('');
   const [error,  setError]  = useState('');
 
   useEffect(() => {
     api.getSettings().then(s => setForm({
-      defaultAccess:               s.defaultAccess              || 'public',
-      defaultAllowDownloadImage:   s.defaultAllowDownloadImage  !== false,
-      defaultAllowDownloadGallery: !!s.defaultAllowDownloadGallery,
+      defaultAccess: s.defaultAccess || 'public',
     })).catch(() => {});
   }, []);
 
@@ -67,20 +65,6 @@ export default function OrganizationAccessPage() {
                   </div>
                 ))}
               </div>
-            </AdminCard>
-
-            <AdminCard title={t('org_downloads_section')}>
-              <AdminSwitch
-                label={t('allow_photo_download')}
-                checked={form.defaultAllowDownloadImage}
-                onChange={set('defaultAllowDownloadImage')}
-              />
-              <AdminSwitch
-                label={t('allow_zip_download')}
-                checked={form.defaultAllowDownloadGallery}
-                onChange={set('defaultAllowDownloadGallery')}
-                className="mb-0"
-              />
             </AdminCard>
 
             <AdminAlert variant="success" message={saved} />

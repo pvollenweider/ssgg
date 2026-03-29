@@ -19,13 +19,11 @@ import UploadPage      from './pages/UploadPage.jsx';
 // Management
 import ManageLayout    from './management/layout/ManageLayout.jsx';
 import PlatformLayout  from './management/layout/PlatformLayout.jsx';
-import ManageHub       from './management/pages/manage/ManageHub.jsx';
-import TokensPage      from './management/pages/manage/TokensPage.jsx';
 import ProfilePage     from './management/pages/profile/ProfilePage.jsx';
 import { PlatformOverviewPage, SmtpPage, LicensePage, BrandingPage } from './management/pages/platform/index.jsx';
-import { OrganizationsListPage, OrganizationOverviewPage, OrganizationGeneralPage, OrganizationDefaultsPage, OrganizationAccessPage, OrganizationTeamPage, OrganizationProjectsPage } from './management/pages/organizations/index.jsx';
-import { ProjectsListPage, ProjectOverviewPage, ProjectGeneralPage, ProjectGalleriesPage, ProjectAccessPage, ProjectDeliveryPage } from './management/pages/projects/index.jsx';
-import { GalleriesListPage, GalleryOverviewPage, GalleryGeneralPage, GalleryAccessPage, GalleryDownloadsPage, GalleryUploadPage, GalleryPublishPage, GalleryInsightsPage, GalleryPhotosPage, GalleryJobsPage, GalleryInboxPage } from './management/pages/galleries/index.jsx';
+import { OrganizationsListPage, OrganizationGeneralPage, OrganizationTeamPage, OrganizationProjectsPage } from './management/pages/organizations/index.jsx';
+import { ProjectGeneralPage, ProjectGalleriesPage } from './management/pages/projects/index.jsx';
+import { GalleryGeneralPage, GalleryJobsPage, GalleryInsightsPage, GalleryPhotosPage, GalleryPublishPage } from './management/pages/galleries/index.jsx';
 
 // Inspector
 import InspectorLayout     from './inspector/InspectorLayout.jsx';
@@ -50,30 +48,33 @@ function RequireAuth({ children }) {
   return children;
 }
 
-/** Redirect /projects/:id → /admin/projects/:id/galleries */
-function ProjectRedirect() {
-  const { id } = useParams();
-  return <Navigate to={`/admin/projects/${id}/galleries`} replace />;
+function GalleryPhotosRedirect() {
+  const { orgId, projectId, galleryId } = useParams();
+  return <Navigate to={`/admin/organizations/${orgId}/projects/${projectId}/galleries/${galleryId}/photos`} replace />;
 }
 
-/** Redirect /galleries/:id → /admin/galleries/:id/photos */
-function GalleryRedirect() {
-  const { id } = useParams();
-  return <Navigate to={`/admin/galleries/${id}/photos`} replace />;
+function OrgSettingsRedirect() {
+  const { orgId } = useParams();
+  return <Navigate to={`/admin/organizations/${orgId}/settings`} replace />;
 }
 
-/** Redirect /jobs/:jobId → /admin/jobs/:jobId */
-function JobRedirect() {
-  const { jobId } = useParams();
-  return <Navigate to={`/admin/jobs/${jobId}`} replace />;
+function ProjectSettingsRedirect() {
+  const { orgId, projectId } = useParams();
+  return <Navigate to={`/admin/organizations/${orgId}/projects/${projectId}/settings`} replace />;
 }
 
-/** Redirect /manage/* → /admin/* (backward compat) */
+function GallerySettingsRedirect() {
+  const { orgId, projectId, galleryId } = useParams();
+  return <Navigate to={`/admin/organizations/${orgId}/projects/${projectId}/galleries/${galleryId}/settings`} replace />;
+}
+
 function ManageRedirect() {
   const { pathname } = useLocation();
   const rest = pathname.replace(/^\/manage/, '');
   return <Navigate to={`/admin${rest}`} replace />;
 }
+
+const W = ManageLayout;
 
 export default function App() {
   return (
@@ -81,61 +82,61 @@ export default function App() {
     <Routes>
       <Route path="/login"                       element={<Login />} />
 
-      {/* ── Backward-compat: /manage/* → /admin/* ── */}
+      {/* Backward-compat */}
       <Route path="/manage/*"                    element={<ManageRedirect />} />
-
-      {/* ── Backward-compat redirects for old AdminLayout routes ── */}
-      <Route path="/"                            element={<Navigate to="/admin" replace />} />
-      <Route path="/studio"                      element={<Navigate to="/admin" replace />} />
-      <Route path="/dashboard"                   element={<Navigate to="/admin" replace />} />
+      <Route path="/"                            element={<Navigate to="/admin/organizations" replace />} />
+      <Route path="/studio"                      element={<Navigate to="/admin/organizations" replace />} />
+      <Route path="/dashboard"                   element={<Navigate to="/admin/organizations" replace />} />
       <Route path="/settings"                    element={<Navigate to="/admin/profile" replace />} />
       <Route path="/team"                        element={<Navigate to="/admin/organizations" replace />} />
-      <Route path="/projects/:id"                element={<ProjectRedirect />} />
-      <Route path="/galleries/:id"               element={<GalleryRedirect />} />
-      <Route path="/jobs/:jobId"                 element={<JobRedirect />} />
+      <Route path="/admin/projects"              element={<Navigate to="/admin/organizations" replace />} />
+      <Route path="/admin/tokens"                element={<Navigate to="/admin/organizations" replace />} />
 
-      {/* Public / unauthenticated */}
+      {/* Public */}
       <Route path="/invite/:token"               element={<AcceptInvite />} />
       <Route path="/forgot-password"             element={<ForgotPassword />} />
       <Route path="/reset-password/:token"       element={<ResetPassword />} />
       <Route path="/magic-login/:token"          element={<MagicLogin />} />
       <Route path="/upload/:token"               element={<UploadPage />} />
 
-      {/* ── Management — /admin/* ── */}
-      <Route path="/admin"                       element={<ManageLayout><ManageHub /></ManageLayout>} />
-      <Route path="/admin/profile"               element={<ManageLayout><ProfilePage /></ManageLayout>} />
-      <Route path="/admin/tokens"                element={<ManageLayout><TokensPage /></ManageLayout>} />
-      <Route path="/admin/members/:userId"       element={<ManageLayout><MemberProfile /></ManageLayout>} />
-      <Route path="/admin/jobs/:jobId"           element={<ManageLayout><BuildStatus /></ManageLayout>} />
+      {/* Global management */}
+      <Route path="/admin"                       element={<Navigate to="/admin/organizations" replace />} />
+      <Route path="/admin/profile"               element={<W><ProfilePage /></W>} />
+      <Route path="/admin/members/:userId"       element={<W><MemberProfile /></W>} />
+      <Route path="/admin/jobs/:jobId"           element={<W><BuildStatus /></W>} />
 
-      <Route path="/admin/organizations"                             element={<ManageLayout><OrganizationsListPage /></ManageLayout>} />
-      <Route path="/admin/organizations/:orgId"                      element={<ManageLayout><OrganizationOverviewPage /></ManageLayout>} />
-      <Route path="/admin/organizations/:orgId/general"              element={<ManageLayout><OrganizationGeneralPage /></ManageLayout>} />
-      <Route path="/admin/organizations/:orgId/defaults"             element={<ManageLayout><OrganizationDefaultsPage /></ManageLayout>} />
-      <Route path="/admin/organizations/:orgId/access"               element={<ManageLayout><OrganizationAccessPage /></ManageLayout>} />
-      <Route path="/admin/organizations/:orgId/team"                 element={<ManageLayout><OrganizationTeamPage /></ManageLayout>} />
-      <Route path="/admin/organizations/:orgId/projects"             element={<ManageLayout><OrganizationProjectsPage /></ManageLayout>} />
+      {/* Organizations list */}
+      <Route path="/admin/organizations"         element={<W><OrganizationsListPage /></W>} />
 
-      <Route path="/admin/projects"                                  element={<ManageLayout><ProjectsListPage /></ManageLayout>} />
-      <Route path="/admin/projects/:projectId"                       element={<ManageLayout><ProjectOverviewPage /></ManageLayout>} />
-      <Route path="/admin/projects/:projectId/general"               element={<ManageLayout><ProjectGeneralPage /></ManageLayout>} />
-      <Route path="/admin/projects/:projectId/galleries"             element={<ManageLayout><ProjectGalleriesPage /></ManageLayout>} />
-      <Route path="/admin/projects/:projectId/access"                element={<ManageLayout><ProjectAccessPage /></ManageLayout>} />
-      <Route path="/admin/projects/:projectId/delivery"              element={<ManageLayout><ProjectDeliveryPage /></ManageLayout>} />
+      {/* Org home = project list */}
+      <Route path="/admin/organizations/:orgId"                element={<W><OrganizationProjectsPage /></W>} />
+      <Route path="/admin/organizations/:orgId/settings"       element={<W><OrganizationGeneralPage /></W>} />
+      <Route path="/admin/organizations/:orgId/team"           element={<W><OrganizationTeamPage /></W>} />
+      <Route path="/admin/organizations/:orgId/general"        element={<OrgSettingsRedirect />} />
+      <Route path="/admin/organizations/:orgId/defaults"       element={<OrgSettingsRedirect />} />
+      <Route path="/admin/organizations/:orgId/access"         element={<OrgSettingsRedirect />} />
+      <Route path="/admin/organizations/:orgId/overview"       element={<OrgSettingsRedirect />} />
+      <Route path="/admin/organizations/:orgId/projects"       element={<Navigate to="/admin/organizations" replace />} />
 
-      <Route path="/admin/galleries"                                 element={<ManageLayout><GalleriesListPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId"                      element={<ManageLayout><GalleryOverviewPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/photos"               element={<ManageLayout><GalleryPhotosPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/inbox"                element={<ManageLayout><GalleryInboxPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/jobs"                 element={<ManageLayout><GalleryJobsPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/general"              element={<ManageLayout><GalleryGeneralPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/access"               element={<ManageLayout><GalleryAccessPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/downloads"            element={<ManageLayout><GalleryDownloadsPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/upload"               element={<ManageLayout><GalleryUploadPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/publish"              element={<ManageLayout><GalleryPublishPage /></ManageLayout>} />
-      <Route path="/admin/galleries/:galleryId/insights"             element={<ManageLayout><GalleryInsightsPage /></ManageLayout>} />
+      {/* Project home = gallery list */}
+      <Route path="/admin/organizations/:orgId/projects/:projectId"                element={<W><ProjectGalleriesPage /></W>} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/settings"       element={<W><ProjectGeneralPage /></W>} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/general"        element={<ProjectSettingsRedirect />} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/access"         element={<ProjectSettingsRedirect />} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/delivery"       element={<ProjectSettingsRedirect />} />
 
-      {/* ── Platform admin — /admin/platform/* (superadmin only) ── */}
+      {/* Gallery sub-pages */}
+      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId"             element={<GalleryPhotosRedirect />} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/photos"      element={<W><GalleryPhotosPage /></W>} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/settings"    element={<W><GalleryGeneralPage /></W>} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/jobs"        element={<W><GalleryJobsPage /></W>} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/statistics"  element={<W><GalleryInsightsPage /></W>} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/publish"     element={<W><GalleryPublishPage /></W>} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/general"     element={<GallerySettingsRedirect />} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/access"      element={<GallerySettingsRedirect />} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/downloads"   element={<GallerySettingsRedirect />} />
+
+      {/* Platform (superadmin only) */}
       <Route path="/admin/platform"              element={<PlatformLayout><PlatformOverviewPage /></PlatformLayout>} />
       <Route path="/admin/platform/smtp"         element={<PlatformLayout><SmtpPage /></PlatformLayout>} />
       <Route path="/admin/platform/license"      element={<PlatformLayout><LicensePage /></PlatformLayout>} />
@@ -157,7 +158,7 @@ export default function App() {
         <Route path="dashboard"                  element={<InspectorDashboard />} />
       </Route>
 
-      <Route path="*"                            element={<Navigate to="/admin" replace />} />
+      <Route path="*"                            element={<Navigate to="/admin/organizations" replace />} />
     </Routes>
     </I18nProvider>
   );

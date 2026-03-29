@@ -60,11 +60,36 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// ── HTTP request logger ───────────────────────────────────────────────────────
+// Logs every API request: METHOD /path → STATUS in Xms
+// Skips /api/health and static assets to keep output readable.
+app.use((req, res, next) => {
+  const skip = req.path === '/api/health' || req.path.startsWith('/media/') || req.path.startsWith('/admin') && req.method === 'GET';
+  if (skip) return next();
+  const t0 = Date.now();
+  res.on('finish', () => {
+    const ms     = Date.now() - t0;
+    const status = res.statusCode;
+    const color  = status >= 500 ? '\x1b[31m' : status >= 400 ? '\x1b[33m' : status >= 300 ? '\x1b[36m' : '\x1b[32m';
+    const reset  = '\x1b[0m';
+    const user   = req.userId ? ` (u:${req.userId.slice(0, 8)})` : '';
+    console.log(`${color}${req.method}${reset} ${req.path}${user} → ${color}${status}${reset} ${ms}ms`);
+  });
+  next();
+});
+
 // ── Studio context — resolve studio from hostname (before all routes) ─────────
 app.use(resolveStudioContext);
 
 // ── Rate limiters ─────────────────────────────────────────────────────────────
-const uploadRateLimit = rateLimit({ windowMs: 60_000, max: 100 });
+// Public token-based upload routes (unauthenticated) — strict per-IP limit
+const uploadRateLimit = rateLimit({ windowMs: 60_000, max: 300 });
+// Authenticated photo upload — keyed by userId so each user gets their own bucket
+const authUploadRateLimit = rateLimit({
+  windowMs: 60_000,
+  max: 600,
+  keyFn: req => req.userId || req.ip || 'unknown',
+});
 
 // ── Health (registered before routes) ────────────────────────────────────────
 const _storage = createStorage();
@@ -116,7 +141,7 @@ app.use('/api/settings',            settingsRoutes);
 app.use('/api/auth',                authRoutes);
 app.use('/api/galleries',           galleriesRoutes);
 app.use('/api/galleries',           accessRoutes);
-app.use('/api/galleries',           uploadRateLimit, photosRoutes);
+app.use('/api/galleries',           authUploadRateLimit, photosRoutes);
 app.use('/api/galleries',           jobsRoutes);
 app.use('/api/jobs',                jobsRoutes); // for /api/jobs/:jobId and /api/jobs/:jobId/stream
 app.use('/api/invites',             scopedInvitesRouter); // canonical scoped invites (Sprint 5)
@@ -251,6 +276,11 @@ app.get('/', async (req, res) => {
 
 // ── Error handler ─────────────────────────────────────────────────────────────
 app.use(errorHandler);
+
+// ── Safety net — log unhandled rejections without crashing ───────────────────
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
 
 // ── Bootstrap then start ──────────────────────────────────────────────────────
 (async () => {

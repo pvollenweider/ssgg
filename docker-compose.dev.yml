@@ -29,8 +29,6 @@ services:
       context: .
       dockerfile: Dockerfile.api
     restart: unless-stopped
-    ports:
-      - "4000:4000"
     depends_on:
       db:
         condition: service_healthy
@@ -90,10 +88,11 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     ports:
-      - "4001:80"
+      - "4000:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./data/public:/srv/gallerypack/public:ro
+      - ./data/internal:/srv/gallerypack/internal:ro
       - caddy_dev_data:/data
       - caddy_dev_config:/config
     environment:

@@ -217,8 +217,10 @@ function PhotoLightbox({ photos, index, galleryId, onClose, onPrev, onNext }) {
         color: 'rgba(255,255,255,0.85)', fontSize: '0.82rem',
         display: 'flex', gap: '1rem', alignItems: 'center', pointerEvents: 'none',
       }}>
-        {photo.mm && <span><i className="fas fa-expand-arrows-alt" style={{ marginRight: 5, opacity: 0.6 }} />{photo.mm} mm (35mm eq.)</span>}
-        {photo.lens && <span style={{ opacity: 0.8 }}><i className="fas fa-camera" style={{ marginRight: 5, opacity: 0.6 }} />{photo.lens}</span>}
+        {photo.mm           && <span><i className="fas fa-expand-arrows-alt" style={{ marginRight: 5, opacity: 0.6 }} />{photo.mm} mm (35mm eq.)</span>}
+        {photo.lens         && <span style={{ opacity: 0.8 }}><i className="fas fa-camera-retro" style={{ marginRight: 5, opacity: 0.6 }} />{photo.lens}</span>}
+        {photo.camera       && <span style={{ opacity: 0.8 }}><i className="fas fa-camera" style={{ marginRight: 5, opacity: 0.6 }} />{photo.camera}</span>}
+        {photo.photographer && <span style={{ opacity: 0.8 }}><i className="fas fa-user" style={{ marginRight: 5, opacity: 0.6 }} />{photo.photographer}</span>}
       </div>
       <button onClick={e => { e.stopPropagation(); onClose(); }} style={{
         position: 'absolute', top: 12, right: 16,

@@ -11,7 +11,7 @@
 #   {$BASE_DOMAIN:localhost}   — platform root
 
 # ── Studio subdomains (only active when BASE_DOMAIN is set) ───────────────────
-*.{$BASE_DOMAIN:localhost} {
+http://*.{$BASE_DOMAIN:localhost} {
     reverse_proxy api:4000 {
         header_up X-Forwarded-Host {host}
         header_up X-Forwarded-For  {remote_host}
@@ -29,7 +29,17 @@
 }
 
 # ── Platform root / single-domain fallback ────────────────────────────────────
-{$DOMAIN:localhost} {
+:80 {
+    # Thumbnails — served directly by Caddy (no Node.js overhead)
+    handle /media/thumbnails/* {
+        uri strip_prefix /media
+        root * /srv/gallerypack/internal
+        file_server {
+            precompressed br gzip
+        }
+        header Cache-Control "public, max-age=604800, immutable"
+    }
+
     # API + Admin SPA
     handle /api/* {
         reverse_proxy api:4000 {

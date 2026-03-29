@@ -47,7 +47,17 @@ export function getPool() {
  * @returns {Promise<[any[], import('mysql2').FieldPacket[]]>}
  */
 export async function query(sql, params = []) {
-  return getPool().query(sql, params);
+  try {
+    return await getPool().query(sql, params);
+  } catch (err) {
+    // mysql2 throws MariaDB warnings (WARN_DATA_TRUNCATED 1265, WARN_DATA_OUT_OF_RANGE 1264)
+    // as errors even though the query succeeded. Log and recover instead of crashing.
+    if (err.errno === 1265 || err.errno === 1264) {
+      console.warn(`[db:warn] ${err.sqlMessage} — ${(err.sql || '').slice(0, 120)}`);
+      return [[], []];
+    }
+    throw err;
+  }
 }
 
 /**
