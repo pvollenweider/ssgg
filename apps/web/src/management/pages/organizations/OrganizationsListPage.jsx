@@ -110,7 +110,7 @@ export default function OrganizationsListPage() {
                   value={newOrg.slug}
                   onChange={handleSlugChange}
                   required
-                  pattern="[a-z0-9-]+"
+                  pattern="[-a-z0-9]+"
                   title={t('orgs_slug_hint')}
                   className="mb-0"
                   hint={!slugEdited && newOrg.name ? t('slug_auto_hint') : undefined}

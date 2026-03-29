@@ -44,21 +44,33 @@ router.get('/:id/focal-stats', async (req, res, next) => {
       ? `${gallery.proj_slug}/${gallery.slug}`
       : gallery.slug;
 
-    // Read the built manifest (dist/<distSlug>/photos.json)
-    let manifest;
+    // Try the built manifest first (dist/<distSlug>/photos.json), fall back to DB exif column
+    let photoEntries = null;
+    let idByFilename = {};
     try {
       const buf = await fileStorage.read(`public/${distSlug}/photos.json`);
-      manifest = JSON.parse(buf.toString('utf8'));
+      const manifest = JSON.parse(buf.toString('utf8'));
+      photoEntries = Object.entries(manifest.photos || {});
+      // Build filename → id map for thumbnail URLs
+      const [dbPhotos] = await query('SELECT id, filename FROM photos WHERE gallery_id = ?', [gallery.id]);
+      idByFilename = Object.fromEntries(dbPhotos.map(r => [r.filename, r.id]));
     } catch {
-      return res.json({ total: 0, withData: 0, bins: [], dominant: null });
+      // No manifest — read EXIF from DB directly (photos uploaded but not yet built)
+      const [dbPhotos] = await query(
+        `SELECT id, filename, exif FROM photos WHERE gallery_id = ? AND status != 'uploaded'`,
+        [gallery.id]
+      );
+      if (!dbPhotos.length) {
+        return res.json({ total: 0, withData: 0, bins: [], dominant: null });
+      }
+      photoEntries = dbPhotos.map(p => {
+        const exif = p.exif ? (typeof p.exif === 'string' ? JSON.parse(p.exif) : p.exif) : {};
+        return [p.filename, { exif }];
+      });
+      idByFilename = Object.fromEntries(dbPhotos.map(r => [r.filename, r.id]));
     }
 
-    const photoEntries = Object.entries(manifest.photos || {});
     const total = photoEntries.length;
-
-    // Build filename → id map from DB for thumbnail URLs
-    const [dbPhotos] = await query('SELECT id, filename FROM photos WHERE gallery_id = ?', [gallery.id]);
-    const idByFilename = Object.fromEntries(dbPhotos.map(r => [r.filename, r.id]));
 
     // Collect raw focal data per photo — client handles all binning
     const rawPhotos = [];

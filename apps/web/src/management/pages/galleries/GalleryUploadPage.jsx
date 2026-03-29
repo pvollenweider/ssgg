@@ -5,7 +5,7 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
@@ -29,6 +29,13 @@ export default function GalleryUploadPage() {
   const [dupeConfirm,   setDupeConfirm]   = useState(false);
   const [maintError,    setMaintError]    = useState('');
 
+  // Reanalyze
+  const [reanalyzeStatus,  setReanalyzeStatus]  = useState(null); // { total, missingThumbs, missingExif }
+  const [reanalyzing,      setReanalyzing]      = useState(false);
+  const [reanalyzeResult,  setReanalyzeResult]  = useState(null);
+  const [reanalyzeToast,   setReanalyzeToast]   = useState(null);
+  const toastTimerRef = useRef(null);
+
   function load() {
     setLoading(true);
     api.listUploadLinks(galleryId)
@@ -38,6 +45,10 @@ export default function GalleryUploadPage() {
   }
 
   useEffect(load, [galleryId]);
+
+  useEffect(() => {
+    api.reanalyzeStatus(galleryId).then(setReanalyzeStatus).catch(() => {});
+  }, [galleryId]);
 
   async function create(e) {
     e.preventDefault();
@@ -79,6 +90,29 @@ export default function GalleryUploadPage() {
       setMaintError(err.message);
     } finally {
       setDeduping(false);
+    }
+  }
+
+  async function reanalyze() {
+    setReanalyzing(true); setMaintError(''); setReanalyzeResult(null);
+    try {
+      const r = await api.reanalyzePhotos(galleryId);
+      setReanalyzeResult(r);
+      // Build toast summary
+      const parts = [];
+      if (r.thumbsGenerated > 0) parts.push(`${r.thumbsGenerated} thumbnail(s) générés`);
+      if (r.exifExtracted   > 0) parts.push(`${r.exifExtracted} EXIF extraits`);
+      if (r.deleted?.length > 0) parts.push(`${r.deleted.length} fichier(s) corrompu(s) supprimés`);
+      const msg = parts.length > 0 ? parts.join(' · ') : 'Analyse terminée — tout est à jour';
+      setReanalyzeToast({ msg, variant: r.deleted?.length > 0 ? 'warning' : 'success' });
+      clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => setReanalyzeToast(null), 6000);
+      // Refresh status counter
+      api.reanalyzeStatus(galleryId).then(setReanalyzeStatus).catch(() => {});
+    } catch (err) {
+      setMaintError(err.message);
+    } finally {
+      setReanalyzing(false);
     }
   }
 
@@ -124,12 +158,13 @@ export default function GalleryUploadPage() {
                   </thead>
                   <tbody>
                     {links.map(l => {
-                      const uploadUrl = `${window.location.origin}/upload/${l.token}`;
+                      const uploadUrl = l.uploadUrl || '';
+                      const tokenPreview = uploadUrl ? uploadUrl.split('/').pop().slice(0, 12) : '—';
                       return (
                         <tr key={l.id}>
                           <td>{l.label || <em className="text-muted">{t('gal_upload_unnamed')}</em>}</td>
                           <td>
-                            <code style={{ fontSize: '0.78rem' }}>{l.token.slice(0, 12)}…</code>
+                            <code style={{ fontSize: '0.78rem' }}>{tokenPreview}…</code>
                           </td>
                           <td className="text-muted" style={{ fontSize: '0.8rem' }}>
                             {new Date(l.created_at).toLocaleDateString()}
@@ -198,6 +233,64 @@ export default function GalleryUploadPage() {
 
               <hr className="my-0" />
 
+              {/* Reanalyze */}
+              <div className="d-flex align-items-start gap-3">
+                <div style={{ flex: 1 }}>
+                  <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>
+                    {t('gal_upload_reanalyze_title')}
+                  </div>
+                  <div className="text-muted" style={{ fontSize: '0.8rem' }}>
+                    {t('gal_upload_reanalyze_desc')}
+                  </div>
+                  {reanalyzeStatus && (reanalyzeStatus.missingThumbs > 0 || reanalyzeStatus.missingExif > 0) ? (
+                    <div className="mt-1 text-warning small">
+                      <i className="fas fa-exclamation-triangle me-1" />
+                      {reanalyzeStatus.missingThumbs > 0 && `${reanalyzeStatus.missingThumbs} thumbnail(s) missing`}
+                      {reanalyzeStatus.missingThumbs > 0 && reanalyzeStatus.missingExif > 0 && ' · '}
+                      {reanalyzeStatus.missingExif > 0 && `${reanalyzeStatus.missingExif} EXIF missing`}
+                    </div>
+                  ) : reanalyzeStatus ? (
+                    <div className="mt-1 text-success small">
+                      <i className="fas fa-check-circle me-1" />
+                      All {reanalyzeStatus.total} photos are fully analyzed
+                    </div>
+                  ) : null}
+                  {reanalyzing && (
+                    <div className="mt-2 d-flex align-items-center gap-2 text-primary small">
+                      <div className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />
+                      Analyse en cours… cela peut prendre quelques secondes.
+                    </div>
+                  )}
+                  {reanalyzeResult && !reanalyzing && reanalyzeResult.deleted?.length > 0 && (
+                    <div className="mt-1 small text-warning">
+                      <i className="fas fa-exclamation-triangle me-1" />
+                      {reanalyzeResult.deleted.length} fichier(s) corrompu(s) supprimé(s) — à ré-uploader :
+                      {reanalyzeResult.deleted.map(f => (
+                        <span key={f} className="d-block ms-2 font-monospace" style={{ fontSize: '0.72rem' }}>{f}</span>
+                      ))}
+                    </div>
+                  )}
+                  {reanalyzeResult && !reanalyzing && reanalyzeResult.errors?.length > 0 && (
+                    <div className="mt-1 small text-danger">
+                      <i className="fas fa-times-circle me-1" />
+                      {reanalyzeResult.errors.length} erreur(s) — voir les logs serveur.
+                    </div>
+                  )}
+                </div>
+                <AdminButton
+                  variant={reanalyzeStatus && (reanalyzeStatus.missingThumbs > 0 || reanalyzeStatus.missingExif > 0) ? 'outline-warning' : 'outline-secondary'}
+                  size="sm"
+                  loading={reanalyzing}
+                  loadingLabel={t('gal_upload_scanning')}
+                  onClick={reanalyze}
+                  disabled={reanalyzeStatus && reanalyzeStatus.missingThumbs === 0 && reanalyzeStatus.missingExif === 0}
+                >
+                  {t('gal_upload_reanalyze_btn')}
+                </AdminButton>
+              </div>
+
+              <hr className="my-0" />
+
               {/* Deduplicate */}
               <div className="d-flex align-items-start gap-3">
                 <div style={{ flex: 1 }}>
@@ -246,6 +339,21 @@ export default function GalleryUploadPage() {
                   {t('gal_upload_dedupe_confirm_btn')}
                 </AdminButton>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reanalyze toast */}
+      {reanalyzeToast && (
+        <div className="toast-container position-fixed bottom-0 end-0 p-3" style={{ zIndex: 1100 }}>
+          <div className={`toast show align-items-center text-bg-${reanalyzeToast.variant} border-0`} role="alert" aria-live="assertive" aria-atomic="true">
+            <div className="d-flex">
+              <div className="toast-body d-flex align-items-center gap-2">
+                <i className={`fas ${reanalyzeToast.variant === 'warning' ? 'fa-exclamation-triangle' : 'fa-check-circle'}`} />
+                {reanalyzeToast.msg}
+              </div>
+              <button type="button" className="btn-close btn-close-white me-2 m-auto" onClick={() => setReanalyzeToast(null)} aria-label="Close" />
             </div>
           </div>
         </div>

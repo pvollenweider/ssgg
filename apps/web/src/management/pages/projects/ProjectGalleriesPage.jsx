@@ -16,7 +16,7 @@ const STATUS_BADGE = { done: 'success', error: 'danger', running: 'primary', que
 
 export default function ProjectGalleriesPage() {
   const t = useT();
-  const { projectId } = useParams();
+  const { orgId, projectId } = useParams();
   const navigate = useNavigate();
   const [galleries, setGalleries] = useState([]);
   const [loading,   setLoading]   = useState(true);
@@ -71,7 +71,7 @@ export default function ProjectGalleriesPage() {
       const gallery = await api.createProjectGallery(projectId, newG);
       resetForm();
       setShowCreate(false);
-      navigate(`/admin/galleries/${gallery.id}/photos`);
+      navigate(`/admin/organizations/${orgId}/projects/${projectId}/galleries/${gallery.id}/photos`);
     } catch (err) {
       setCreateErr(err.message);
     } finally {
@@ -109,7 +109,7 @@ export default function ProjectGalleriesPage() {
                   value={newG.slug}
                   onChange={handleSlugChange}
                   required
-                  pattern="[a-z0-9-]+"
+                  pattern="[-a-z0-9]+"
                   title={t('orgs_slug_hint')}
                   className="mb-0"
                   hint={!slugEdited && newG.title ? t('slug_auto_hint') : undefined}
@@ -151,11 +151,11 @@ export default function ProjectGalleriesPage() {
               <tbody>
                 {galleries.map(g => (
                   <tr key={g.id}>
-                    <td><Link to={`/admin/galleries/${g.id}`} className="fw-semibold text-body">{g.title || g.slug}</Link></td>
+                    <td><Link to={`/admin/organizations/${orgId}/projects/${projectId}/galleries/${g.id}/photos`} className="fw-semibold text-body">{g.title || g.slug}</Link></td>
                     <td><code className="text-muted">{g.slug}</code></td>
                     <td><AdminBadge color={STATUS_BADGE[g.build_status] || 'secondary'}>{g.build_status || t('proj_status_draft')}</AdminBadge></td>
                     <td className="text-end">
-                      <Link to={`/admin/galleries/${g.id}`} className="btn btn-sm btn-outline-secondary">
+                      <Link to={`/admin/organizations/${orgId}/projects/${projectId}/galleries/${g.id}/photos`} className="btn btn-sm btn-outline-secondary">
                         {t('gal_overview_manage')} <i className="fas fa-chevron-right ms-1" />
                       </Link>
                     </td>

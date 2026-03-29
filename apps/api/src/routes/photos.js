@@ -24,7 +24,9 @@ import { requireAuth } from '../middleware/auth.js';
 import { can } from '../authorization/index.js';
 import { SRC_ROOT }     from '../../../../packages/engine/src/fs.js';
 import { createStorage } from '../../../../packages/shared/src/storage/index.js';
-import { generateThumbnails, photoThumbnails } from '../services/thumbnailService.js';
+import { enqueueSm, enqueueMd, photoThumbnails } from '../services/thumbnailService.js';
+import { enqueuePrerender } from '../services/prerenderService.js';
+import { extractExif } from '../../../../packages/engine/src/exif.js';
 
 // Storage adapter — resolved once at startup from env
 export const fileStorage = createStorage();
@@ -260,8 +262,36 @@ router.post('/:id/photos', (req, res, next) => {
     });
   }
 
-  const uploaded = [];
+  const SUPPORTED_FORMATS = 'JPG, PNG, TIFF, HEIC, HEIF, AVIF';
+
+  // Validate each file with Sharp before committing to DB.
+  // Files with unsupported or corrupt content are deleted immediately and returned as rejected.
+  const { default: sharp } = await import('sharp');
+  const validFiles  = [];
+  const rejectedFiles = [];
   for (const f of req.files || []) {
+    try {
+      await sharp(f.path, { failOn: 'none' }).metadata();
+      validFiles.push(f);
+    } catch {
+      try { fs.unlinkSync(f.path); } catch {}
+      rejectedFiles.push({
+        name:   f.originalname,
+        reason: `Format non reconnu ou fichier corrompu. Formats supportés : ${SUPPORTED_FORMATS}.`,
+      });
+    }
+  }
+
+  // If everything was rejected, return 422 immediately
+  if (validFiles.length === 0 && rejectedFiles.length > 0) {
+    return res.status(422).json({
+      error:    `Fichier(s) rejeté(s) — format non supporté ou corrompu. Formats acceptés : ${SUPPORTED_FORMATS}.`,
+      rejected: rejectedFiles,
+    });
+  }
+
+  const uploaded = [];
+  for (const f of validFiles) {
     const photoId = randomUUID();
     await query(
       `INSERT INTO photos (id, gallery_id, filename, original_name, size_bytes, status, uploaded_by_user_id)
@@ -269,12 +299,17 @@ router.post('/:id/photos', (req, res, next) => {
        ON DUPLICATE KEY UPDATE size_bytes = VALUES(size_bytes), original_name = VALUES(original_name)`,
       [photoId, gallery.id, f.filename, f.originalname, f.size, req.userId]
     );
-    // Generate sm + md thumbnails immediately — failure does NOT abort the upload
-    try {
-      await generateThumbnails(f.path, photoId);
-    } catch (err) {
-      console.error(`[upload] thumbnail generation failed for ${photoId}: ${err.message}`);
-    }
+    // Phase 2: sm thumbnail — high priority queue, ready in ~1-2s per photo
+    // Phase 3: md thumbnail — low priority queue, starts after all sm are done
+    // Phase 4: prerender — very low priority, generates full build variants in background
+    enqueueSm(f.path, photoId);
+    enqueueMd(f.path, photoId);
+    enqueuePrerender(f.path, f.filename);
+    extractExif(f.path).then(exif => {
+      if (exif && Object.keys(exif).length > 0) {
+        query('UPDATE photos SET exif = ? WHERE id = ?', [JSON.stringify(exif), photoId]).catch(() => {});
+      }
+    }).catch(() => {});
 
     uploaded.push({ id: photoId, file: f.filename, size: f.size, thumbnail: photoThumbnails(photoId) });
   }
@@ -288,7 +323,7 @@ router.post('/:id/photos', (req, res, next) => {
       try { await audit(req.studioId, req.userId, 'photo.upload', 'gallery', req.params.id, { filename: f.file }); } catch {}
     }
   }
-  res.status(201).json({ uploaded: uploaded.length, files: uploaded });
+  res.status(201).json({ uploaded: uploaded.length, files: uploaded, rejected: rejectedFiles });
 });
 
 // POST /api/galleries/:id/photos/validate — bulk validate (accept) inbox photos

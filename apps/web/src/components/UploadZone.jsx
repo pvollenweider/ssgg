@@ -5,28 +5,21 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-// apps/web/src/components/UploadZone.jsx — robust upload queue with mobile support
-// - Per-file state machine: queued → uploading → done / error
-// - Max 3 concurrent uploads
-// - Auto-retry up to 3 times with backoff (1s, 2s, 4s)
-// - Offline detection: pauses queue, resumes on reconnect
-// - Mobile: tap-to-select replaces drag zone; folder button hidden on iOS
-// - Client-side thumbnail preview
+// apps/web/src/components/UploadZone.jsx
+// UI-only component: delegates queue management to UploadContext.
+// Displays items for a specific galleryId; navigation never interrupts uploads.
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { api } from '../lib/api.js';
+import { useUpload } from '../management/context/UploadContext.jsx';
 
 const IMG_EXTS = new Set(['jpg','jpeg','png','tiff','tif','heic','heif','avif','webp']);
-const MAX_CONCURRENT  = 3;
-const MAX_RETRIES     = 3;
-const RETRY_DELAYS_MS = [1000, 2000, 4000];
+
+const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 function isImage(name) {
   return IMG_EXTS.has(name.split('.').pop().toLowerCase());
 }
-
-// True on iOS Safari / iPadOS
-const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 function collectEntry(entry) {
   return new Promise(resolve => {
@@ -57,93 +50,33 @@ const STATUS_BADGE = {
 };
 
 export function UploadZone({ galleryId, onDone }) {
-  const [items,    setItems]    = useState([]);
+  const { enqueue, registerOnDone, unregisterOnDone, retryItem, retryFailed, clearDone, items, globalStats } = useUpload();
   const [dragging, setDragging] = useState(false);
   const [notified, setNotified] = useState(false);
-  const [offline,  setOffline]  = useState(!navigator.onLine);
   const fileRef   = useRef();
   const folderRef = useRef();
-  const running   = useRef(0);
-  const queueRef  = useRef([]);
-  const pausedRef = useRef(false);
 
-  useEffect(() => { queueRef.current = items; }, [items]);
-
-  // Offline / online detection
+  // Keep onDone callback current in the global context
   useEffect(() => {
-    const goOffline = () => { setOffline(true);  pausedRef.current = true; };
-    const goOnline  = () => { setOffline(false); pausedRef.current = false; drainQueue(); };
-    window.addEventListener('offline', goOffline);
-    window.addEventListener('online',  goOnline);
-    return () => {
-      window.removeEventListener('offline', goOffline);
-      window.removeEventListener('online',  goOnline);
-    };
-  }, []); // eslint-disable-line
+    if (onDone) registerOnDone(galleryId, onDone);
+    return () => unregisterOnDone(galleryId);
+  }, [galleryId, onDone]); // eslint-disable-line
+
+  const galleryItems = items.filter(x => x.galleryId === galleryId);
+  const queued    = galleryItems.filter(x => x.status === 'queued').length;
+  const uploading = galleryItems.filter(x => x.status === 'uploading').length;
+  const done      = galleryItems.filter(x => x.status === 'done').length;
+  const errors    = galleryItems.filter(x => x.status === 'error').length;
+  const hasActive = queued > 0 || uploading > 0;
+
+  const totalProgress = galleryItems.length > 0
+    ? galleryItems.reduce((sum, x) => sum + (x.status === 'done' ? 1 : x.status === 'uploading' ? x.progress : 0), 0) / galleryItems.length
+    : 0;
+  const pct = Math.round(totalProgress * 100);
 
   const addFiles = useCallback(async (fileList) => {
-    const images = Array.from(fileList).filter(f => isImage(f.name));
-    const newItems = images.map(f => ({
-      id:       Math.random().toString(36).slice(2),
-      file:     f,
-      status:   'queued',
-      progress: 0,
-      preview:  URL.createObjectURL(f),
-      retries:  0,
-    }));
-    setItems(prev => {
-      const existing = new Set(prev.map(x => x.file.name));
-      return [...prev, ...newItems.filter(x => !existing.has(x.file.name))];
-    });
-  }, []);
-
-  const drainQueue = useCallback(() => {
-    const tick = () => {
-      if (pausedRef.current) return;
-      if (running.current >= MAX_CONCURRENT) return;
-      const next = queueRef.current.find(x => x.status === 'queued');
-      if (!next) return;
-      running.current += 1;
-      setItems(prev => prev.map(x => x.id === next.id ? { ...x, status: 'uploading' } : x));
-
-      api.uploadPhotos(galleryId, [next.file], (pct) => {
-        setItems(prev => prev.map(x => x.id === next.id ? { ...x, progress: pct } : x));
-      }).then(() => {
-        running.current -= 1;
-        setItems(prev => prev.map(x => x.id === next.id ? { ...x, status: 'done', progress: 1 } : x));
-        if (onDone) onDone();
-        tick();
-      }).catch(() => {
-        running.current -= 1;
-        const retries = queueRef.current.find(x => x.id === next.id)?.retries ?? 0;
-        if (retries < MAX_RETRIES) {
-          const delay = RETRY_DELAYS_MS[retries] ?? 4000;
-          // Show retry state in badge
-          setItems(prev => prev.map(x => x.id === next.id
-            ? { ...x, status: 'queued', retries: retries + 1, progress: 0, retryLabel: `Retrying (${retries + 1}/${MAX_RETRIES})…` }
-            : x));
-          setTimeout(() => tick(), delay);
-        } else {
-          setItems(prev => prev.map(x => x.id === next.id
-            ? { ...x, status: 'error', retryLabel: null }
-            : x));
-          tick();
-        }
-      });
-      if (running.current < MAX_CONCURRENT) tick();
-    };
-    tick();
-  }, [galleryId, onDone]);
-
-  useEffect(() => { drainQueue(); }, [items.length, drainQueue]);
-
-  function retryItem(id) {
-    setItems(prev => prev.map(x => x.id === id ? { ...x, status: 'queued', progress: 0, retries: 0 } : x));
-  }
-
-  function retryFailed() {
-    setItems(prev => prev.map(x => x.status === 'error' ? { ...x, status: 'queued', progress: 0, retries: 0 } : x));
-  }
+    enqueue(galleryId, fileList);
+  }, [galleryId, enqueue]);
 
   async function onDrop(e) {
     e.preventDefault();
@@ -165,24 +98,11 @@ export function UploadZone({ galleryId, onDone }) {
     try { await api.uploadDone(galleryId); setNotified(true); } catch {}
   }
 
-  function clearDone() {
-    setItems(prev => {
-      prev.filter(x => x.status === 'done').forEach(x => URL.revokeObjectURL(x.preview));
-      return prev.filter(x => x.status !== 'done');
-    });
-  }
-
-  const queued    = items.filter(x => x.status === 'queued').length;
-  const uploading = items.filter(x => x.status === 'uploading').length;
-  const done      = items.filter(x => x.status === 'done').length;
-  const errors    = items.filter(x => x.status === 'error').length;
-  const hasActive = queued > 0 || uploading > 0;
-
   return (
     <div style={s.root}>
 
       {/* Offline banner */}
-      {offline && (
+      {globalStats.offline && (
         <div style={{ background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 6, padding: '0.5rem 0.75rem', fontSize: '0.82rem', color: '#92400e' }}>
           Waiting for network… uploads will resume automatically when you reconnect.
         </div>
@@ -229,7 +149,6 @@ export function UploadZone({ galleryId, onDone }) {
       {/* Hidden file inputs */}
       <input ref={fileRef} type="file" multiple accept="image/*" style={s.hidden}
         onChange={e => addFiles(e.target.files)} />
-      {/* Folder input: hidden on iOS (webkitdirectory unsupported) */}
       {!IS_IOS && (
         <input ref={folderRef} type="file" multiple style={s.hidden}
           webkitdirectory="true" mozdirectory="true"
@@ -237,29 +156,28 @@ export function UploadZone({ galleryId, onDone }) {
       )}
 
       {/* Stats bar */}
-      {items.length > 0 && (
+      {galleryItems.length > 0 && (
         <div style={s.statsBar}>
           {uploading > 0 && <span style={{ color: '#60a5fa' }}>{uploading} uploading</span>}
           {queued    > 0 && <span style={{ color: '#888' }}>{queued} queued</span>}
           {done      > 0 && <span style={{ color: '#4ade80' }}>{done} done</span>}
           {errors    > 0 && <span style={{ color: '#f87171' }}>{errors} failed</span>}
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem' }}>
+          {hasActive && pct > 0 && <span style={{ color: '#94a3b8', marginLeft: 'auto' }}>{pct}%</span>}
+          <div style={{ marginLeft: hasActive && pct > 0 ? 0 : 'auto', display: 'flex', gap: '0.5rem' }}>
             {errors > 0 && (
-              <button style={s.smallBtn} onClick={retryFailed} aria-label="Retry all failed uploads">
-                Retry failed
-              </button>
+              <button style={s.smallBtn} onClick={() => retryFailed(galleryId)}>Retry failed</button>
             )}
             {done > 0 && !hasActive && (
-              <button style={s.smallBtn} onClick={clearDone}>Clear done</button>
+              <button style={s.smallBtn} onClick={() => clearDone(galleryId)}>Clear done</button>
             )}
           </div>
         </div>
       )}
 
       {/* File cards grid */}
-      {items.length > 0 && (
+      {galleryItems.length > 0 && (
         <div style={s.grid}>
-          {items.map(item => (
+          {galleryItems.map(item => (
             <div key={item.id} style={s.card}>
               <div style={s.thumbWrap}>
                 <img src={item.preview} style={s.thumb} alt={item.file.name}
@@ -272,7 +190,7 @@ export function UploadZone({ galleryId, onDone }) {
                 <span style={{ ...s.badge, background: STATUS_BADGE[item.status]?.bg, color: STATUS_BADGE[item.status]?.color }}>
                   {item.retryLabel ?? (item.status === 'uploading' ? `${Math.round(item.progress * 100)}%` : STATUS_BADGE[item.status]?.label)}
                 </span>
-                {item.status === 'error' && (
+                {item.status === 'error' && !item.noRetry && (
                   <button
                     style={{ ...s.smallBtn, marginTop: 2, minHeight: 28, width: '100%' }}
                     onClick={() => retryItem(item.id)}
@@ -280,6 +198,11 @@ export function UploadZone({ galleryId, onDone }) {
                   >
                     Retry
                   </button>
+                )}
+                {item.errorMsg && (
+                  <div style={{ fontSize: '0.6rem', color: '#dc2626', marginTop: 2, lineHeight: 1.3 }} title={item.errorMsg}>
+                    {item.errorMsg}
+                  </div>
                 )}
               </div>
               <div style={s.cardName} title={item.file.name}>{item.file.name}</div>

@@ -15,7 +15,6 @@ export const globalNav = [
   { key: 'platform',      labelKey: 'nav_platform',      icon: 'fas fa-server',         href: '/admin/platform', superadminOnly: true },
   { key: 'organizations', labelKey: 'nav_organizations', icon: 'fas fa-building',       href: '/admin/organizations' },
   { key: 'projects',      labelKey: 'nav_projects',      icon: 'fas fa-folder-open',    href: '/admin/projects' },
-  { key: 'galleries',     labelKey: 'nav_galleries',     icon: 'fas fa-images',         href: '/admin/galleries' },
   { key: 'tokens',        labelKey: 'nav_tokens',        icon: 'fas fa-key',            href: '/admin/tokens' },
 ];
 

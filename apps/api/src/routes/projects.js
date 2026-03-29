@@ -62,24 +62,30 @@ async function resolveProjectAccess(userId, studioRole, projectId) {
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 // GET /api/projects — list projects for resolved studio
+// Superadmins may pass ?orgId=xxx to scope the query to a specific org.
 router.get('/', async (req, res) => {
-  const projects = await listProjectsByStudio(req.studioId);
+  let studioId = req.studioId;
+  if (req.query.orgId && req.user?.platform_role === 'superadmin') {
+    studioId = req.query.orgId;
+  }
+  const projects = await listProjectsByStudio(studioId);
   res.json(projects.map(projectToJson));
 });
 
 // POST /api/projects — create (admin+)
 router.post('/', requireStudioRole('admin'), async (req, res) => {
-  const { slug, name, description, visibility, startsAt, endsAt } = req.body || {};
+  const { slug, name, description, visibility, startsAt, endsAt, orgId } = req.body || {};
   if (!slug) return res.status(400).json({ error: 'slug is required' });
   if (!name) return res.status(400).json({ error: 'name is required' });
   if (!/^[a-z0-9-]+$/.test(slug)) {
     return res.status(400).json({ error: 'slug must be lowercase letters, numbers and hyphens only' });
   }
 
-  const existing = await getProjectBySlug(req.studioId, slug);
+  const studioId = (orgId && req.user?.platform_role === 'superadmin') ? orgId : req.studioId;
+  const existing = await getProjectBySlug(studioId, slug);
   if (existing) return res.status(409).json({ error: 'A project with this slug already exists' });
 
-  const project = await createProject(req.studioId, { slug, name, description, visibility, startsAt, endsAt });
+  const project = await createProject(studioId, { slug, name, description, visibility, startsAt, endsAt });
   try { await audit(req.studioId, req.userId, 'project.create', 'project', project.id, { slug }); } catch {}
   res.status(201).json(projectToJson(project));
 });

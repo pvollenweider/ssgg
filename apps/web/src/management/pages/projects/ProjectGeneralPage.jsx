@@ -13,7 +13,7 @@ import { AdminPage, AdminCard, AdminInput, AdminSelect, AdminAlert, AdminButton 
 
 export default function ProjectGeneralPage() {
   const t = useT();
-  const { projectId } = useParams();
+  const { orgId, projectId } = useParams();
   const navigate = useNavigate();
   const [project, setProject] = useState(null);
   const [form,    setForm]    = useState({ name: '', slug: '', description: '', visibility: 'public', standaloneDefault: false });
@@ -65,7 +65,7 @@ export default function ProjectGeneralPage() {
     setDeleting(true); setDeleteError('');
     try {
       await api.deleteProject(projectId);
-      navigate('/admin/projects');
+      navigate(`/admin/organizations/${orgId}`);
     } catch (err) {
       setDeleteError(err.message);
       setDeleting(false);

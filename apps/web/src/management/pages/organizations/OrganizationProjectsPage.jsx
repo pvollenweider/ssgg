@@ -29,7 +29,7 @@ export default function OrganizationProjectsPage() {
 
   function load() {
     setLoading(true);
-    api.listProjects()
+    api.listProjects(orgId)
       .then(setProjects)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
@@ -66,10 +66,10 @@ export default function OrganizationProjectsPage() {
     e.preventDefault();
     setCreating(true); setCreateErr('');
     try {
-      const project = await api.createProject(newP);
+      const project = await api.createProject({ ...newP, orgId });
       resetForm();
       setShowCreate(false);
-      navigate(`/admin/projects/${project.id}/galleries`);
+      navigate(`/admin/organizations/${orgId}/projects/${project.id}`);
     } catch (err) {
       setCreateErr(err.message);
     } finally {
@@ -107,7 +107,7 @@ export default function OrganizationProjectsPage() {
                   value={newP.slug}
                   onChange={handleSlugChange}
                   required
-                  pattern="[a-z0-9-]+"
+                  pattern="[-a-z0-9]+"
                   title={t('orgs_slug_hint')}
                   className="mb-0"
                   hint={!slugEdited && newP.name ? t('slug_auto_hint') : undefined}
@@ -163,12 +163,12 @@ export default function OrganizationProjectsPage() {
               {projects.map(p => (
                 <tr key={p.id}>
                   <td>
-                    <Link to={`/admin/projects/${p.id}`} className="fw-semibold text-body">{p.name}</Link>
+                    <Link to={`/admin/organizations/${orgId}/projects/${p.id}`} className="fw-semibold text-body">{p.name}</Link>
                     {p.description && <small className="text-muted d-block">{p.description}</small>}
                   </td>
                   <td><code className="text-muted">{p.slug}</code></td>
                   <td className="text-end">
-                    <Link to={`/admin/projects/${p.id}`} className="btn btn-sm btn-outline-secondary">
+                    <Link to={`/admin/organizations/${orgId}/projects/${p.id}`} className="btn btn-sm btn-outline-secondary">
                       {t('gal_overview_manage')} <i className="fas fa-chevron-right ms-1" />
                     </Link>
                   </td>

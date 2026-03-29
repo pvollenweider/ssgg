@@ -41,7 +41,7 @@ function processFocal(photos) {
   for (const p of photos) {
     const mm = parseFocal35(p.exif?.focal35);
     if (mm !== null) {
-      rawPhotos.push({ filename: p.filename, mm, lens: p.exif?.lens ?? null, id: p.id, thumbnail: p.thumbnail });
+      rawPhotos.push({ filename: p.filename, mm, lens: p.exif?.lens ?? null, camera: p.exif?.camera ?? null, photographer: p.photographer ?? null, id: p.id, thumbnail: p.thumbnail });
       const key = binFocalLength(mm);
       if (key) counts[key]++;
     }
@@ -64,7 +64,13 @@ function processFocal(photos) {
 // ── Lens model ────────────────────────────────────────────────────────────────
 
 function photoRef(p) {
-  return { filename: p.filename, id: p.id, thumbnail: p.thumbnail };
+  return {
+    filename:     p.filename,
+    id:           p.id,
+    thumbnail:    p.thumbnail,
+    camera:       p.exif?.camera ?? null,
+    photographer: p.photographer ?? null,
+  };
 }
 
 function processLens(photos) {

@@ -66,7 +66,7 @@ export default function OrganizationGeneralPage() {
                 prefix="/"
                 value={form.slug}
                 onChange={set('slug')}
-                pattern="[a-z0-9-]+"
+                pattern="[-a-z0-9]+"
                 title={t('orgs_slug_hint')}
                 required
                 hint={t('org_slug_hint')}

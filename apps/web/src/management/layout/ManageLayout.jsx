@@ -5,7 +5,7 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../../lib/auth.jsx';
 import { useT } from '../../lib/I18nContext.jsx';
@@ -13,6 +13,40 @@ import ScopeSidebar from './ScopeSidebar.jsx';
 import Topbar from './Topbar.jsx';
 import { detectScope, extractScopeParams } from '../navigation/nav.helpers.js';
 import { BreadcrumbProvider } from '../context/BreadcrumbContext.jsx';
+import { UploadProvider, useUpload } from '../context/UploadContext.jsx';
+
+function UploadToast() {
+  const { toastMsg, dismissToast } = useUpload();
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (!toastMsg) return;
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(dismissToast, 5000);
+    return () => clearTimeout(timerRef.current);
+  }, [toastMsg]); // eslint-disable-line
+
+  if (!toastMsg) return null;
+
+  return (
+    <div className="toast-container position-fixed bottom-0 end-0 p-3" style={{ zIndex: 1100 }}>
+      <div className="toast show align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div className="d-flex">
+          <div className="toast-body d-flex align-items-center gap-2">
+            <i className="fas fa-check-circle" />
+            {toastMsg}
+          </div>
+          <button
+            type="button"
+            className="btn-close btn-close-white me-2 m-auto"
+            onClick={dismissToast}
+            aria-label="Close"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ManageLayoutInner({ children }) {
   const { user, loading } = useAuth();
@@ -106,14 +140,18 @@ function ManageLayoutInner({ children }) {
       <footer className="app-footer">
         <strong>{t('manage_title')}</strong> &copy; {new Date().getFullYear()}
       </footer>
+
+      <UploadToast />
     </div>
   );
 }
 
 export default function ManageLayout({ children }) {
   return (
-    <BreadcrumbProvider>
-      <ManageLayoutInner>{children}</ManageLayoutInner>
-    </BreadcrumbProvider>
+    <UploadProvider>
+      <BreadcrumbProvider>
+        <ManageLayoutInner>{children}</ManageLayoutInner>
+      </BreadcrumbProvider>
+    </UploadProvider>
   );
 }

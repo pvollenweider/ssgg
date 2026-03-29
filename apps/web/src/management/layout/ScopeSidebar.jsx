@@ -5,69 +5,114 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-import { useState, useEffect, useRef } from 'react';
-import { NavLink, Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { NavLink, Link } from 'react-router-dom';
 import { useAuth } from '../../lib/auth.jsx';
 import { useT } from '../../lib/I18nContext.jsx';
 import { api } from '../../lib/api.js';
-import { globalNav, scopeNav, scopeLabels } from '../navigation/nav.config.js';
-import { interpolatePath } from '../navigation/nav.helpers.js';
+import { useUpload } from '../context/UploadContext.jsx';
 
-/**
- * Sidebar driven entirely by nav.config.
- * Props:
- *   isMobileDrawer  — when true, renders in the mobile drawer context
- *   onClose         — called to close the mobile drawer (link clicks also close it)
- */
+// ── Tree primitives ────────────────────────────────────────────────────────────
+
+const pad = (depth) => ({ paddingLeft: 16 + depth * 13 });
+
+function TreeLink({ to, label, depth = 0, end = false, onClick, icon, bold = false }) {
+  return (
+    <li className="nav-item">
+      <NavLink
+        to={to}
+        end={end}
+        className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+        style={{
+          ...pad(depth), minHeight: 36, fontSize: '0.84rem',
+          display: 'flex', alignItems: 'center',
+          fontWeight: bold ? 600 : 400,
+        }}
+        onClick={onClick}
+      >
+        {icon && (
+          <i className={`nav-icon ${icon}`}
+            style={{ marginRight: 6, fontSize: '0.78rem', opacity: 0.7, width: 14, flexShrink: 0 }} />
+        )}
+        <p style={{ margin: 0, lineHeight: 1.3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {label}
+        </p>
+      </NavLink>
+    </li>
+  );
+}
+
+// ── Sidebar ────────────────────────────────────────────────────────────────────
+
 export default function ScopeSidebar({ scope, params = {}, isMobileDrawer = false, onClose }) {
-  const { user, setUser, logout } = useAuth();
+  const { user, logout } = useAuth();
   const t = useT();
-  const navigate = useNavigate();
   const isSuperadmin = user?.platformRole === 'superadmin';
-  const canAdmin = ['admin', 'owner', 'collaborator'].includes(user?.studioRole) || isSuperadmin;
+  const { globalStats } = useUpload();
+  const uploadTotal  = globalStats.uploading + globalStats.queued;
+  const uploadActive = uploadTotal > 0;
+  const uploadHue    = Math.round(210 - Math.min(1, uploadTotal / 30) * 210);
+  const uploadColor  = `hsl(${uploadHue}, 75%, 62%)`;
 
-  // Org switcher (superadmin only)
-  const [studios,   setStudios]   = useState([]);
-  const [orgOpen,   setOrgOpen]   = useState(false);
-  const [switching, setSwitching] = useState(false);
-  const orgRef = useRef(null);
+  // Build activity polling
+  const [activeJobs, setActiveJobs] = useState([]);
+  const buildPollRef = useRef(null);
+  const pollBuilds = useCallback(() => {
+    api.listActiveJobs().then(jobs => {
+      setActiveJobs(jobs);
+      clearTimeout(buildPollRef.current);
+      buildPollRef.current = setTimeout(pollBuilds, jobs.length > 0 ? 4000 : 30000);
+    }).catch(() => {
+      clearTimeout(buildPollRef.current);
+      buildPollRef.current = setTimeout(pollBuilds, 30000);
+    });
+  }, []);
+  useEffect(() => { pollBuilds(); return () => clearTimeout(buildPollRef.current); }, [pollBuilds]);
+
+  // Entity names loaded by the sidebar when params change
+  const [orgName,     setOrgName]     = useState('…');
+  const [projectName, setProjectName] = useState('…');
+  const [galleryName, setGalleryName] = useState('…');
 
   useEffect(() => {
-    if (isSuperadmin) api.listPlatformStudios().then(setStudios).catch(() => {});
-  }, [isSuperadmin]);
+    if (!params.orgId) return;
+    setOrgName('…');
+    api.getOrganization(params.orgId)
+      .then(o => setOrgName(o.name || o.slug))
+      .catch(() => setOrgName(params.orgId.slice(0, 10)));
+  }, [params.orgId]);
 
   useEffect(() => {
-    function onOutside(e) {
-      if (orgRef.current && !orgRef.current.contains(e.target)) setOrgOpen(false);
-    }
-    if (orgOpen) document.addEventListener('mousedown', onOutside);
-    return () => document.removeEventListener('mousedown', onOutside);
-  }, [orgOpen]);
+    if (!params.projectId) return;
+    setProjectName('…');
+    api.getProject(params.projectId)
+      .then(p => setProjectName(p.name || p.slug))
+      .catch(() => setProjectName(params.projectId.slice(0, 10)));
+  }, [params.projectId]);
 
-  async function handleSwitchOrg(studioId) {
-    if (studioId === user?.studioId) { setOrgOpen(false); return; }
-    setSwitching(true);
-    try {
-      await api.switchStudio(studioId);
-      const me = await api.me();
-      setUser(me);
-      navigate('/admin');
-    } catch {}
-    finally { setSwitching(false); setOrgOpen(false); }
-  }
+  useEffect(() => {
+    if (!params.galleryId) return;
+    setGalleryName('…');
+    api.getGallery(params.galleryId)
+      .then(g => setGalleryName(g.title || g.slug))
+      .catch(() => setGalleryName(params.galleryId.slice(0, 10)));
+  }, [params.galleryId]);
 
-  const navCls = ({ isActive }) => `nav-link${isActive ? ' active' : ''}`;
-  const contextItems = scope ? scopeNav[scope] : null;
-  const otherStudios = studios.filter(s => s.id !== user?.studioId);
-  const canSwitch = isSuperadmin && otherStudios.length > 0;
+  const { orgId, projectId, galleryId } = params;
+  const click    = isMobileDrawer && onClose ? onClose : undefined;
+  const orgBase  = orgId     ? `/admin/organizations/${orgId}` : '';
+  const projBase = projectId ? `${orgBase}/projects/${projectId}` : '';
+  const galBase  = galleryId ? `${projBase}/galleries/${galleryId}` : '';
 
-  // On mobile drawer, clicking a nav item should close it
-  const handleNavClick = isMobileDrawer && onClose ? onClose : undefined;
+  const hasOrg     = scope === 'organization' || scope === 'project' || scope === 'gallery';
+  const hasProject = scope === 'project' || scope === 'gallery';
+  const hasGallery = scope === 'gallery';
 
   return (
     <aside className="app-sidebar bg-body" data-bs-theme="dark">
+      {/* Brand */}
       <div className="sidebar-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link to="/admin" className="brand-link" onClick={handleNavClick}>
+        <Link to="/admin/organizations" className="brand-link" onClick={click}>
           <span className="brand-text fw-bold" style={{ fontSize: '1rem', letterSpacing: '-0.02em' }}>
             {t('manage_title')}
           </span>
@@ -102,124 +147,128 @@ export default function ScopeSidebar({ scope, params = {}, isMobileDrawer = fals
             <div className="text-white text-truncate" style={{ fontSize: '0.85rem' }}>
               {user?.name || user?.email}
             </div>
-            <NavLink to="/admin/profile" className="text-muted" style={{ fontSize: '0.75rem' }} onClick={handleNavClick}>
+            <NavLink to="/admin/profile" className="text-muted" style={{ fontSize: '0.75rem' }} onClick={click}>
               <i className="fas fa-user-cog me-1" />{t('profile_title')}
             </NavLink>
           </div>
         </div>
 
-        {/* Current organization + switcher (superadmin) */}
-        <div className="border-bottom border-secondary" ref={orgRef} style={{ position: 'relative' }}>
-          <button
-            type="button"
-            className={`nav-link w-100 text-start d-flex align-items-center${orgOpen ? ' active' : ''}`}
-            onClick={() => canSwitch && setOrgOpen(o => !o)}
-            style={{ background: 'none', border: 'none', cursor: canSwitch ? 'pointer' : 'default', padding: '0.55rem 1.25rem', minHeight: 44 }}
-            disabled={switching}
-          >
-            <i className="nav-icon fas fa-building" />
-            <p className="mb-0 flex-grow-1">
-              {switching ? '…' : (user?.studioName || t('studio_untitled'))}
-            </p>
-            {canSwitch && (
-              <i className={`fas fa-angle-${orgOpen ? 'up' : 'down'} ms-1`}
-                style={{ fontSize: '0.7rem', opacity: 0.5 }} />
-            )}
-          </button>
-
-          {orgOpen && (
-            <div style={{
-              position: 'absolute', left: 0, right: 0, top: '100%',
-              background: '#2d3238', border: '1px solid rgba(255,255,255,0.08)',
-              borderRadius: '0 0 4px 4px', zIndex: 1050,
-              maxHeight: 220, overflowY: 'auto',
-            }}>
-              {otherStudios.map(s => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => handleSwitchOrg(s.id)}
-                  style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    padding: '0.5rem 1.25rem', background: 'none', border: 'none',
-                    color: 'rgba(255,255,255,0.65)', fontSize: '0.82rem', cursor: 'pointer',
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.07)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                >
-                  <i className="fas fa-building me-2" style={{ opacity: 0.4 }} />{s.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Global navigation */}
+        {/* Navigation tree */}
         <nav className="mt-2" aria-label="Main navigation">
           <ul className="nav sidebar-menu flex-column">
-            {globalNav
-              .filter(item => !item.superadminOnly || isSuperadmin)
-              .map(item => (
-                <li key={item.key} className="nav-item">
-                  <NavLink to={item.href} end={item.href === '/admin'} className={navCls} onClick={handleNavClick}
-                    style={{ minHeight: 44 }}>
-                    <i className={`nav-icon ${item.icon}`} />
-                    <p>{t(item.labelKey)}</p>
-                  </NavLink>
-                </li>
-              ))}
+
+            {/* Root: Organizations */}
+            <TreeLink
+              to="/admin/organizations"
+              label={t('nav_organizations')}
+              icon="fas fa-building"
+              depth={0}
+              end={!scope || scope === 'platform'}
+              onClick={click}
+            />
+
+            {/* Org context */}
+            {hasOrg && orgId && (
+              <>
+                <TreeLink to={orgBase} label={orgName} depth={1} end onClick={click} bold />
+                <TreeLink to={`${orgBase}/settings`} label={t('nav_settings')} depth={2} onClick={click} />
+
+                {/* Project context */}
+                {hasProject && projectId && (
+                  <>
+                    <TreeLink to={orgBase} label={t('nav_projects')} depth={2} end onClick={click} />
+                    <TreeLink to={projBase} label={projectName} depth={3} end onClick={click} bold />
+
+                    {/* Gallery context */}
+                    {hasGallery && galleryId && (
+                      <>
+                        <TreeLink to={projBase} label={t('nav_galleries')} depth={4} end onClick={click} />
+                        {/* Gallery name as non-link label */}
+                        <li style={{ listStyle: 'none' }}>
+                          <span style={{
+                            display: 'block', ...pad(5),
+                            paddingTop: 4, paddingBottom: 2,
+                            fontSize: '0.78rem', fontWeight: 600,
+                            color: 'rgba(255,255,255,0.55)',
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }}>
+                            {galleryName}
+                          </span>
+                        </li>
+                        <TreeLink to={`${galBase}/photos`}     label={t('nav_photos')}     depth={6} onClick={click} />
+                        <TreeLink to={`${galBase}/settings`}   label={t('nav_settings')}   depth={6} onClick={click} />
+                        <TreeLink to={`${galBase}/jobs`}       label={t('tab_jobs')}       depth={6} onClick={click} />
+                        <TreeLink to={`${galBase}/statistics`} label={t('nav_statistics')} depth={6} onClick={click} />
+                      </>
+                    )}
+
+                    <TreeLink to={`${projBase}/settings`} label={t('nav_settings')} depth={4} onClick={click} />
+                  </>
+                )}
+
+                <TreeLink to={`${orgBase}/team`} label={t('nav_team')} depth={2} onClick={click} />
+              </>
+            )}
           </ul>
         </nav>
 
-        {/* Contextual scope navigation */}
-        {contextItems && (
-          <>
-            <div className="px-3 py-2 border-top border-secondary mt-2">
-              <span className="text-white" style={{ fontSize: '0.72rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                {t(scopeLabels[scope])}
+        {/* Build activity indicator */}
+        {activeJobs.length > 0 && (
+          <div style={{ padding: '0.5rem 1.25rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+              <i className="fas fa-cog fa-spin" style={{ color: '#60aaff', fontSize: '0.72rem', flexShrink: 0 }} />
+              <span style={{ fontSize: '0.74rem', color: '#60aaff', fontWeight: 500 }}>
+                {activeJobs.length === 1
+                  ? (activeJobs[0].status === 'running' ? t('build_running') : t('build_queued'))
+                  : `${activeJobs.length} ${t('builds_active')}`}
               </span>
             </div>
-            <nav aria-label={t(scopeLabels[scope])}>
-              <ul className="nav sidebar-menu flex-column">
-                {contextItems.map(item => {
-                  const href = interpolatePath(item.href, params);
-                  return (
-                    <li key={item.key} className="nav-item">
-                      <NavLink
-                        to={href}
-                        end={item.key === 'overview'}
-                        className={navCls}
-                        onClick={handleNavClick}
-                        style={{ minHeight: 44 }}
-                      >
-                        <i className={`nav-icon ${item.icon}`} />
-                        <p>{t(item.labelKey)}</p>
-                      </NavLink>
-                    </li>
-                  );
-                })}
-              </ul>
-            </nav>
-          </>
+            <div style={{ height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: 99,
+                background: 'linear-gradient(90deg, #60aaff, #3d8bff)',
+                width: activeJobs.some(j => j.status === 'running') ? '60%' : '20%',
+                transition: 'width 0.6s ease',
+              }} />
+            </div>
+          </div>
         )}
 
-        {/* Tools — Inspector (admin+) + logout */}
-        <nav className="mt-2 border-top border-secondary pt-2" aria-label="Tools">
+        {/* Upload activity indicator */}
+        {uploadActive && (
+          <div style={{ padding: '0.5rem 1.25rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+              <i className="fas fa-spinner fa-spin" style={{ color: uploadColor, fontSize: '0.72rem', flexShrink: 0 }} />
+              <span style={{ fontSize: '0.74rem', color: uploadColor, fontWeight: 500 }}>
+                {uploadTotal} photo{uploadTotal > 1 ? 's' : ''}
+                {globalStats.uploading > 0 ? ` · ${globalStats.uploading} actif${globalStats.uploading > 1 ? 's' : ''}` : ''}
+              </span>
+            </div>
+            <div style={{ height: 3, borderRadius: 99, background: 'rgba(255,255,255,0.1)', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: 99, background: uploadColor,
+                width: `${Math.min(100, (uploadTotal / 30) * 100)}%`,
+                transition: 'width 0.4s ease, background 0.6s ease',
+              }} />
+            </div>
+          </div>
+        )}
+
+        {/* Bottom: Platform + Inspector (superadmin only) + Sign out */}
+        <nav className="mt-2 border-top border-secondary pt-2" aria-label="Platform tools">
           <ul className="nav sidebar-menu flex-column">
-            {canAdmin && (
-              <li className="nav-item">
-                <NavLink to="/inspector" className={navCls} onClick={handleNavClick} style={{ minHeight: 44 }}>
-                  <i className="nav-icon fas fa-search" />
-                  <p>{t('nav_inspector')}</p>
-                </NavLink>
-              </li>
+            {isSuperadmin && (
+              <>
+                <TreeLink to="/admin/platform" label={t('nav_platform')} icon="fas fa-server"  depth={0} onClick={click} />
+                <TreeLink to="/inspector"      label={t('nav_inspector')} icon="fas fa-search" depth={0} onClick={click} />
+              </>
             )}
             <li className="nav-item">
               <button
                 type="button"
                 className="nav-link w-100 text-start"
                 onClick={logout}
-                style={{ background: 'none', border: 'none', minHeight: 44 }}
+                style={{ background: 'none', border: 'none', minHeight: 44, ...pad(0) }}
               >
                 <i className="nav-icon fas fa-sign-out-alt" />
                 <p>{t('sign_out')}</p>

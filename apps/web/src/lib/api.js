@@ -83,9 +83,10 @@ export const api = {
   revokeToken:  (tokenId)                => req('DELETE', `/tokens/${tokenId}`),
 
   // Jobs
-  triggerBuild: (galleryId, force = false) => req('POST', `/galleries/${galleryId}/build`, { force }),
-  listJobs:     (galleryId)               => req('GET',  `/galleries/${galleryId}/jobs`),
-  getJob:       (jobId)                   => req('GET',  `/jobs/${jobId}`),
+  triggerBuild:   (galleryId, force = false) => req('POST', `/galleries/${galleryId}/build`, { force }),
+  listJobs:       (galleryId)               => req('GET',  `/galleries/${galleryId}/jobs`),
+  getJob:         (jobId)                   => req('GET',  `/jobs/${jobId}`),
+  listActiveJobs: ()                        => req('GET',  `/jobs`),
 
   // Gallery members
   getGalleryMembers:  (id)                      => req('GET',    `/galleries/${id}/members`),
@@ -111,7 +112,7 @@ export const api = {
   acceptInvite:     (token, password) => req('POST',   `/invitations/accept/${token}`, { password }),
 
   // Projects
-  listProjects:        ()          => req('GET',    '/projects'),
+  listProjects:        (orgId)     => req('GET',    orgId ? `/projects?orgId=${orgId}` : '/projects'),
   getProject:          (id)        => req('GET',    `/projects/${id}`),
   createProject:       (data)      => req('POST',   '/projects', data),
   updateProject:       (id, data)  => req('PATCH',  `/projects/${id}`, data),
@@ -179,6 +180,8 @@ export const api = {
   stripDistOriginals:     (id)         => req('DELETE', `/galleries/${id}/dist/originals`),
   reconcilePhotos:        (id)         => req('POST',   `/galleries/${id}/photos/reconcile`),
   deduplicatePhotos:      (id, dryRun = true) => req('POST', `/galleries/${id}/photos/deduplicate?dry_run=${dryRun}`),
+  reanalyzeStatus:        (id)         => req('GET',    `/galleries/${id}/photos/reanalyze`),
+  reanalyzePhotos:        (id)         => req('POST',   `/galleries/${id}/photos/reanalyze`),
 
   // Upload (multipart — handled separately)
   uploadPhotos(galleryId, files, onProgress) {
@@ -189,7 +192,17 @@ export const api = {
       xhr.open('POST', `${BASE}/galleries/${galleryId}/photos`);
       xhr.withCredentials = true;
       if (onProgress) xhr.upload.onprogress = (e) => onProgress(e.loaded / e.total);
-      xhr.onload  = () => xhr.status < 300 ? resolve(JSON.parse(xhr.responseText)) : reject(new Error(xhr.responseText));
+      xhr.onload  = () => {
+        if (xhr.status < 300) {
+          resolve(JSON.parse(xhr.responseText));
+        } else {
+          let msg = xhr.responseText;
+          try { msg = JSON.parse(xhr.responseText)?.error || msg; } catch {}
+          const err = new Error(msg);
+          err.httpStatus = xhr.status;
+          reject(err);
+        }
+      };
       xhr.onerror = () => reject(new Error('Upload failed'));
       xhr.send(fd);
     });

@@ -22,6 +22,7 @@ function rowToSettings(row) {
     defaultAuthorEmail:         row?.default_author_email          || null,
     defaultLocale:              row?.default_locale                || 'fr',
     defaultAccess:              row?.default_access                || 'public',
+    defaultDownloadMode:        row?.default_download_mode         || 'display',
     defaultAllowDownloadImage:  row?.default_allow_download_image  !== 0,
     defaultAllowDownloadGallery:row?.default_allow_download_gallery === 1,
     defaultPrivate:             row?.default_private               === 1,
@@ -54,6 +55,7 @@ router.patch('/', async (req, res) => {
   const {
     siteTitle, defaultAuthor, defaultAuthorEmail,
     defaultLocale, defaultAccess,
+    defaultDownloadMode,
     defaultAllowDownloadImage, defaultAllowDownloadGallery, defaultPrivate,
     smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, smtpSecure,
     baseUrl, hostname,
@@ -65,6 +67,7 @@ router.patch('/', async (req, res) => {
     default_author_email:           defaultAuthorEmail           ?? null,
     default_locale:                 defaultLocale                ?? 'fr',
     default_access:                 defaultAccess                ?? 'public',
+    default_download_mode:          ['none','display','original'].includes(defaultDownloadMode) ? defaultDownloadMode : 'display',
     default_allow_download_image:   defaultAllowDownloadImage    !== false ? 1 : 0,
     default_allow_download_gallery: defaultAllowDownloadGallery  === true  ? 1 : 0,
     default_private:                defaultPrivate               === true  ? 1 : 0,

@@ -48,34 +48,59 @@ router.get('/:id/insights', async (req, res, next) => {
       ? `${gallery.proj_slug}/${gallery.slug}`
       : gallery.slug;
 
-    let manifest;
+    let photos;
     try {
       const buf = await fileStorage.read(`public/${distSlug}/photos.json`);
-      manifest = JSON.parse(buf.toString('utf8'));
+      const manifest = JSON.parse(buf.toString('utf8'));
+      const [dbPhotos] = await query(
+        `SELECT p.id, p.filename, pg.name AS photographer_name
+         FROM photos p
+         LEFT JOIN photographers pg ON pg.id = p.photographer_id
+         WHERE p.gallery_id = ?`,
+        [gallery.id]
+      );
+      const infoByFilename = Object.fromEntries(dbPhotos.map(r => [r.filename, r]));
+      photos = Object.entries(manifest.photos || {}).map(([filename, photo]) => {
+        const info    = infoByFilename[filename] ?? null;
+        const photoId = info?.id ?? null;
+        return {
+          filename,
+          exif:         photo.exif ?? {},
+          id:           photoId,
+          thumbnail:    photoId ? photoThumbnails(photoId) : { sm: null, md: null },
+          photographer: info?.photographer_name ?? null,
+        };
+      });
     } catch {
-      return res.json({
-        focal:    { total: 0, withData: 0, photos: [], bins: [], dominant: null },
-        lens:     { total: 0, withData: 0, items: [] },
-        aperture: { total: 0, withData: 0, items: [] },
-        shutter:  { total: 0, withData: 0, items: [] },
-        iso:      { total: 0, withData: 0, items: [] },
-        insights: {},
+      // No built manifest — fall back to EXIF stored in DB at upload time
+      const [dbPhotos] = await query(
+        `SELECT p.id, p.filename, p.exif, pg.name AS photographer_name
+         FROM photos p
+         LEFT JOIN photographers pg ON pg.id = p.photographer_id
+         WHERE p.gallery_id = ? AND p.status != 'uploaded'`,
+        [gallery.id]
+      );
+      if (!dbPhotos.length) {
+        return res.json({
+          focal:    { total: 0, withData: 0, photos: [], bins: [], dominant: null },
+          lens:     { total: 0, withData: 0, items: [] },
+          aperture: { total: 0, withData: 0, items: [] },
+          shutter:  { total: 0, withData: 0, items: [] },
+          iso:      { total: 0, withData: 0, items: [] },
+          insights: {},
+        });
+      }
+      photos = dbPhotos.map(p => {
+        const exif = p.exif ? (typeof p.exif === 'string' ? JSON.parse(p.exif) : p.exif) : {};
+        return {
+          filename:     p.filename,
+          exif,
+          id:           p.id,
+          thumbnail:    photoThumbnails(p.id),
+          photographer: p.photographer_name ?? null,
+        };
       });
     }
-
-    // Build photo array with DB IDs for thumbnail URLs
-    const [dbPhotos] = await query('SELECT id, filename FROM photos WHERE gallery_id = ?', [gallery.id]);
-    const idByFilename = Object.fromEntries(dbPhotos.map(r => [r.filename, r.id]));
-
-    const photos = Object.entries(manifest.photos || {}).map(([filename, photo]) => {
-      const photoId = idByFilename[filename] ?? null;
-      return {
-        filename,
-        exif:      photo.exif ?? {},
-        id:        photoId,
-        thumbnail: photoId ? photoThumbnails(photoId) : { sm: null, md: null },
-      };
-    });
 
     res.json(computeInsights(photos));
   } catch (err) {

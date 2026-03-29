@@ -19,20 +19,21 @@ export default function GalleriesListPage() {
   const t = useT();
   const navigate = useNavigate();
   const [galleries, setGalleries] = useState([]);
+  const [projects,  setProjects]  = useState([]);
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState('');
 
   // Create form
-  const [showCreate, setShowCreate] = useState(false);
-  const [newG,       setNewG]       = useState({ title: '', slug: '' });
-  const [slugEdited, setSlugEdited] = useState(false);
-  const [creating,   setCreating]   = useState(false);
-  const [createErr,  setCreateErr]  = useState('');
+  const [showCreate,  setShowCreate]  = useState(false);
+  const [newG,        setNewG]        = useState({ title: '', slug: '', projectId: '' });
+  const [slugEdited,  setSlugEdited]  = useState(false);
+  const [creating,    setCreating]    = useState(false);
+  const [createErr,   setCreateErr]   = useState('');
 
   function load() {
     setLoading(true);
-    api.listGalleries()
-      .then(setGalleries)
+    Promise.all([api.listGalleries(), api.listProjects()])
+      .then(([gals, projs]) => { setGalleries(gals); setProjects(projs); })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }
@@ -41,11 +42,7 @@ export default function GalleriesListPage() {
 
   function handleTitleChange(e) {
     const title = e.target.value;
-    setNewG(f => ({
-      ...f,
-      title,
-      slug: slugEdited ? f.slug : slugify(title),
-    }));
+    setNewG(f => ({ ...f, title, slug: slugEdited ? f.slug : slugify(title) }));
   }
 
   function handleSlugChange(e) {
@@ -54,7 +51,7 @@ export default function GalleriesListPage() {
   }
 
   function resetForm() {
-    setNewG({ title: '', slug: '' });
+    setNewG({ title: '', slug: '', projectId: projects[0]?.id ?? '' });
     setSlugEdited(false);
     setCreateErr('');
   }
@@ -66,9 +63,10 @@ export default function GalleriesListPage() {
 
   async function create(e) {
     e.preventDefault();
+    if (!newG.projectId) { setCreateErr(t('gal_create_project_required')); return; }
     setCreating(true); setCreateErr('');
     try {
-      const gallery = await api.createGallery(newG);
+      const gallery = await api.createProjectGallery(newG.projectId, { title: newG.title, slug: newG.slug });
       resetForm();
       setShowCreate(false);
       navigate(`/admin/galleries/${gallery.id}/photos`);
@@ -78,6 +76,8 @@ export default function GalleriesListPage() {
       setCreating(false);
     }
   }
+
+  const activeProjects = projects.filter(p => p.status !== 'archived');
 
   return (
     <AdminPage
@@ -91,41 +91,66 @@ export default function GalleriesListPage() {
     >
       {showCreate && (
         <AdminCard title={t('new_gallery')} className="mb-3">
-          <form onSubmit={create}>
-            <div className="row">
-              <div className="col-sm-5 mb-3">
-                <AdminInput
-                  label={t('field_title')}
-                  value={newG.title}
-                  onChange={handleTitleChange}
-                  required
-                  autoFocus
-                  className="mb-0"
-                />
-              </div>
-              <div className="col-sm-4 mb-3">
-                <AdminInput
-                  label={t('orgs_th_slug')}
-                  value={newG.slug}
-                  onChange={handleSlugChange}
-                  required
-                  pattern="[a-z0-9-]+"
-                  title={t('orgs_slug_hint')}
-                  className="mb-0"
-                  hint={!slugEdited && newG.title ? t('slug_auto_hint') : undefined}
-                />
+          {activeProjects.length === 0 ? (
+            <div className="alert alert-warning d-flex align-items-center gap-3 mb-0">
+              <i className="fas fa-folder-open fa-lg" />
+              <div>
+                {t('gal_create_no_projects')}
+                {' '}
+                <Link to="/admin/projects/new">{t('gal_create_project_link')}</Link>
               </div>
             </div>
-            <AdminAlert message={createErr} />
-            <div className="d-flex gap-2">
-              <AdminButton type="submit" size="sm" loading={creating} loadingLabel={t('proj_creating')}>
-                {t('create')}
-              </AdminButton>
-              <AdminButton variant="outline-secondary" size="sm" type="button" onClick={() => setShowCreate(false)}>
-                {t('cancel')}
-              </AdminButton>
-            </div>
-          </form>
+          ) : (
+            <form onSubmit={create}>
+              <div className="row">
+                <div className="col-sm-3 mb-3">
+                  <label className="form-label">{t('gal_create_project_label')}</label>
+                  <select
+                    className="form-select"
+                    value={newG.projectId}
+                    onChange={e => setNewG(f => ({ ...f, projectId: e.target.value }))}
+                    required
+                  >
+                    <option value="">{t('gal_create_project_placeholder')}</option>
+                    {activeProjects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-sm-4 mb-3">
+                  <AdminInput
+                    label={t('field_title')}
+                    value={newG.title}
+                    onChange={handleTitleChange}
+                    required
+                    autoFocus
+                    className="mb-0"
+                  />
+                </div>
+                <div className="col-sm-4 mb-3">
+                  <AdminInput
+                    label={t('orgs_th_slug')}
+                    value={newG.slug}
+                    onChange={handleSlugChange}
+                    required
+                    pattern="[-a-z0-9]+"
+                    title={t('orgs_slug_hint')}
+                    className="mb-0"
+                    hint={!slugEdited && newG.title ? t('slug_auto_hint') : undefined}
+                  />
+                </div>
+              </div>
+              <AdminAlert message={createErr} />
+              <div className="d-flex gap-2">
+                <AdminButton type="submit" size="sm" loading={creating} loadingLabel={t('proj_creating')}>
+                  {t('create')}
+                </AdminButton>
+                <AdminButton variant="outline-secondary" size="sm" type="button" onClick={() => setShowCreate(false)}>
+                  {t('cancel')}
+                </AdminButton>
+              </div>
+            </form>
+          )}
         </AdminCard>
       )}
 

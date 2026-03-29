@@ -87,8 +87,10 @@ export function GalleryCard({ gallery, onBuild, onDelete, canBuild = true }) {
     >
       {/* Cover image with overlaid status icons */}
       <div style={s.cover}>
-        {gallery.firstPhoto
-          ? <img src={`/api/galleries/${gallery.id}/photos/${encodeURIComponent(gallery.firstPhoto)}/preview`} style={s.img} alt="" />
+        {gallery.coverThumbnailUrl
+          ? <img src={gallery.coverThumbnailUrl} style={s.img} alt="" loading="lazy" decoding="async" />
+          : gallery.firstPhoto
+          ? <img src={`/api/galleries/${gallery.id}/photos/${encodeURIComponent(gallery.firstPhoto)}/preview`} style={s.img} alt="" loading="lazy" decoding="async" />
           : <div style={s.placeholder}><i className="fas fa-image" /></div>}
 
         {/* Top-right corner badges on the image */}
