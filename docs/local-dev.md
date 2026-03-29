@@ -19,7 +19,7 @@ cp .env.example .env
 make dev
 ```
 
-The stack starts on **http://localhost:4001**.
+The stack starts on **http://localhost:4001**. The admin panel is at **http://localhost:4001/admin**.
 
 Default admin credentials (from `.env`):
 - Email: `admin@localhost`

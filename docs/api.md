@@ -36,25 +36,72 @@ Request a magic login link by email.
 
 ---
 
-## Studios
+## Organizations
+
+Organizations (also referred to as "studios" in legacy routes and the database) are the top-level tenant unit.
+
+### `GET /api/organizations`
+List organizations. Superadmins see all; regular users see only their own.
+
+### `POST /api/organizations`
+Create an organization (superadmin only).
+```json
+{ "name": "Circus Studio", "slug": "circus", "plan": "free", "locale": "fr", "country": "CH" }
+```
+
+### `GET /api/organizations/:id`
+Get organization details including member list.
+
+### `PATCH /api/organizations/:id`
+Update name, slug, plan, locale, or country (admin+ role required).
+```json
+{ "name": "Circus Studio", "locale": "fr", "country": "CH" }
+```
+
+### `DELETE /api/organizations/:id`
+Delete an organization (superadmin only; cannot delete the default organization).
+
+### `GET /api/organizations/:id/members`
+List members with their roles (admin+ only).
+
+### `PUT /api/organizations/:id/members/:userId`
+Upsert a member's role (admin+ required; only owners can assign the `owner` role).
+```json
+{ "role": "admin" }
+```
+
+### `DELETE /api/organizations/:id/members/:userId`
+Remove a member (owner only).
+
+### `GET /api/organizations/:id/domains`
+List custom domains for this organization.
+
+### `POST /api/organizations/:id/domains`
+Add a custom domain (admin+).
+```json
+{ "domain": "photos.example.com", "isPrimary": true }
+```
+
+### `DELETE /api/organizations/:id/domains/:domain`
+Remove a custom domain (admin+).
+
+---
+
+## Studios (legacy)
+
+The `/api/studios` endpoints are a legacy alias for organization management. Prefer `/api/organizations` for new integrations.
 
 ### `GET /api/studios/me`
 Returns the current studio (resolved from host or session context).
 
 ### `PATCH /api/studios/me`
 Update studio name, locale, country, or slug.
-```json
-{ "name": "Circus Studio", "locale": "fr", "country": "CH" }
-```
 
 ### `GET /api/studios/members`
-List studio members with their roles and gallery assignments.
+List studio members with their roles.
 
 ### `PUT /api/studios/members/:userId`
 Update a member's studio role.
-```json
-{ "role": "admin" }
-```
 
 ### `DELETE /api/studios/members/:userId`
 Remove a member from the studio.
@@ -168,14 +215,17 @@ data: {"status":"done"}
 List pending invitations for the current studio.
 
 ### `POST /api/invitations`
-Create an invitation.
+Create an invitation. An invite email is sent if SMTP is configured; the token is also returned in the response for copyable-link sharing.
 ```json
 {
   "email": "photographer@example.com",
+  "name": "Jane Smith",
   "role": "photographer",
-  "galleryId": "..."
+  "galleryId": "...",
+  "galleryRole": "contributor"
 }
 ```
+Valid roles: `owner`, `admin`, `collaborator`, `photographer`. `name` is optional (pre-fills the invitee's display name). `galleryId` + `galleryRole` optionally assign the new member directly to a gallery.
 
 ### `DELETE /api/invitations/:id`
 Cancel a pending invitation.
@@ -227,25 +277,26 @@ Revoke a viewer token.
 ## Platform (superadmin only)
 
 ### `GET /api/platform/studios`
-List all studios.
+List all studios (organizations).
 
 ### `POST /api/platform/studios`
 Create a studio with optional owner invitation.
 ```json
 { "name": "New Studio", "slug": "new-studio", "plan": "free", "ownerEmail": "owner@example.com" }
 ```
+Enforces the `organization_limit` from the active license.
 
 ### `PATCH /api/platform/studios/:id`
 Update studio name, slug, or plan.
 
 ### `DELETE /api/platform/studios/:id`
-Delete a studio and all its data.
+Delete a studio and all its data. Cannot delete the default studio.
 
 ### `POST /api/platform/studios/:id/set-default`
 Make this studio the default (used in single-mode and as hostname fallback).
 
 ### `POST /api/platform/switch/:studioId`
-Switch the current studio context (sets `studio_override` cookie).
+Switch the current studio context (sets `studio_override` cookie, valid 8 hours).
 
 ### `DELETE /api/platform/switch`
 Clear the studio override cookie and return to default.
@@ -259,6 +310,51 @@ Grant or revoke superadmin.
 { "platformRole": "superadmin" }
 ```
 
+### `GET /api/platform/license`
+Returns current license status (source, plan, limits, features).
+
+### `GET /api/platform/license/usage`
+Returns current usage vs. quota limits (orgs, galleries, collaborators, storage GB).
+
+### `POST /api/platform/license`
+Install a new license from its JSON string.
+```json
+{ "licenseJson": "{ ... signed license payload ... }" }
+```
+
+---
+
+## Personal upload tokens
+
+### `GET /api/tokens`
+List the current user's personal upload tokens.
+
+### `POST /api/tokens`
+Create a personal upload token.
+```json
+{ "name": "My CLI token", "scopeType": "gallery", "scopeId": "...", "expiresAt": 1800000000000 }
+```
+
+### `DELETE /api/tokens/:id`
+Revoke a personal upload token.
+
+---
+
+## Insights
+
+### `GET /api/galleries/:id/focal-stats`
+Returns focal-length distribution statistics and AI-generated lens insights for all photos in a gallery. Requires read access to the gallery.
+
+### `GET /api/galleries/:id/insights`
+Returns aggregated photo statistics (camera, aperture, ISO, shutter speed) for the gallery.
+
+---
+
+## Gallery maintenance
+
+### `POST /api/galleries/:id/maintenance/bootstrap-thumbnails`
+Re-queue thumbnail generation for all photos in the gallery that are missing thumbnails. Requires admin access.
+
 ---
 
 ## Public endpoints (no auth required)
@@ -267,4 +363,4 @@ Grant or revoke superadmin.
 Get gallery data for public display (respects access mode).
 
 ### `GET /api/health`
-Returns `{ "ok": true }`.
+Returns `{ "ok": true, "db": "connected", "storage": "ok", "worker": "idle|running" }`.

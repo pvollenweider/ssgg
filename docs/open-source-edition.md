@@ -8,9 +8,9 @@ The open-source components of GalleryPack are released under the GNU Affero Gene
 
 The core gallery build engine. Given a list of photos and a configuration object, it:
 
-- Resizes and optimizes images (via Sharp)
-- Extracts EXIF metadata
-- Generates static HTML files from templates
+- Resizes and optimizes images to WebP (via Sharp); supports JPEG, PNG, TIFF, HEIC, HEIF, AVIF input
+- Extracts EXIF metadata (including GPS coordinates for location resolution)
+- Generates static HTML/CSS/JS files from templates
 - Writes the complete gallery output to a destination directory
 
 This is a pure library — it has no HTTP server, no database, no job queue. It can be used standalone.

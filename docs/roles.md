@@ -6,18 +6,18 @@ GalleryPack has three independent role scopes. A user can hold roles at multiple
 
 ## Platform roles
 
-Assigned to users at the platform level (across all studios).
+Assigned to users at the platform level (across all organizations). Managed at `/admin/platform/team`.
 
 | Role | What they can do |
 |---|---|
-| `superadmin` | Create/delete studios, switch studio context, manage all users |
-| *(none)* | Regular studio member |
+| `superadmin` | Create/delete organizations, switch org context, manage all users, manage license, access Inspector |
+| *(none)* | Regular organization member |
 
 ---
 
-## Studio roles
+## Organization roles
 
-Assigned per studio. Hierarchy from lowest to highest: `photographer < collaborator < admin < owner`.
+Assigned per organization (stored as `studio_role` in the database). Hierarchy from lowest to highest: `photographer < collaborator < admin < owner`.
 
 | Role | Create galleries | Upload photos | Build & publish | Manage members | Manage settings |
 |---|---|---|---|---|---|

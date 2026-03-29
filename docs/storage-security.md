@@ -18,7 +18,7 @@ STORAGE_ROOT/
 **Path:** `/srv/gallerypack/public/`
 
 **Contents:**
-- Built gallery sites (`<gallery-slug>/index.html`, CSS, JS, WebP images)
+- Built gallery sites (`<project-slug>/<gallery-slug>/index.html`, CSS, JS, WebP images)
 - Shared vendor libraries (`vendor/`)
 - Shared fonts (`fonts/`)
 
@@ -64,17 +64,26 @@ This endpoint verifies the caller's access rights before streaming the file.
 
 ## How Caddy enforces the boundary
 
-The `Caddyfile` mounts **only** `public/` and routes accordingly:
+The `Caddyfile` mounts **only** `public/` for built gallery delivery. Thumbnails under `internal/` are served directly by Caddy from a separate, narrowly scoped path with no directory listing:
 
 ```caddy
+handle /media/thumbnails/* {
+    uri strip_prefix /media
+    root * /srv/gallerypack/internal
+    file_server { precompressed br gzip }
+}
+
 handle /* {
     root * /srv/gallerypack/public
+    try_files {path} {path}/index.html
     file_server { precompressed br gzip }
     ...
 }
 ```
 
-`internal/` and `private/` are never mounted into the Caddy container. Even if a path like `/internal/thumbnails/...` were requested, Caddy has no filesystem access to those paths and cannot serve them.
+Only the `/media/thumbnails/` path is exposed from `internal/`. All other `internal/` paths and all `private/` paths are inaccessible — Caddy routes them to the API which enforces authentication before responding.
+
+In Docker Compose (`docker-compose.saas.yml`), the Caddy container only mounts `./data/public` read-only. The `./data/internal` and `./data/private` volumes are mounted into the `api` and `worker` containers only.
 
 In K3s, the proxy pod only mounts the `gallerypack-public` PVC. The `gallerypack-internal` and `gallerypack-private` PVCs are mounted into the `api` and `worker` pods only.
 

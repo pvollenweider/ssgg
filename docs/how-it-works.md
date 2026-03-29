@@ -14,13 +14,15 @@ Upload → Manage → Build → Static files → Visitors
 
 ```
 Platform  (the GalleryPack installation)
-  └── Studio  (a photography business, team, or brand)
+  └── Organization  (a photography business, team, or brand; also called "studio" internally)
         └── Project  (a shoot, event, or series)
               └── Gallery  (deliverable — photos + settings + build output)
 ```
 
-- In `PLATFORM_MODE=single` there is exactly one studio. The hierarchy simplifies to Project → Gallery.
-- In `PLATFORM_MODE=multi` a superadmin manages multiple studios, each isolated from the others.
+- In `PLATFORM_MODE=single` there is exactly one organization. The hierarchy simplifies to Project → Gallery.
+- In `PLATFORM_MODE=multi` a superadmin manages multiple organizations, each isolated from the others.
+
+The terms "studio" and "organization" refer to the same entity. "Organization" is used in the admin UI; "studio" appears in internal API routes and the database for historical reasons.
 
 ---
 
@@ -28,9 +30,10 @@ Platform  (the GalleryPack installation)
 
 A gallery has:
 - **Slug** — used in the public URL: `yourdomain.com/project-slug/gallery-slug/`
+- **Description** — optional free-text description displayed in the admin
 - **Access mode** — `public`, `private`, or `password`
-- **Photos** — uploaded by studio members or invited photographers
-- **Build output** — a folder in `dist/` containing HTML, CSS, and resized images
+- **Photos** — uploaded by organization members or invited photographers
+- **Build output** — a folder in `public/<project-slug>/<gallery-slug>/` containing HTML, CSS, JS, and WebP images
 
 ### Access modes
 
@@ -40,7 +43,7 @@ A gallery has:
 | `private` | Only authenticated users with studio/project/gallery access, or a viewer token |
 | `password` | Anyone with the password |
 
-Private galleries are built to a hash-based path (e.g. `dist/a3f9c2.../`) so the URL is not guessable.
+Private galleries use a hash-based `distName` derived from the gallery ID so the public URL is not guessable.
 
 ---
 
@@ -50,10 +53,10 @@ Private galleries are built to a hash-based path (e.g. `dist/a3f9c2.../`) so the
 2. The API creates a `build_job` row in the database (status: `queued`)
 3. The worker polls the database, picks up the job, and calls the engine
 4. The engine:
-   - Reads source photos from `src/<studio>/<gallery>/`
-   - Resizes and optimizes images
+   - Reads source photos from `private/<gallery-slug>/photos/`
+   - Resizes and optimizes images (outputs WebP)
    - Generates an HTML/CSS/JS gallery
-   - Writes output to `dist/<project>/<gallery>/`
+   - Writes output to `public/<project-slug>/<gallery-slug>/`
 5. The worker updates the job status to `done` (or `error`)
 6. The browser receives real-time log lines via SSE and shows a progress bar
 
@@ -63,23 +66,25 @@ Caddy serves the `dist/` directory directly as static files.
 
 ## Invitations
 
-Photographers are invited by email. The invite link:
-1. Creates a pending `invitation` row with a signed token
-2. The photographer clicks the link, sets a password, and is added to the studio/gallery
-3. They can immediately upload photos to their assigned gallery
+Photographers and collaborators are invited by email. An optional `name` field pre-fills the invitee's display name. The invite link is also copyable so it can be shared via other channels if SMTP is not configured. Flow:
+
+1. Admin creates an invitation (email, optional name, role, optional gallery assignment)
+2. An invitation row with a signed token is created; an email is sent if SMTP is configured
+3. The invitee clicks the link, sets a password, and is added to the organization (and gallery if specified)
+4. They can immediately upload photos or manage their assigned content
 
 ---
 
-## Multi-studio routing (PLATFORM_MODE=multi)
+## Multi-organization routing (PLATFORM_MODE=multi)
 
-Each request carries a `Host` header. The `studioContext` middleware resolves the studio in this order:
+Each request carries a `Host` header. The `resolveStudioContext` middleware resolves the organization in this order:
 
 1. `studio_override` cookie — set when a superadmin switches context
 2. Exact match in `studio_domains` table
-3. Subdomain of `BASE_DOMAIN` → studio slug (e.g. `circus.gallerypack.app`)
-4. `BASE_DOMAIN` itself → platform root (no studio)
+3. Subdomain of `BASE_DOMAIN` → organization slug (e.g. `circus.gallerypack.app`)
+4. `BASE_DOMAIN` itself → platform root (no organization)
 
-In single mode, every request resolves to the one default studio.
+In single mode, every request resolves to the one default organization.
 
 ---
 
