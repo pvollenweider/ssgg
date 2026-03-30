@@ -14,6 +14,30 @@ import { AdminPage, AdminCard, AdminInput, AdminAlert, AdminButton, AdminBadge }
 
 const STATUS_BADGE = { done: 'success', error: 'danger', running: 'primary', queued: 'warning', draft: 'secondary' };
 
+// Smart date formatting for gallery cards
+// 0 days → "28 mars 2026"
+// 1 day  → "Les 28 et 29 mars 2026"
+// 2–4    → "Du 28 au 30 mars 2026"
+// ≥5     → "Mars 2026"
+const MONTHS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+function formatDateRange(dateRange) {
+  if (!dateRange?.from) return null;
+  const a = new Date(dateRange.from + 'T12:00:00');
+  const b = dateRange.to ? new Date(dateRange.to + 'T12:00:00') : a;
+  const diff = Math.round((b - a) / 86400000);
+  const mA = MONTHS_FR[a.getMonth()], mB = MONTHS_FR[b.getMonth()];
+  const y  = a.getFullYear();
+  if (diff === 0) return `${a.getDate()} ${mA} ${y}`;
+  if (diff === 1 && a.getMonth() === b.getMonth())
+    return `Les ${a.getDate()} et ${b.getDate()} ${mA} ${y}`;
+  if (diff <= 4) {
+    if (a.getMonth() === b.getMonth()) return `Du ${a.getDate()} au ${b.getDate()} ${mA} ${y}`;
+    return `Du ${a.getDate()} ${mA} au ${b.getDate()} ${mB} ${y}`;
+  }
+  if (a.getMonth() === b.getMonth()) return `${mA.charAt(0).toUpperCase()}${mA.slice(1)} ${y}`;
+  return `${mA.charAt(0).toUpperCase()}${mA.slice(1)} – ${mB} ${y}`;
+}
+
 export default function ProjectGalleriesPage() {
   const t = useT();
   const { orgId, projectId } = useParams();
@@ -33,7 +57,16 @@ export default function ProjectGalleriesPage() {
   function load() {
     setLoading(true);
     Promise.all([api.getProject(projectId), api.getProjectGalleries(projectId)])
-      .then(([p, g]) => { setProject(p); setGalleries(g); })
+      .then(([p, g]) => {
+        setProject(p);
+        // Sort by most recent photo date (dateRange.to), fallback to created_at
+        const sorted = [...g].sort((a, b) => {
+          const da = a.dateRange?.to || a.dateRange?.from || a.createdAt || '';
+          const db = b.dateRange?.to || b.dateRange?.from || b.createdAt || '';
+          return da > db ? -1 : da < db ? 1 : 0;
+        });
+        setGalleries(sorted);
+      })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }
@@ -155,14 +188,30 @@ export default function ProjectGalleriesPage() {
           ) : (
             <table className="table table-hover mb-0">
               <thead className="table-light">
-                <tr><th>{t('proj_th_title')}</th><th>{t('proj_th_slug')}</th><th>{t('proj_th_status')}</th><th></th></tr>
+                <tr>
+                  <th>{t('proj_th_title')}</th>
+                  <th>{t('proj_th_status')}</th>
+                  <th className="d-none d-md-table-cell">Date</th>
+                  <th className="d-none d-lg-table-cell">Photographes</th>
+                  <th></th>
+                </tr>
               </thead>
               <tbody>
                 {galleries.map(g => (
                   <tr key={g.id}>
-                    <td><Link to={`/admin/organizations/${orgId}/projects/${projectId}/galleries/${g.id}/photos`} className="fw-semibold text-body">{g.title || g.slug}</Link></td>
-                    <td><code className="text-muted">{g.slug}</code></td>
-                    <td><AdminBadge color={STATUS_BADGE[g.build_status] || 'secondary'}>{g.build_status || t('proj_status_draft')}</AdminBadge></td>
+                    <td>
+                      <Link to={`/admin/organizations/${orgId}/projects/${projectId}/galleries/${g.id}/photos`} className="fw-semibold text-body">{g.title || g.slug}</Link>
+                      <div><code className="text-muted" style={{ fontSize: '0.72rem' }}>{g.slug}</code></div>
+                    </td>
+                    <td><AdminBadge color={STATUS_BADGE[g.buildStatus] || 'secondary'}>{g.buildStatus || t('proj_status_draft')}</AdminBadge></td>
+                    <td className="d-none d-md-table-cell text-muted" style={{ fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                      {formatDateRange(g.dateRange) || '—'}
+                    </td>
+                    <td className="d-none d-lg-table-cell text-muted" style={{ fontSize: '0.82rem' }}>
+                      {g.photographers?.length > 0
+                        ? g.photographers.join(' · ')
+                        : '—'}
+                    </td>
                     <td className="text-end">
                       <Link to={`/admin/organizations/${orgId}/projects/${projectId}/galleries/${g.id}/photos`} className="btn btn-sm btn-outline-secondary">
                         {t('gal_overview_manage')} <i className="fas fa-chevron-right ms-1" />

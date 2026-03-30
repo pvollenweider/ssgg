@@ -1157,22 +1157,39 @@ const PROJECT = ${projectJson};
   const galleryJs = `/* ── Initialise toolbar (title, metadata, photo count) ── */
 function fmtDateRange(from, to) {
   if (!from) return '';
-  const a = new Date(from + 'T12:00:00'), b = to ? new Date(to + 'T12:00:00') : a;
-  const sameDay   = from === (to || from);
+  const a    = new Date(from + 'T12:00:00'), b = to ? new Date(to + 'T12:00:00') : a;
+  const diff = Math.round((b - a) / 86400000);
+  const loc  = PROJECT.locale || 'fr';
+  const dNum = d => d.getDate();
+  const mLong = d => d.toLocaleDateString(loc, {month:'long'});
+  const y = a.getFullYear();
   const sameMonth = a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
-  const sameYear  = a.getFullYear() === b.getFullYear();
-  const loc = PROJECT.locale || 'fr';
-  const mY  = d => d.toLocaleDateString(loc, {month:'long', year:'numeric'});
-  const dMY = d => d.toLocaleDateString(loc, {day:'numeric', month:'long', year:'numeric'});
-  const sM  = d => d.toLocaleDateString(loc, {month:'short', year:'numeric'});
-  if (sameDay)   return dMY(a);
-  if (sameMonth) return mY(a);
-  if (sameYear)  return a.toLocaleDateString(loc, {month:'long'}) + ' \u2013 ' + mY(b);
-  return sM(a) + ' \u2013 ' + sM(b);
+  // 1 day: full date
+  if (diff === 0) return a.toLocaleDateString(loc, {day:'numeric', month:'long', year:'numeric'});
+  // 2 days: "les X et Y mois année"
+  if (diff === 1 && sameMonth) {
+    const sep = loc.startsWith('fr') ? 'Les' : 'The';
+    return \`\${sep} \${dNum(a)} et \${dNum(b)} \${mLong(a)} \${y}\`;
+  }
+  // 3–5 days: "Du X au Y mois année"
+  if (diff <= 4) {
+    const pre = loc.startsWith('fr') ? 'Du' : '';
+    const mid = loc.startsWith('fr') ? 'au' : '–';
+    if (sameMonth) return \`\${pre} \${dNum(a)} \${mid} \${dNum(b)} \${mLong(a)} \${y}\`.trim();
+    return \`\${pre} \${dNum(a)} \${mLong(a)} \${mid} \${dNum(b)} \${mLong(b)} \${y}\`.trim();
+  }
+  // ≥6 days: month [– month] year
+  if (sameMonth) return a.toLocaleDateString(loc, {month:'long', year:'numeric'});
+  if (a.getFullYear() === b.getFullYear())
+    return mLong(a) + ' \u2013 ' + b.toLocaleDateString(loc, {month:'long', year:'numeric'});
+  return a.toLocaleDateString(loc, {month:'short', year:'numeric'}) + ' \u2013 ' + b.toLocaleDateString(loc, {month:'short', year:'numeric'});
 }
 const dateFmt = fmtDateRange(PROJECT.date, PROJECT.dateEnd);
 document.getElementById('bTitle').textContent = PROJECT.title || '';
-document.getElementById('bMeta').textContent  = [PROJECT.location, dateFmt].filter(Boolean).join(' \u00b7 ');
+const bMetaParts = [PROJECT.location, dateFmt];
+if (PROJECT.photographers && PROJECT.photographers.length > 0)
+  bMetaParts.push(PROJECT.photographers.join(' \u00b7 '));
+document.getElementById('bMeta').textContent  = bMetaParts.filter(Boolean).join(' \u00b7 ');
 document.getElementById('bCount').textContent = PHOTOS.length + ' photo' + (PHOTOS.length>1?'s':'');
 
 /* ── EXIF localisation strings ──────────────────────── */

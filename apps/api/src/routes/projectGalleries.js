@@ -161,7 +161,29 @@ router.get('/', async (req, res) => {
     'SELECT * FROM galleries WHERE project_id = ? ORDER BY created_at DESC',
     [req.project.id]
   );
-  res.json(await Promise.all(rows.map(r => rowToGalleryAsync(r))));
+  const galleries = await Promise.all(rows.map(r => rowToGalleryAsync(r)));
+
+  // Attach photographer names (sorted by photo count desc) in a single batch query
+  if (galleries.length > 0) {
+    const ids = galleries.map(g => g.id);
+    const [pgRows] = await query(
+      `SELECT p.gallery_id, u.name, COUNT(*) AS cnt
+       FROM photos p
+       JOIN users u ON u.id = p.photographer_id
+       WHERE p.gallery_id IN (${ids.map(() => '?').join(',')})
+       GROUP BY p.gallery_id, p.photographer_id
+       ORDER BY cnt DESC`,
+      ids
+    );
+    const pgMap = {};
+    for (const r of pgRows) {
+      if (!pgMap[r.gallery_id]) pgMap[r.gallery_id] = [];
+      pgMap[r.gallery_id].push(r.name);
+    }
+    for (const g of galleries) g.photographers = pgMap[g.id] || [];
+  }
+
+  res.json(galleries);
 });
 
 // POST /api/projects/:projectId/galleries
