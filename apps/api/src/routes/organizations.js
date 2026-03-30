@@ -155,18 +155,21 @@ router.post('/:id/members/create', async (req, res) => {
   let statusCode = 201;
 
   if (existing[0]) {
-    // User already exists — check if already a member of this org
-    const existingRole = await getOrgRole(existing[0].id, org.id);
-    if (existingRole) {
+    userId = existing[0].id;
+    // Check if already a full member (organization_id properly set in studio_memberships)
+    const [smRows] = await query(
+      'SELECT id FROM studio_memberships WHERE user_id = ? AND organization_id = ?',
+      [userId, org.id]
+    );
+    if (smRows[0]) {
       return res.status(409).json({ error: 'This user is already a member of this organization' });
     }
-    // Not yet a member: just add them (update password if provided)
-    userId = existing[0].id;
+    // User exists but membership missing or has organization_id = NULL — fix it
     if (password) {
       await query('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?',
         [hashPassword(password), Date.now(), userId]);
     }
-    statusCode = 200; // existing user added to org
+    statusCode = 200;
   } else {
     const id  = genId();
     const now = Date.now();
