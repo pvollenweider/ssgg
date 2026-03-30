@@ -120,6 +120,7 @@ export const api = {
   getProjectGalleries:    (projectId)       => req('GET',  `/projects/${projectId}/galleries`),
   createProjectGallery:   (projectId, data) => req('POST', `/projects/${projectId}/galleries`, data),
   buildAllProjectGalleries:(projectId)      => req('POST', `/projects/${projectId}/galleries/build-all`),
+  buildAllStudioGalleries: ()               => req('POST', `/studios/build-all`),
 
   // Dashboard
   getDashboard: () => req('GET', '/dashboard'),

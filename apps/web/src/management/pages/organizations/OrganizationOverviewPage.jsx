@@ -10,7 +10,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
 import { useBreadcrumb } from '../../context/BreadcrumbContext.jsx';
-import { AdminPage, AdminCard, AdminAlert, AdminLoader, AdminButton } from '../../../components/ui/index.js';
+import { AdminPage, AdminCard, AdminAlert, AdminLoader, AdminButton, AdminToast } from '../../../components/ui/index.js';
 
 export default function OrganizationOverviewPage() {
   const t = useT();
@@ -21,6 +21,20 @@ export default function OrganizationOverviewPage() {
   const [projectCount, setProjectCount] = useState(null);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState('');
+  const [buildingAll,  setBuildingAll]  = useState(false);
+  const [buildToast,   setBuildToast]   = useState('');
+
+  async function buildAll() {
+    setBuildingAll(true);
+    try {
+      const r = await api.buildAllStudioGalleries();
+      setBuildToast(`${r.queued} galerie(s) sur ${r.total} en file de rendu`);
+    } catch (err) {
+      setBuildToast(`Erreur : ${err.message}`);
+    } finally {
+      setBuildingAll(false);
+    }
+  }
 
   useEffect(() => {
     Promise.all([api.getOrganization(orgId), api.listProjects()])
@@ -36,7 +50,20 @@ export default function OrganizationOverviewPage() {
   const base = `/admin/organizations/${orgId}`;
 
   return (
-    <AdminPage title={org?.name ?? 'Organization'} maxWidth="100%">
+    <AdminPage
+      title={org?.name ?? 'Organization'}
+      maxWidth="100%"
+      actions={
+        <AdminButton
+          variant="outline-secondary" size="sm"
+          loading={buildingAll} loadingLabel="Republication…"
+          onClick={buildAll} icon="fas fa-sync-alt"
+        >
+          Republier tout
+        </AdminButton>
+      }
+    >
+      <AdminToast message={buildToast} onDone={() => setBuildToast('')} />
       {loading && <AdminLoader />}
       <AdminAlert message={error} />
 

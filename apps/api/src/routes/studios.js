@@ -15,6 +15,7 @@ import {
   upsertStudioMembership,
   removeStudioMembership,
   getStudioMembership,
+  createJob,
   ROLE_HIERARCHY,
   audit,
 } from '../db/helpers.js';
@@ -73,6 +74,31 @@ router.delete('/members/:userId', requireStudioRole('owner'), async (req, res) =
   await removeStudioMembership(req.studioId, userId);
   try { await audit(req.studioId, req.userId, 'member.removed', 'user', userId, { removedRole: existing.role }); } catch {}
   res.json({ ok: true });
+});
+
+// POST /api/studios/build-all — queue builds for every gallery in the studio
+router.post('/build-all', requireStudioRole('admin'), async (req, res) => {
+  const [rows] = await query(
+    "SELECT id FROM galleries WHERE studio_id = ? AND status != 'archived'",
+    [req.studioId]
+  );
+  if (!rows.length) return res.json({ queued: 0, total: 0 });
+
+  let queued = 0;
+  for (const { id } of rows) {
+    const [existing] = await query(
+      "SELECT COUNT(*) AS n FROM build_jobs WHERE studio_id = ? AND gallery_id = ? AND status IN ('queued','running')",
+      [req.studioId, id]
+    );
+    if (existing[0].n > 0) continue;
+    try {
+      await createJob({ galleryId: id, studioId: req.studioId, triggeredBy: req.user.id, force: false });
+      queued++;
+    } catch {}
+  }
+
+  try { await audit(req.studioId, req.userId, 'studio.build_all', 'studio', req.studioId, { queued, total: rows.length }); } catch {}
+  res.json({ queued, total: rows.length });
 });
 
 // GET /api/studios/audit — last 100 audit log entries (admin+)
