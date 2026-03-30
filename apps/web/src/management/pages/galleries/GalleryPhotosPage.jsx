@@ -32,6 +32,7 @@ export default function GalleryPhotosPage() {
   const [sortAsc,      setSortAsc]      = useState(true);
   const [dateSortAsc,  setDateSortAsc]  = useState(true);
   const [deleting,     setDeleting]     = useState(null);
+  const [settingCover, setSettingCover] = useState(null);
 
   // Publish state
   const [building,    setBuilding]    = useState(false);
@@ -160,6 +161,15 @@ export default function GalleryPhotosPage() {
       setSelected(prev => { const s = new Set(prev); s.delete(filename); return s; });
     } catch (e) { setToast(`${t('error')}: ${e.message}`); }
     finally { setDeleting(null); }
+  }
+
+  async function setCover(filename) {
+    setSettingCover(filename);
+    try {
+      await api.updateGallery(galleryId, { coverPhoto: filename });
+      setGallery(g => ({ ...g, coverPhoto: filename }));
+    } catch (e) { setToast(`${t('error')}: ${e.message}`); }
+    finally { setSettingCover(null); }
   }
 
   async function sortPhotos(dir) {
@@ -595,7 +605,7 @@ export default function GalleryPhotosPage() {
                       }}
                       style={{
                         position: 'relative',
-                        border: `2px solid ${isSelected ? '#3b82f6' : isDropTarget ? '#f59e0b' : '#dee2e6'}`,
+                        border: `2px solid ${isSelected ? '#3b82f6' : isDropTarget ? '#f59e0b' : gallery?.coverPhoto === p.file ? '#eab308' : '#dee2e6'}`,
                         borderRadius: 6,
                         overflow: 'hidden',
                         cursor: 'grab',
@@ -642,14 +652,33 @@ export default function GalleryPhotosPage() {
                         </div>
                       )}
                       {canEdit && (
-                        <button
-                          onClick={e => { e.stopPropagation(); handleDelete(p.file); }}
-                          disabled={deleting === p.file}
-                          title={t('delete')}
-                          style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff', borderRadius: 4, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}
-                        >
-                          <i className="fas fa-times" />
-                        </button>
+                        <>
+                          {/* Cover photo toggle */}
+                          <button
+                            onClick={e => { e.stopPropagation(); if (gallery?.coverPhoto !== p.file) setCover(p.file); }}
+                            disabled={settingCover === p.file}
+                            title={gallery?.coverPhoto === p.file ? 'Image clé' : 'Définir comme image clé'}
+                            style={{
+                              position: 'absolute', top: 4, left: 28, background: gallery?.coverPhoto === p.file ? 'rgba(234,179,8,0.9)' : 'rgba(0,0,0,0.55)',
+                              border: 'none', color: '#fff', borderRadius: 4, width: 24, height: 24,
+                              cursor: gallery?.coverPhoto === p.file ? 'default' : 'pointer',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem',
+                            }}
+                          >
+                            {settingCover === p.file
+                              ? <i className="fas fa-spinner fa-spin" />
+                              : <i className={`fas fa-star`} />}
+                          </button>
+                          {/* Delete */}
+                          <button
+                            onClick={e => { e.stopPropagation(); handleDelete(p.file); }}
+                            disabled={deleting === p.file}
+                            title={t('delete')}
+                            style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff', borderRadius: 4, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}
+                          >
+                            <i className="fas fa-times" />
+                          </button>
+                        </>
                       )}
                     </div>
                   );
