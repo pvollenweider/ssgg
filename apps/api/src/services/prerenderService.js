@@ -26,6 +26,7 @@ import { existsSync, statSync, readFileSync } from 'node:fs';
 import fs                      from 'node:fs/promises';
 import crypto                  from 'node:crypto';
 import { INTERNAL_ROOT, BUILD_CFG_PATH } from '../../../../packages/engine/src/fs.js';
+import { runSharp } from './sharpProcess.js';
 
 // ── Build config (sizes & quality) ───────────────────────────────────────────
 
@@ -111,71 +112,39 @@ export function enqueuePrerender(srcPath, filename) {
     log(`${filename} → ${hash}`);
     await fs.mkdir(dir, { recursive: true });
 
-    const { default: sharp } = await import('sharp');
     const cfg = getBuildCfg();
 
-    // Pre-validate: check the file is decodable before queuing full processing.
-    // This catches Live Photos (JPEG + embedded H.264 video) and other corrupt files
-    // that would cause a SIGBUS crash in libvips during actual decoding.
+    // Pre-validate in an isolated child process — if the file causes a SIGBUS
+    // in libvips, only the child dies; the API is unaffected.
     try {
-      await sharp(srcPath, { failOn: 'none', sequentialRead: true }).metadata();
+      await runSharp({ op: 'metadata', srcPath });
     } catch (err) {
       log(`  ✗ skipped (undecodable): ${err.message}`);
       return;
     }
 
-    // sequentialRead: true — use sequential I/O instead of mmap to prevent SIGBUS
-    // crashes on corrupt JPEG data (e.g. iOS Live Photos with embedded H.264 video).
-    const sharpOpts = { failOn: 'none', sequentialRead: true };
-
     const jobs = [
-      // full — layout-independent
-      {
-        out:    path.join(dir, 'full.webp'),
-        build:  () => sharp(srcPath, sharpOpts).rotate()
-                  .resize(cfg.fullSize, cfg.fullSize, { fit: 'inside', withoutEnlargement: true })
-                  .webp({ quality: cfg.quality.full }),
-        label:  `full ≤${cfg.fullSize}px`,
-      },
-      // grid small (position !big)
-      {
-        out:    path.join(dir, 'grid-small.webp'),
-        build:  () => sharp(srcPath, sharpOpts).rotate()
-                  .resize(cfg.gridSizeSmall, cfg.gridSizeSmall, { fit: 'cover', position: 'centre' })
-                  .webp({ quality: cfg.quality.grid }),
-        label:  `grid-small ${cfg.gridSizeSmall}×${cfg.gridSizeSmall}`,
-      },
-      // grid big (position 0 or 8 mod 12)
-      {
-        out:    path.join(dir, 'grid-big.webp'),
-        build:  () => sharp(srcPath, sharpOpts).rotate()
-                  .resize(cfg.gridSizeBig, cfg.gridSizeBig, { fit: 'cover', position: 'centre' })
-                  .webp({ quality: cfg.quality.grid }),
-        label:  `grid-big ${cfg.gridSizeBig}×${cfg.gridSizeBig}`,
-      },
-      // grid-sm small (mobile, position !big)
-      {
-        out:    path.join(dir, 'grid-sm-small.webp'),
-        build:  () => sharp(srcPath, sharpOpts).rotate()
-                  .resize(cfg.gridSizeMobileSmall, cfg.gridSizeMobileSmall, { fit: 'cover', position: 'centre' })
-                  .webp({ quality: cfg.quality.grid }),
-        label:  `grid-sm-small ${cfg.gridSizeMobileSmall}×${cfg.gridSizeMobileSmall}`,
-      },
-      // grid-sm big (mobile, position 0 or 8 mod 12)
-      {
-        out:    path.join(dir, 'grid-sm-big.webp'),
-        build:  () => sharp(srcPath, sharpOpts).rotate()
-                  .resize(cfg.gridSizeMobileBig, cfg.gridSizeMobileBig, { fit: 'cover', position: 'centre' })
-                  .webp({ quality: cfg.quality.grid }),
-        label:  `grid-sm-big ${cfg.gridSizeMobileBig}×${cfg.gridSizeMobileBig}`,
-      },
+      { out: path.join(dir, 'full.webp'),         label: `full ≤${cfg.fullSize}px`,
+        msg: { op: 'resize-webp', srcPath, destPath: path.join(dir, 'full.webp'),
+               width: cfg.fullSize, height: cfg.fullSize, fit: 'inside', quality: cfg.quality.full } },
+      { out: path.join(dir, 'grid-small.webp'),   label: `grid-small ${cfg.gridSizeSmall}×${cfg.gridSizeSmall}`,
+        msg: { op: 'resize-webp', srcPath, destPath: path.join(dir, 'grid-small.webp'),
+               width: cfg.gridSizeSmall, height: cfg.gridSizeSmall, fit: 'cover', quality: cfg.quality.grid } },
+      { out: path.join(dir, 'grid-big.webp'),     label: `grid-big ${cfg.gridSizeBig}×${cfg.gridSizeBig}`,
+        msg: { op: 'resize-webp', srcPath, destPath: path.join(dir, 'grid-big.webp'),
+               width: cfg.gridSizeBig, height: cfg.gridSizeBig, fit: 'cover', quality: cfg.quality.grid } },
+      { out: path.join(dir, 'grid-sm-small.webp'),label: `grid-sm-small ${cfg.gridSizeMobileSmall}×${cfg.gridSizeMobileSmall}`,
+        msg: { op: 'resize-webp', srcPath, destPath: path.join(dir, 'grid-sm-small.webp'),
+               width: cfg.gridSizeMobileSmall, height: cfg.gridSizeMobileSmall, fit: 'cover', quality: cfg.quality.grid } },
+      { out: path.join(dir, 'grid-sm-big.webp'),  label: `grid-sm-big ${cfg.gridSizeMobileBig}×${cfg.gridSizeMobileBig}`,
+        msg: { op: 'resize-webp', srcPath, destPath: path.join(dir, 'grid-sm-big.webp'),
+               width: cfg.gridSizeMobileBig, height: cfg.gridSizeMobileBig, fit: 'cover', quality: cfg.quality.grid } },
     ];
 
-    for (const { out, build, label } of jobs) {
-      if (existsSync(out)) continue; // already generated in a previous attempt
+    for (const { out, msg, label } of jobs) {
+      if (existsSync(out)) continue;
       try {
-        const buf = await build().toBuffer();
-        await fs.writeFile(out, buf);
+        await runSharp(msg);
         log(`  ✓ ${label}`);
       } catch (err) {
         log(`  ✗ ${label}: ${err.message}`);

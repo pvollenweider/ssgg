@@ -15,8 +15,9 @@ import { query }      from '../db/database.js';
 import { getUploadLinkByToken, getPhotographerByUploadLink } from '../db/helpers.js';
 import { emit, EVENTS } from '../services/events.js';
 import { SRC_ROOT }       from '../../../../packages/engine/src/fs.js';
-import { generateThumbnails, photoThumbnails } from '../services/thumbnailService.js';
+import { generateThumbnails, photoThumbnails, thumbPath } from '../services/thumbnailService.js';
 import { extractExif } from '../../../../packages/engine/src/exif.js';
+import { runSharp } from '../services/sharpProcess.js';
 
 const router = Router();
 
@@ -41,8 +42,8 @@ const storage = multer.diskStorage({
     }
   },
   filename(req, file, cb) {
-    const safe = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_');
-    cb(null, safe);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${randomUUID()}${ext}`);
   },
 });
 
@@ -101,17 +102,18 @@ router.post('/:token/photos', upload.array('photos', 50), async (req, res) => {
     });
   }
 
-  // Validate each file with Sharp before inserting — rejects corrupt files and
-  // iOS Live Photos (JPEG + embedded H.264) that would crash libvips during processing.
-  const { default: sharp } = await import('sharp');
+  // Validate each file AND generate sm thumbnail atomically in an isolated child process.
   const validFiles    = [];
   const rejectedFiles = [];
   for (const f of req.files || []) {
+    const ext     = path.extname(f.filename).toLowerCase();
+    const photoId = path.basename(f.filename, ext);
+    const smDest  = thumbPath(photoId, 'sm');
+    const mdDest  = thumbPath(photoId, 'md');
     try {
-      await sharp(f.path, { failOn: 'none', sequentialRead: true }).metadata();
-      validFiles.push(f);
+      await runSharp({ op: 'validate-and-thumbs', srcPath: f.path, smPath: smDest, mdPath: mdDest });
+      validFiles.push({ ...f, _photoId: photoId });
     } catch {
-      try { fs.unlinkSync(f.path); } catch {}
       rejectedFiles.push(f.originalname || f.filename);
     }
   }
@@ -121,7 +123,7 @@ router.post('/:token/photos', upload.array('photos', 50), async (req, res) => {
 
   const uploaded = [];
   for (const f of validFiles) {
-    const photoId = randomUUID();
+    const photoId = f._photoId;
     await query(
       `INSERT INTO photos (id, gallery_id, filename, original_name, size_bytes, status, upload_link_id, photographer_id)
        VALUES (?, ?, ?, ?, ?, 'approved', ?, ?)
@@ -131,7 +133,7 @@ router.post('/:token/photos', upload.array('photos', 50), async (req, res) => {
          photographer_id = VALUES(photographer_id)`,
       [photoId, link.gallery_id, f.filename, f.originalname, f.size, link.id, photographer?.id ?? null]
     );
-    // Generate thumbnails — failure does NOT abort the upload
+    // sm already done above; generate md thumbnail
     try {
       await generateThumbnails(f.path, photoId);
     } catch (err) {

@@ -22,8 +22,9 @@ import fs             from 'fs';
 import { randomUUID } from 'node:crypto';
 import { query }      from '../db/database.js';
 import { validateToken, tokenCoversGallery } from '../services/personalTokenService.js';
-import { generateThumbnails, photoThumbnails } from '../services/thumbnailService.js';
+import { generateThumbnails, photoThumbnails, thumbPath } from '../services/thumbnailService.js';
 import { SRC_ROOT } from '../../../../packages/engine/src/fs.js';
+import { runSharp } from '../services/sharpProcess.js';
 
 const router = Router();
 
@@ -54,8 +55,8 @@ const storage = multer.diskStorage({
     cb(null, dir);
   },
   filename(req, file, cb) {
-    const safe = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_');
-    cb(null, safe);
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${randomUUID()}${ext}`);
   },
 });
 
@@ -124,9 +125,28 @@ router.post('/', authAndResolve, upload.array('photos', MAX_FILES), async (req, 
     });
   }
 
-  const uploaded = [];
+  // Validate AND generate sm thumbnail atomically — child process isolates SIGBUS.
+  const validFiles    = [];
+  const rejectedFiles = [];
   for (const f of req.files) {
-    const photoId = randomUUID();
+    const ext     = path.extname(f.filename).toLowerCase();
+    const photoId = path.basename(f.filename, ext);
+    const smDest  = thumbPath(photoId, 'sm');
+    const mdDest  = thumbPath(photoId, 'md');
+    try {
+      await runSharp({ op: 'validate-and-thumbs', srcPath: f.path, smPath: smDest, mdPath: mdDest });
+      validFiles.push({ ...f, _photoId: photoId });
+    } catch {
+      rejectedFiles.push(f.originalname || f.filename);
+    }
+  }
+  if (rejectedFiles.length > 0) {
+    console.warn(`[personal-upload] rejected ${rejectedFiles.length} undecodable file(s): ${rejectedFiles.join(', ')}`);
+  }
+
+  const uploaded = [];
+  for (const f of validFiles) {
+    const photoId = f._photoId;
     await query(
       `INSERT INTO photos
          (id, gallery_id, filename, original_name, size_bytes, status, uploaded_by_user_id, personal_token_id)
