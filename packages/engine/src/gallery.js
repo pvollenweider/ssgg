@@ -212,6 +212,18 @@ export async function buildGallery(srcName, { build, project: projectOverride, d
     const legalTxtPath  = path.join(galSrc, 'legal.txt');
     const customLegal   = {};
 
+    // Inject photographer names + details (sorted by photo count) into project config for legal templates
+    const detailsFilePath = path.join(galSrc, 'photographer_details.json');
+    if (fs.existsSync(detailsFilePath)) {
+      try {
+        const details = JSON.parse(fs.readFileSync(detailsFilePath, 'utf8'));
+        if (details.length > 0) {
+          galCfg.project.photographerDetails = details;
+          galCfg.project.photographers       = details.map(p => p.name);
+        }
+      } catch (_) {}
+    }
+
     if (fs.existsSync(legalHtmlPath)) {
       customLegal.html = applyLegalTokens(fs.readFileSync(legalHtmlPath, 'utf8'), galCfg.project);
       ok('legal.html → gallery-specific template applied');

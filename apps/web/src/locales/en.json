@@ -574,6 +574,8 @@
   "pg_selected": "{n} selected",
   "pg_assign_to": "Assign to",
   "pg_unassign": "Remove attribution",
+  "pg_filter_by_photographer": "Filter by photographer",
+  "pg_filter_unassigned": "Unattributed photos",
   "gal_upload_title": "Upload",
   "gal_upload_links_section": "Upload links",
   "gal_upload_no_links": "No upload links yet.",

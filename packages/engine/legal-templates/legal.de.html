@@ -5,7 +5,8 @@
 <h2>Urheberrecht</h2>
 <p>
   Die in dieser Galerie präsentierten Fotografien sind Originalwerke von
-  <strong>{{author}}</strong> (&copy;&nbsp;{{year}}).
+  <strong>{{author}}</strong>{{#if photographerNames}} und <strong>{{photographerNames}}</strong>{{/if}}
+  (&copy;&nbsp;{{year}}).
   {{#if location}}Aufgenommen in {{location}}.{{/if}}
   Jedes Bild stellt ein eigenständiges Werk dar, das durch das Schweizer
   Urheberrecht (<em>Bundesgesetz über das Urheberrecht und verwandte Schutzrechte, URG</em>)
@@ -52,5 +53,6 @@
   <strong>{{author}}</strong>{{#if authorEmail}}<br>
   <a href="mailto:{{authorEmail}}">{{authorEmail}}</a>{{/if}}
 </p>
+{{#if photographerContacts}}{{photographerContacts}}{{/if}}
 <hr>
 <p>Vielen Dank, dass Sie diese Bedingungen einhalten und zum Schutz künstlerischer Werke beitragen.</p>

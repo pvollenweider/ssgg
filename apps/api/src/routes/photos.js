@@ -165,6 +165,7 @@ router.get('/:id/photos', async (req, res) => {
       upload_link_label: p.upload_link_label || null,
       thumb:             nameMap[p.filename] || null,
       thumbnail:         photoThumbnails(p.id),
+      photographer_id:   p.photographer_id || null,
     })));
   }
 
@@ -632,27 +633,8 @@ router.delete('/:id/photographers/:pgId', async (req, res) => {
 
 // ── Manual photo attribution ───────────────────────────────────────────────────
 
-// PATCH /api/galleries/:id/photos/:photoId — manually set photographer_id
-router.patch('/:id/photos/:photoId', async (req, res) => {
-  const gallery = await ensureGalleryBelongsToStudio(req, res);
-  if (!gallery) return;
-  const galleryRole = await getGalleryRole(req.userId, gallery.id);
-  if (!can(req.user, 'upload', 'photo', { studioRole: req.studioRole, galleryRole })) {
-    return res.status(403).json({ error: 'Forbidden' });
-  }
-
-  const { photographerId } = req.body || {};
-  // photographerId = null clears attribution
-  if (photographerId !== undefined && photographerId !== null) {
-    const [urows] = await query('SELECT id FROM users WHERE id = ?', [photographerId]);
-    if (!urows[0]) return res.status(400).json({ error: 'User not found' });
-  }
-
-  await setPhotoPhotographer(req.params.photoId, photographerId ?? null);
-  res.json({ ok: true });
-});
-
 // PATCH /api/galleries/:id/photos/bulk-attribute — bulk set photographer on multiple photos
+// NOTE: must be declared before /:id/photos/:photoId to avoid the wildcard swallowing it
 router.patch('/:id/photos/bulk-attribute', async (req, res) => {
   const gallery = await ensureGalleryBelongsToStudio(req, res);
   if (!gallery) return;
@@ -672,6 +654,26 @@ router.patch('/:id/photos/bulk-attribute', async (req, res) => {
 
   const count = await bulkSetPhotoPhotographer(photoIds, photographerId ?? null);
   res.json({ ok: true, updated: count });
+});
+
+// PATCH /api/galleries/:id/photos/:photoId — manually set photographer_id on a single photo
+router.patch('/:id/photos/:photoId', async (req, res) => {
+  const gallery = await ensureGalleryBelongsToStudio(req, res);
+  if (!gallery) return;
+  const galleryRole = await getGalleryRole(req.userId, gallery.id);
+  if (!can(req.user, 'upload', 'photo', { studioRole: req.studioRole, galleryRole })) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const { photographerId } = req.body || {};
+  // photographerId = null clears attribution
+  if (photographerId !== undefined && photographerId !== null) {
+    const [urows] = await query('SELECT id FROM users WHERE id = ?', [photographerId]);
+    if (!urows[0]) return res.status(400).json({ error: 'User not found' });
+  }
+
+  await setPhotoPhotographer(req.params.photoId, photographerId ?? null);
+  res.json({ ok: true });
 });
 
 export default router;

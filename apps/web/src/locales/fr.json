@@ -290,6 +290,8 @@
   "pg_selected": "{n} sélectionnée(s)",
   "pg_assign_to": "Attribuer à",
   "pg_unassign": "Retirer l'attribution",
+  "pg_filter_by_photographer": "Filtrer par photographe",
+  "pg_filter_unassigned": "Photos non attribuées",
   "gal_upload_title": "Upload",
   "gal_upload_links_section": "Liens d'upload",
   "gal_upload_no_links": "Aucun lien d'upload.",
