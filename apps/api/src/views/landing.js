@@ -181,7 +181,7 @@ export function renderProjectListing(projectSlug, projectName, galleries, siteTi
         const dateLabel  = fmtDateRange(g.dateRange, g.date);
         const photoLabel = g.photoCount === 1 ? '1 photo' : `${g.photoCount || 0} photos`;
         const pgLine = g.photographers?.length > 0
-          ? `<p class="card-authors">${g.photographers.map(n => esc(n)).join('<span class="sep">·</span>')}</p>`
+          ? `<p class="card-authors">Photos de ${g.photographers.map(n => esc(n)).join('<span class="sep">·</span>')}</p>`
           : '';
         const descLine = g.description
           ? `<p class="card-desc">${esc(g.description)}</p>`
