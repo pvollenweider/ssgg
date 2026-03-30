@@ -9,7 +9,7 @@
 // UI-only component: delegates queue management to UploadContext.
 // Displays items for a specific galleryId; navigation never interrupts uploads.
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { api } from '../lib/api.js';
 import { useUpload } from '../management/context/UploadContext.jsx';
 
@@ -49,12 +49,34 @@ const STATUS_BADGE = {
   error:     { bg: '#fee2e2', color: '#dc2626', label: '✕ Failed' },
 };
 
-export function UploadZone({ galleryId, onDone }) {
+// Auto-append " (1)", " (2)"… until the name is not in the taken set.
+function autoRename(filename, taken) {
+  const dot  = filename.lastIndexOf('.');
+  const base = dot >= 0 ? filename.slice(0, dot) : filename;
+  const ext  = dot >= 0 ? filename.slice(dot)    : '';
+  let i = 1;
+  let candidate;
+  do { candidate = `${base} (${i++})${ext}`; } while (taken.has(candidate));
+  return candidate;
+}
+
+export function UploadZone({ galleryId, onDone, existingPhotos = [] }) {
   const { enqueue, registerOnDone, unregisterOnDone, retryItem, retryFailed, clearDone, items, globalStats } = useUpload();
-  const [dragging, setDragging] = useState(false);
-  const [notified, setNotified] = useState(false);
+  const [dragging,  setDragging]  = useState(false);
+  const [notified,  setNotified]  = useState(false);
+  const [conflict,  setConflict]  = useState(null);  // {fresh, dupes} | null
+  const [resolving, setResolving] = useState(false);
   const fileRef   = useRef();
   const folderRef = useRef();
+
+  // Map original_name → {file: uuid-filename, id} for existing gallery photos.
+  const existingMap = useMemo(() => {
+    const m = new Map();
+    for (const p of existingPhotos) {
+      if (p.original_name) m.set(p.original_name, p);
+    }
+    return m;
+  }, [existingPhotos]);
 
   // Keep onDone callback current in the global context
   useEffect(() => {
@@ -75,8 +97,55 @@ export function UploadZone({ galleryId, onDone }) {
   const pct = Math.round(totalProgress * 100);
 
   const addFiles = useCallback(async (fileList) => {
-    enqueue(galleryId, fileList);
-  }, [galleryId, enqueue]);
+    const files = Array.from(fileList).filter(f => isImage(f.name));
+    const fresh = files.filter(f => !existingMap.has(f.name));
+    const dupes = files.filter(f =>  existingMap.has(f.name));
+
+    if (dupes.length === 0) {
+      enqueue(galleryId, fresh);
+    } else {
+      setConflict({ fresh, dupes });
+    }
+  }, [galleryId, enqueue, existingMap]);
+
+  // ── Conflict resolution ─────────────────────────────────────────────────────
+
+  function resolveSkip() {
+    enqueue(galleryId, conflict.fresh);
+    setConflict(null);
+  }
+
+  function resolveRename() {
+    // Build the full set of names already taken: gallery + current queue + fresh batch.
+    const taken = new Set(existingMap.keys());
+    items.filter(x => x.galleryId === galleryId).forEach(x => taken.add(x.displayName ?? x.file.name));
+    conflict.fresh.forEach(f => taken.add(f.name));
+
+    const renamed = conflict.dupes.map(file => {
+      const name = autoRename(file.name, taken);
+      taken.add(name);
+      return { file, name };
+    });
+    enqueue(galleryId, [...conflict.fresh, ...renamed]);
+    setConflict(null);
+  }
+
+  async function resolveOverwrite() {
+    setResolving(true);
+    try {
+      // Delete existing photos that share the same original_name, then upload fresh.
+      await Promise.all(
+        conflict.dupes.map(f => {
+          const existing = existingMap.get(f.name);
+          return existing ? api.deletePhoto(galleryId, existing.file).catch(() => {}) : Promise.resolve();
+        })
+      );
+    } finally {
+      setResolving(false);
+    }
+    enqueue(galleryId, [...conflict.fresh, ...conflict.dupes]);
+    setConflict(null);
+  }
 
   async function onDrop(e) {
     e.preventDefault();
@@ -105,6 +174,56 @@ export function UploadZone({ galleryId, onDone }) {
       {globalStats.offline && (
         <div style={{ background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 6, padding: '0.5rem 0.75rem', fontSize: '0.82rem', color: '#92400e' }}>
           Waiting for network… uploads will resume automatically when you reconnect.
+        </div>
+      )}
+
+      {/* Duplicate conflict dialog */}
+      {conflict && (
+        <div style={s.conflictBox}>
+          <div style={s.conflictTitle}>
+            <i className="fas fa-copy me-2" style={{ color: '#b45309' }} />
+            {conflict.dupes.length === 1
+              ? `1 fichier existe déjà dans cette galerie`
+              : `${conflict.dupes.length} fichiers existent déjà dans cette galerie`}
+            {conflict.fresh.length > 0 && (
+              <span style={{ fontWeight: 400, color: '#78350f', marginLeft: '0.4em' }}>
+                · {conflict.fresh.length} nouveau{conflict.fresh.length > 1 ? 'x' : ''}
+              </span>
+            )}
+          </div>
+          <div style={s.conflictNames}>
+            {conflict.dupes.slice(0, 6).map(f => f.name).join(' · ')}
+            {conflict.dupes.length > 6 && ` · +${conflict.dupes.length - 6} autres`}
+          </div>
+          <div style={s.conflictActions}>
+            {conflict.fresh.length > 0 && (
+              <button style={s.conflictBtn} onClick={resolveSkip} title="N'uploader que les nouvelles photos">
+                <i className="fas fa-forward me-1" />
+                Passer les doublons
+                <span style={s.conflictCount}>{conflict.dupes.length}</span>
+              </button>
+            )}
+            <button style={s.conflictBtn} onClick={resolveRename} title="Uploader avec un nouveau nom : photo (1).jpg">
+              <i className="fas fa-tag me-1" />
+              Renommer
+              <span style={s.conflictCount}>{conflict.dupes.length}</span>
+            </button>
+            <button
+              style={{ ...s.conflictBtn, borderColor: '#dc2626', color: '#dc2626' }}
+              onClick={resolveOverwrite}
+              disabled={resolving}
+              title="Supprimer les originaux et uploader les nouveaux fichiers"
+            >
+              {resolving
+                ? <i className="fas fa-spinner fa-spin me-1" />
+                : <i className="fas fa-redo me-1" />}
+              Écraser
+              <span style={s.conflictCount}>{conflict.dupes.length}</span>
+            </button>
+            <button style={{ ...s.conflictBtn, marginLeft: 'auto' }} onClick={() => setConflict(null)}>
+              Annuler
+            </button>
+          </div>
         </div>
       )}
 
@@ -247,5 +366,11 @@ const s = {
   cardMeta:    { padding: '0.25rem 0.35rem 0' },
   badge:       { display: 'inline-block', fontSize: '0.65rem', fontWeight: 600, padding: '0.1rem 0.35rem', borderRadius: 3 },
   cardName:    { padding: '0.15rem 0.35rem 0.35rem', fontSize: '0.65rem', color: '#666', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  doneBtn:     { padding: '0.5rem 1.25rem', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' },
+  doneBtn:       { padding: '0.5rem 1.25rem', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' },
+  conflictBox:   { background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' },
+  conflictTitle: { fontWeight: 600, color: '#92400e', fontSize: '0.875rem' },
+  conflictNames: { color: '#78350f', fontSize: '0.78rem', lineHeight: 1.5, opacity: 0.85 },
+  conflictActions: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem' },
+  conflictBtn:   { display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.3rem 0.75rem', background: 'none', border: '1px solid #92400e', borderRadius: 5, cursor: 'pointer', fontSize: '0.8rem', color: '#92400e', fontWeight: 500, whiteSpace: 'nowrap' },
+  conflictCount: { background: '#fde68a', color: '#92400e', borderRadius: 10, padding: '0 0.35rem', fontSize: '0.7rem', fontWeight: 700, marginLeft: '0.15rem' },
 };

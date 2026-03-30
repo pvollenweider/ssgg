@@ -188,41 +188,47 @@ export function UploadProvider({ children }) {
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
-  const enqueue = useCallback((galleryId, fileList) => {
-    const uppy   = getUppy();
-    const images = Array.from(fileList).filter(f => isImage(f.name));
+  // Accept File objects OR {file, name} pairs (for client-side rename support).
+  const enqueue = useCallback((galleryId, filesOrPairs) => {
+    const uppy  = getUppy();
+    const pairs = Array.from(filesOrPairs).map(item =>
+      item instanceof File ? { file: item, name: item.name } : item
+    ).filter(({ name }) => isImage(name));
 
-    const existingNames = new Set(
+    // Dedup against items already in the queue for this gallery.
+    // Use displayName (set when file was renamed) or fall back to file.name.
+    const queued = new Set(
       Array.from(itemsMapRef.current.values())
         .filter(x => x.galleryId === galleryId)
-        .map(x => x.file.name)
+        .map(x => x.displayName ?? x.file.name)
     );
 
     let added = 0;
-    for (const file of images) {
-      if (existingNames.has(file.name)) continue;
+    for (const { file, name } of pairs) {
+      if (queued.has(name)) continue;
       let uppyId;
       try {
         uppyId = uppy.addFile({
-          name: file.name,
+          name,
           type: file.type || 'application/octet-stream',
           data: file,
-          meta: { galleryId, filename: file.name },
+          meta: { galleryId, filename: name },   // filename sent in Upload-Metadata
         });
       } catch (err) {
-        log(`skip "${file.name}": ${err.message}`);
+        log(`skip "${name}": ${err.message}`);
         continue;
       }
       itemsMapRef.current.set(uppyId, {
-        id:         uppyId,
+        id:          uppyId,
         galleryId,
         file,
-        status:     'queued',
-        progress:   0,
-        preview:    URL.createObjectURL(file),
-        errorMsg:   null,
-        noRetry:    false,
-        retryLabel: null,
+        displayName: name,      // may differ from file.name when renamed
+        status:      'queued',
+        progress:    0,
+        preview:     URL.createObjectURL(file),
+        errorMsg:    null,
+        noRetry:     false,
+        retryLabel:  null,
       });
       added++;
     }

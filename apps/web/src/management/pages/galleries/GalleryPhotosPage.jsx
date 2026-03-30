@@ -458,6 +458,7 @@ export default function GalleryPhotosPage() {
           <AdminCard title={t('upload_photos')} className="mb-4">
             <UploadZone
               galleryId={galleryId}
+              existingPhotos={photos}
               onDone={() => refreshPhotos().then(p => { if (p.some(x => !x.thumbnail?.sm)) startPolling(); })}
             />
           </AdminCard>
