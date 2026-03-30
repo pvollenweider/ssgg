@@ -5,13 +5,15 @@
 <h2>Diritto d&rsquo;autore</h2>
 <p>
   Le fotografie presentate in questa galleria sono opere originali di
-  <strong>{{author}}</strong> (&copy;&nbsp;{{year}}).
+  <strong>{{author}}</strong>{{#if photographerNames}} e di <strong>{{photographerNames}}</strong>{{/if}}
+  (&copy;&nbsp;{{year}}).
   {{#if location}}Scattate a {{location}}.{{/if}}
   Ogni immagine costituisce un&rsquo;opera individuale protetta dalla legge
   svizzera sul diritto d&rsquo;autore (<em>Legge federale sul diritto d&rsquo;autore
   e sui diritti affini, LDA</em>).
   Tutti i diritti riservati.
 </p>
+
 
 <h2>Diritti d&rsquo;uso</h2>
 <p>
@@ -52,5 +54,6 @@
   <strong>{{author}}</strong>{{#if authorEmail}}<br>
   <a href="mailto:{{authorEmail}}">{{authorEmail}}</a>{{/if}}
 </p>
+{{#if photographerContacts}}{{photographerContacts}}{{/if}}
 <hr>
 <p>Grazie per aver rispettato queste condizioni e per contribuire alla tutela della creazione artistica.</p>

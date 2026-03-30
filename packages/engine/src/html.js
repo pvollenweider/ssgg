@@ -62,14 +62,23 @@ export function escHtml(s) {
 export function applyLegalTokens(tpl, project) {
   const year = project.date ? project.date.slice(0, 4) : String(new Date().getFullYear());
   const map  = {
-    title:       project.title       || '',
-    subtitle:    project.subtitle    || '',
-    author:      project.author      || '',
-    authorEmail: project.authorEmail || '',
+    title:         project.title       || '',
+    subtitle:      project.subtitle    || '',
+    author:        project.author      || '',
+    authorEmail:   project.authorEmail || '',
     year,
-    date:        project.date        || '',
-    location:    project.location    || '',
-    description: project.description || '',
+    date:          project.date        || '',
+    location:      project.location    || '',
+    description:   project.description || '',
+    photographers:     (project.photographers || []).map(n => '\u00a9\u00a0' + n).join(', '),
+    photographerNames: (project.photographers || []).filter(n => n !== (project.author || '')).join(', '),
+    photographerContacts: (project.photographerDetails || [])
+      .filter(p => p.name !== (project.author || ''))
+      .map(p => p.email
+        ? `<strong>${p.name}</strong><br><a href="mailto:${p.email}">${p.email}</a>`
+        : `<strong>${p.name}</strong>`)
+      .map(s => `<p>${s}</p>`)
+      .join(''),
   };
   // Process {{#if field}}...{{/if}} conditional blocks first.
   // If the field value is non-empty the block content is kept; otherwise removed.
@@ -426,6 +435,7 @@ export function buildHTML(cfg, photos, fontCss = '', standalone = false, customL
     if (p.credit && !photographerSet.has(p.credit)) photographerSet.set(p.credit, true);
   }
   const photographers = [...photographerSet.keys()];
+  if (photographers.length > 0) projectWithLegal.photographers = photographers;
   const projectJson = JSON.stringify(projectWithLegal);
 
   // Preload links for the first N grid thumbnails — browser fetches them
@@ -1681,6 +1691,7 @@ const LEGAL_I18N = {
     footer:"Thank you for respecting these conditions and supporting the protection of artistic creation.",
     work:  "Work",
     anon:  "Anonymous",
+    hPhot: "Photographers",
   },
   fr: {
     btn:   "Mentions l\u00e9gales",
@@ -1700,6 +1711,7 @@ const LEGAL_I18N = {
     footer:"Merci de respecter ces conditions et de contribuer \u00e0 la protection de la cr\u00e9ation artistique.",
     work:  "\u0152uvre",
     anon:  "Anonyme",
+    hPhot: "Photographes",
   },
   de: {
     btn:   "Rechtliche Hinweise",
@@ -1719,6 +1731,7 @@ const LEGAL_I18N = {
     footer:"Vielen Dank, dass Sie diese Bedingungen einhalten und zum Schutz k\u00fcnstlerischer Werke beitragen.",
     work:  "Werk",
     anon:  "Anonym",
+    hPhot: "Fotografen",
   },
   it: {
     btn:   "Note legali",
@@ -1738,6 +1751,7 @@ const LEGAL_I18N = {
     footer:"Grazie per aver rispettato queste condizioni e per contribuire alla tutela della creazione artistica.",
     work:  "Opera",
     anon:  "Anonimo",
+    hPhot: "Fotografi",
   },
   es: {
     btn:   "Aviso legal",
@@ -1757,6 +1771,7 @@ const LEGAL_I18N = {
     footer:"Gracias por respetar estas condiciones y contribuir a la protecci\u00f3n de la creaci\u00f3n art\u00edstica.",
     work:  "Obra",
     anon:  "An\u00f3nimo",
+    hPhot: "Fotógrafos",
   },
   pt: {
     btn:   "Aviso legal",
@@ -1776,6 +1791,7 @@ const LEGAL_I18N = {
     footer:"Obrigado por respeitar estas condi\u00e7\u00f5es e contribuir para a prote\u00e7\u00e3o da cria\u00e7\u00e3o art\u00edstica.",
     work:  "Obra",
     anon:  "An\u00f4nimo",
+    hPhot: "Fotógrafos",
   },
 };
 
@@ -1800,10 +1816,16 @@ function buildLegalHTML(l) {
     ? \`<h2>\${T.work}</h2><p>\${workParts.join(' \u00b7 ')}</p>\${PROJECT.description ? '<p><em>' + PROJECT.description + '</em></p>' : ''}\`
     : '';
 
+  const pgList = PROJECT.photographers || [];
+  const photBlock = pgList.length > 0
+    ? \`<h2>\${T.hPhot || 'Photographers'}</h2><ul>\${pgList.map(n => \`<li>\u00a9\u00a0\${n}</li>\`).join('')}</ul>\`
+    : '';
+
   return \`
     <h1>\${T.title}</h1>
     \${workBlock}
     <p>\${T.intro(a, yr)}</p>
+    \${photBlock}
     <h2>\${T.h1}</h2>
     <p>\${T.p1}</p>
     <ul>\${li(T.b1)}</ul>
@@ -1836,10 +1858,16 @@ function buildLegalText(l) {
     ? [T.work.toUpperCase(), workLines.join(' \u00b7 '), ...(PROJECT.description ? [PROJECT.description] : []), '']
     : [];
 
+  const pgList = PROJECT.photographers || [];
+  const photSection = pgList.length > 0
+    ? [(T.hPhot || 'Photographers').toUpperCase(), ...pgList.map(n => '  \u00a9 ' + n), '']
+    : [];
+
   return [
     T.title, sep, '',
     ...workSection,
     strip(T.intro(a, yr)), '',
+    ...photSection,
     T.h1.toUpperCase(),
     strip(T.p1),
     T.b1.map(b => '  \u2022 ' + strip(b)).join('\\n'),

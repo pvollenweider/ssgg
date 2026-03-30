@@ -5,7 +5,8 @@
 <h2>Copyright</h2>
 <p>
   The photographs presented in this gallery are original works by
-  <strong>{{author}}</strong> (&copy;&nbsp;{{year}}).
+  <strong>{{author}}</strong>{{#if photographerNames}} and <strong>{{photographerNames}}</strong>{{/if}}
+  (&copy;&nbsp;{{year}}).
   {{#if location}}Shot in {{location}}.{{/if}}
   Each image constitutes an individual work protected in its own right
   by Swiss copyright law (<em>Federal Act on Copyright and Related Rights, CopA</em>).
@@ -52,5 +53,6 @@
   <strong>{{author}}</strong>{{#if authorEmail}}<br>
   <a href="mailto:{{authorEmail}}">{{authorEmail}}</a>{{/if}}
 </p>
+{{#if photographerContacts}}{{photographerContacts}}{{/if}}
 <hr>
 <p>Thank you for respecting these conditions and supporting the protection of artistic creation.</p>

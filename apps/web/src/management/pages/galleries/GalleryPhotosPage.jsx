@@ -48,6 +48,7 @@ export default function GalleryPhotosPage() {
   // Photographers (for attribution toolbar + card badge)
   const [photographers, setPhotographers] = useState([]);
   const [assigning,     setAssigning]     = useState(false);
+  const [filterPhotographerId, setFilterPhotographerId] = useState(null); // null=all, '__unassigned__', or pg.id
 
   // Multi-select + drag state
   const [selected,      setSelected]      = useState(new Set()); // Set<photo.id>
@@ -56,6 +57,16 @@ export default function GalleryPhotosPage() {
   const isGroupDrag = useRef(false); // true when dragging a selected photo (group move)
 
   const pollRef = useRef(null);
+
+  // Photographers who have at least one photo in this gallery's current list
+  const activePhotographers = photographers.filter(pg => photos.some(p => p.photographer_id === pg.id));
+  const hasUnattributed     = photos.some(p => !p.photographer_id);
+
+  const filteredPhotos = filterPhotographerId === null
+    ? photos
+    : filterPhotographerId === '__unassigned__'
+      ? photos.filter(p => !p.photographer_id)
+      : photos.filter(p => p.photographer_id === filterPhotographerId);
 
   function loadGallery() {
     return api.getGallery(galleryId).then(g => { setGallery(g); return g; });
@@ -184,7 +195,7 @@ export default function GalleryPhotosPage() {
   }
 
   function clearSelection() { setSelected(new Set()); }
-  function selectAll()      { setSelected(new Set(photos.map(p => p.id))); }
+  function selectAll()      { setSelected(new Set(filteredPhotos.map(p => p.id))); }
 
   async function assignPhotographer(photographerId) {
     if (selected.size === 0) return;
@@ -453,7 +464,9 @@ export default function GalleryPhotosPage() {
 
           {/* Photo grid */}
           <AdminCard
-            title={t('photos_list_title', { n: photos.length })}
+            title={filterPhotographerId !== null
+              ? t('photos_list_title', { n: filteredPhotos.length }) + ' / ' + photos.length
+              : t('photos_list_title', { n: photos.length })}
             noPadding
             headerRight={
               photos.length > 0 && (
@@ -507,18 +520,47 @@ export default function GalleryPhotosPage() {
             {photos.length === 0 ? (
               <div className="text-center text-muted py-5">{t('no_photos')}</div>
             ) : (
+              <>
+                {(activePhotographers.length > 0 || hasUnattributed) && (
+                  <div className="d-flex align-items-center gap-2 flex-wrap px-3 py-2" style={{ borderBottom: '1px solid #e5e7eb', fontSize: '0.8rem' }}>
+                    <i className="fas fa-filter text-muted" title={t('pg_filter_by_photographer')} style={{ flexShrink: 0 }} />
+                    {activePhotographers.map(pg => (
+                      <button
+                        key={pg.id}
+                        type="button"
+                        className={`btn btn-sm ${filterPhotographerId === pg.id ? 'btn-primary' : 'btn-outline-secondary'}`}
+                        style={{ fontSize: '0.75rem', padding: '1px 10px' }}
+                        onClick={() => setFilterPhotographerId(prev => prev === pg.id ? null : pg.id)}
+                      >
+                        <i className="fas fa-camera me-1" style={{ fontSize: '0.65rem' }} />{pg.name}
+                      </button>
+                    ))}
+                    {hasUnattributed && (
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${filterPhotographerId === '__unassigned__' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                        style={{ fontSize: '0.75rem', padding: '1px 10px' }}
+                        onClick={() => setFilterPhotographerId(prev => prev === '__unassigned__' ? null : '__unassigned__')}
+                      >
+                        <i className="fas fa-circle-question me-1" style={{ fontSize: '0.65rem' }} />{t('pg_filter_unassigned')}
+                      </button>
+                    )}
+                  </div>
+                )}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.5rem', padding: '1rem' }}>
-                {photos.map((p, i) => {
+                {filteredPhotos.map((p, i) => {
                   const isSelected    = selected.has(p.id);
-                  const isBeingDragged = dragIdx === i && !isGroupDrag.current;
-                  const isDropTarget  = isGroupDrag.current && dropTargetIdx === i;
+                  const isBeingDragged = filterPhotographerId === null && dragIdx === i && !isGroupDrag.current;
+                  const isDropTarget  = filterPhotographerId === null && isGroupDrag.current && dropTargetIdx === i;
+                  // Use original index for drag when no filter active
+                  const origIdx = filterPhotographerId === null ? i : photos.indexOf(p);
 
                   return (
                     <div
                       key={p.file}
-                      draggable
-                      onDragStart={() => onDragStart(i)}
-                      onDragOver={e => onDragOver(e, i)}
+                      draggable={filterPhotographerId === null}
+                      onDragStart={() => filterPhotographerId === null && onDragStart(origIdx)}
+                      onDragOver={e => filterPhotographerId === null && onDragOver(e, origIdx)}
                       onDragEnd={onDragEnd}
                       onClick={e => {
                         // Don't select when clicking the delete button
@@ -586,6 +628,7 @@ export default function GalleryPhotosPage() {
                   );
                 })}
               </div>
+              </>
             )}
           </AdminCard>
         </>

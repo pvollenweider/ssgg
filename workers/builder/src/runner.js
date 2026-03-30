@@ -99,7 +99,7 @@ export async function runJob(jobId) {
     // The engine's listPhotos() respects this file and treats it as the full ordered list.
     // This excludes 'uploaded' photos that are still pending review.
     const [validatedRows] = await query(
-      `SELECT ph.filename, u.name AS photographer_name
+      `SELECT ph.filename, u.name AS photographer_name, u.email AS photographer_email
        FROM photos ph
        LEFT JOIN users u ON u.id = ph.photographer_id
        WHERE ph.gallery_id = ? AND ph.status IN ('validated', 'published')
@@ -117,11 +117,23 @@ export async function runJob(jobId) {
 
       // photo_attribution.json — filename → photographer name (issue #133)
       const attribution = {};
+      const detailsMap  = {}; // name → { name, email, count }
       for (const r of validatedRows) {
-        if (r.photographer_name) attribution[r.filename] = r.photographer_name;
+        if (r.photographer_name) {
+          attribution[r.filename] = r.photographer_name;
+          if (!detailsMap[r.photographer_name]) {
+            detailsMap[r.photographer_name] = { name: r.photographer_name, email: r.photographer_email || null, count: 0 };
+          }
+          detailsMap[r.photographer_name].count++;
+        }
       }
+      // Sort by photo count descending so the most active photographer appears first
+      const details = Object.values(detailsMap)
+        .sort((a, b) => b.count - a.count)
+        .map(({ name, email }) => ({ name, email })); // strip internal count field
       const attrFile = path.join(galSrcDir, 'photo_attribution.json');
       fs.writeFileSync(attrFile, JSON.stringify(attribution));
+      fs.writeFileSync(path.join(galSrcDir, 'photographer_details.json'), JSON.stringify(details));
       const creditCount = Object.keys(attribution).length;
       if (creditCount > 0) {
         await appendEvent(jobId, 'log', `Photo attribution: ${creditCount} photo(s) with photographer credits`);
