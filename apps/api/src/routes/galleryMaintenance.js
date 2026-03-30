@@ -184,11 +184,27 @@ router.post('/:id/photos/reconcile', async (req, res, next) => {
     const freshSet = new Set(freshRows.map(r => r.filename));
 
     // Insert disk files not yet in DB (skip corrupt ones just purged)
+    // UUID-format filenames (e.g. "a1b2c3d4-xxxx-xxxx-xxxx-xxxxxxxxxxxx.jpg") that are
+    // absent from the DB are upload orphans — created when a dedup UNIQUE constraint
+    // rejected the INSERT but multer had already written the file to disk.  Delete them
+    // instead of re-importing; importing them would create visual duplicates.
+    const UUID_FILENAME_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[a-z]+$/i;
+
     const corruptSet = new Set(corruptFiles);
     const alreadyPresent = freshRows.length;
+    let orphansPurged = 0;
     for (const filename of diskFiles) {
       if (freshSet.has(filename) || corruptSet.has(filename)) continue;
       const fullPath = path.join(photosDir, filename);
+
+      // UUID-named file not in DB → upload orphan, remove it
+      if (UUID_FILENAME_RE.test(filename)) {
+        console.log(`[reconcile] orphan UUID file — deleting ${filename}`);
+        try { await fs.unlink(fullPath); } catch {}
+        orphansPurged++;
+        continue;
+      }
+
       try {
         await runSharp({ op: 'metadata', srcPath: fullPath });
       } catch (sharpErr) {
@@ -215,7 +231,7 @@ router.post('/:id/photos/reconcile', async (req, res, next) => {
     res.json({
       ok: true,
       added,
-      purged,
+      purged: purged + orphansPurged,
       corruptFiles,
       missingFiles,
       alreadyPresent,
