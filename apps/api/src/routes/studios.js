@@ -79,7 +79,7 @@ router.delete('/members/:userId', requireStudioRole('owner'), async (req, res) =
 // POST /api/studios/build-all — queue builds for every gallery in the studio
 router.post('/build-all', requireStudioRole('admin'), async (req, res) => {
   const [rows] = await query(
-    "SELECT id FROM galleries WHERE studio_id = ? AND status != 'archived'",
+    "SELECT id FROM galleries WHERE studio_id = ?",
     [req.studioId]
   );
   if (!rows.length) return res.json({ queued: 0, total: 0 });

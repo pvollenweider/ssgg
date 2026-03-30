@@ -432,7 +432,7 @@ router.delete('/:id/viewer-tokens/:tokenId', resolveGallery, async (req, res) =>
 // ── POST /api/projects/:projectId/galleries/build-all — queue builds for all galleries ──
 router.post('/build-all', requireStudioRole('admin'), async (req, res) => {
   const [rows] = await query(
-    "SELECT id FROM galleries WHERE project_id = ? AND studio_id = ? AND status != 'archived'",
+    "SELECT id FROM galleries WHERE project_id = ? AND studio_id = ? AND build_status != 'archived'",
     [req.params.projectId, req.studioId]
   );
   if (!rows.length) return res.json({ queued: 0 });
