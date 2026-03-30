@@ -150,22 +150,40 @@ router.post('/:id/members/create', async (req, res) => {
   if (!password) return res.status(400).json({ error: 'password is required' });
   if (!ROLE_HIERARCHY.includes(role)) return res.status(400).json({ error: `role must be one of: ${ROLE_HIERARCHY.join(', ')}` });
 
-  const [existing] = await query('SELECT id FROM users WHERE email = ?', [email]);
-  if (existing[0]) return res.status(409).json({ error: 'A user with this email already exists' });
+  const [existing] = await query('SELECT id, email FROM users WHERE email = ?', [email]);
+  let userId;
+  let statusCode = 201;
 
-  const id  = genId();
-  const now = Date.now();
-  await query(
-    `INSERT INTO users (id, studio_id, organization_id, email, password_hash, role, name, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [id, org.id, org.id, email, hashPassword(password), role, name || '', now, now]
-  );
-  await upsertOrgMember(org.id, id, role);
-  try { await audit(org.id, req.userId, 'member.created', 'user', id, { email, role }); } catch {}
+  if (existing[0]) {
+    // User already exists — check if already a member of this org
+    const existingRole = await getOrgRole(existing[0].id, org.id);
+    if (existingRole) {
+      return res.status(409).json({ error: 'This user is already a member of this organization' });
+    }
+    // Not yet a member: just add them (update password if provided)
+    userId = existing[0].id;
+    if (password) {
+      await query('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?',
+        [hashPassword(password), Date.now(), userId]);
+    }
+    statusCode = 200; // existing user added to org
+  } else {
+    const id  = genId();
+    const now = Date.now();
+    await query(
+      `INSERT INTO users (id, studio_id, organization_id, email, password_hash, role, name, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [id, org.id, org.id, email, hashPassword(password), role, name || '', now, now]
+    );
+    userId = id;
+  }
+
+  await upsertOrgMember(org.id, userId, role);
+  try { await audit(org.id, req.userId, 'member.created', 'user', userId, { email, role }); } catch {}
 
   const members = await listOrgMembers(org.id);
-  const member  = members.find(m => m.id === id);
-  res.status(201).json(member);
+  const member  = members.find(m => m.id === userId);
+  res.status(statusCode).json(member);
 });
 
 // PATCH /organizations/:id/members/:userId — update member profile (name, bio, isPhotographer)
