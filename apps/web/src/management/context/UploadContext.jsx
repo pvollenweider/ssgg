@@ -110,6 +110,14 @@ export function UploadProvider({ children }) {
         log(`✓ "${file.name}"`);
         patchItem(file.id, { status: 'done', progress: 1 });
         onDoneCbs.current[file.meta?.galleryId]?.();
+        // Auto-remove from grid after a brief green flash
+        setTimeout(() => {
+          const item = itemsMapRef.current.get(file.id);
+          if (item) URL.revokeObjectURL(item.preview);
+          itemsMapRef.current.delete(file.id);
+          flushItems();
+          try { uppy.removeFile(file.id); } catch {}
+        }, 1500);
       });
 
       uppy.on('upload-error', (file, error) => {
