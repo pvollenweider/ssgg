@@ -80,6 +80,19 @@ const SUPPORTED_FORMATS = 'JPG, PNG, TIFF, HEIC, HEIF, AVIF';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// fs.rename(2) fails with EXDEV when source and destination are on different
+// Docker bind mounts (internal vs private) even on the same physical disk.
+// Fall back to copyFile + unlink in that case.
+function moveFile(src, dest) {
+  try {
+    fs.renameSync(src, dest);
+  } catch (err) {
+    if (err.code !== 'EXDEV') throw err;
+    fs.copyFileSync(src, dest);
+    fs.unlinkSync(src);
+  }
+}
+
 function photosDir(slug) {
   return path.join(SRC_ROOT, slug, 'photos');
 }
@@ -155,7 +168,7 @@ async function finaliseUpload({ upload, galleryId, userId, studioId, req }) {
   const destPath = path.join(destDir, destName);
 
   // Move tus completed file → photos directory
-  fs.renameSync(tusPath, destPath);
+  moveFile(tusPath, destPath);
 
   // Remove tus info file (.json sidecar)
   try { fs.unlinkSync(`${tusPath}.json`); } catch {}
@@ -369,7 +382,7 @@ export function getPublicTusServer() {
           const destName = `${photoId}${ext}`;
           const destPath = path.join(destDir, destName);
 
-          fs.renameSync(tusPath, destPath);
+          moveFile(tusPath, destPath);
           try { fs.unlinkSync(`${tusPath}.json`); } catch {}
 
           const smDest = thumbPath(photoId, 'sm');
