@@ -255,12 +255,33 @@ router.post('/:id/photos', (req, res, next) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
-  // Enforce max photos quota (count DB rows + filesystem for legacy)
+  // Deduplicate by original_name — skip files already in this gallery so that
+  // retrying a failed upload doesn't create duplicate rows and inflate the quota.
+  const incomingFiles = req.files || [];
+  const incomingNames = incomingFiles.map(f => f.originalname);
+  let newFiles = incomingFiles;
+  if (incomingNames.length > 0) {
+    const placeholders = incomingNames.map(() => '?').join(',');
+    const [dupRows] = await query(
+      `SELECT original_name FROM photos WHERE gallery_id = ? AND original_name IN (${placeholders})`,
+      [gallery.id, ...incomingNames],
+    );
+    const dupNames = new Set(dupRows.map(r => r.original_name));
+    if (dupNames.size > 0) {
+      newFiles = incomingFiles.filter(f => !dupNames.has(f.originalname));
+      // Remove multer-written files for duplicates — they're not needed
+      for (const f of incomingFiles.filter(f => dupNames.has(f.originalname))) {
+        try { fs.unlinkSync(f.path); } catch {}
+      }
+    }
+  }
+
+  // Enforce quota only against truly new files
   const [countRows] = await query('SELECT COUNT(*) AS n FROM photos WHERE gallery_id = ?', [gallery.id]);
   const existing = Number(countRows[0].n);
 
-  if (existing + (req.files?.length || 0) > MAX_PHOTOS_PER_GALLERY) {
-    for (const f of req.files || []) { try { fs.unlinkSync(f.path); } catch {} }
+  if (existing + newFiles.length > MAX_PHOTOS_PER_GALLERY) {
+    for (const f of newFiles) { try { fs.unlinkSync(f.path); } catch {} }
     return res.status(422).json({
       error: `Gallery quota exceeded. Max ${MAX_PHOTOS_PER_GALLERY} photos per gallery (currently ${existing}).`,
     });
@@ -268,12 +289,9 @@ router.post('/:id/photos', (req, res, next) => {
 
   const SUPPORTED_FORMATS = 'JPG, PNG, TIFF, HEIC, HEIF, AVIF';
 
-  // Validate each file AND generate the sm thumbnail atomically in an isolated child process.
-  // If this succeeds the sm thumbnail is already on disk; enqueueSm will skip it.
-  // Any SIGBUS crash kills only the child — the API is unaffected.
   const validFiles  = [];
   const rejectedFiles = [];
-  for (const f of req.files || []) {
+  for (const f of newFiles) {
     // photoId == the UUID multer assigned as the disk filename (minus extension)
     const ext     = path.extname(f.filename).toLowerCase();
     const photoId = path.basename(f.filename, ext);
