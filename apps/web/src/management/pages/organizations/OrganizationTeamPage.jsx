@@ -128,7 +128,7 @@ export default function OrganizationTeamPage() {
 
   function startEdit(m) {
     setEditing(m);
-    setEditForm({ name: m.name || '', bio: m.bio || '', isPhotographer: !!m.is_photographer, role: m.role });
+    setEditForm({ name: m.name || '', bio: m.bio || '', isPhotographer: !!m.is_photographer || m.role === 'photographer', role: m.role });
     setEditMsg(''); setEditErr('');
   }
 
