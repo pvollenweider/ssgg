@@ -342,6 +342,8 @@
   "gal_downloads_strip_btn": "Αφαίρεση αρχικών",
   "gal_photos_sort_asc": "A→Z",
   "gal_photos_sort_desc": "Z→A",
+  "gal_photos_sort_date_asc": "Date ↑",
+  "gal_photos_sort_date_desc": "Date ↓",
   "gal_general_danger_zone": "Επικίνδυνη ζώνη",
   "gal_general_flush_title": "Εκκαθάριση εξόδου κατασκευής",
   "gal_general_flush_desc": "Διαγράφει όλα τα κατασκευασμένα αρχεία. Η γκαλερί δεν θα είναι διαθέσιμη έως την επόμενη κατασκευή. Οι φωτογραφίες προέλευσης δεν επηρεάζονται.",

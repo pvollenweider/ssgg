@@ -342,6 +342,8 @@
   "gal_downloads_strip_btn": "Ta bort original",
   "gal_photos_sort_asc": "A→Z",
   "gal_photos_sort_desc": "Z→A",
+  "gal_photos_sort_date_asc": "Date ↑",
+  "gal_photos_sort_date_desc": "Date ↓",
   "gal_general_danger_zone": "Farozon",
   "gal_general_flush_title": "Töm byggutdata",
   "gal_general_flush_desc": "Raderar alla byggda filer. Galleriet är inte tillgängligt förrän det byggs om. Källfoton påverkas inte.",

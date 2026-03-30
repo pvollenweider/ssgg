@@ -812,6 +812,8 @@
   "gal_downloads_strip_btn": "Strip originals",
   "gal_photos_sort_asc": "A→Z",
   "gal_photos_sort_desc": "Z→A",
+  "gal_photos_sort_date_asc": "Date ↑",
+  "gal_photos_sort_date_desc": "Date ↓",
   "gal_photos_selected": "{n} selected",
   "gal_photos_move_front": "Move to front",
   "gal_photos_move_end": "Move to end",

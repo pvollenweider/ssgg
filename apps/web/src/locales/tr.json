@@ -342,6 +342,8 @@
   "gal_downloads_strip_btn": "Orijinalleri kaldır",
   "gal_photos_sort_asc": "A→Z",
   "gal_photos_sort_desc": "Z→A",
+  "gal_photos_sort_date_asc": "Date ↑",
+  "gal_photos_sort_date_desc": "Date ↓",
   "gal_general_danger_zone": "Tehlikeli bölge",
   "gal_general_flush_title": "Derleme çıktısını temizle",
   "gal_general_flush_desc": "Derlenmiş tüm dosyaları siler. Galeri, yeniden derlenene kadar kullanılamaz. Kaynak fotoğraflar etkilenmez.",

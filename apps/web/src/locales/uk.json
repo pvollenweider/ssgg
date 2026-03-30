@@ -342,6 +342,8 @@
   "gal_downloads_strip_btn": "Видалити оригінали",
   "gal_photos_sort_asc": "A→Z",
   "gal_photos_sort_desc": "Z→A",
+  "gal_photos_sort_date_asc": "Date ↑",
+  "gal_photos_sort_date_desc": "Date ↓",
   "gal_general_danger_zone": "Небезпечна зона",
   "gal_general_flush_title": "Очистити вихідні дані збірки",
   "gal_general_flush_desc": "Видаляє всі зібрані файли. Галерея буде недоступна до повторного збирання. Вихідні фотографії не постраждають.",

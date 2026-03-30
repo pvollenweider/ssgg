@@ -342,6 +342,8 @@
   "gal_downloads_strip_btn": "Odstranit originály",
   "gal_photos_sort_asc": "A→Z",
   "gal_photos_sort_desc": "Z→A",
+  "gal_photos_sort_date_asc": "Date ↑",
+  "gal_photos_sort_date_desc": "Date ↓",
   "gal_general_danger_zone": "Nebezpečná zóna",
   "gal_general_flush_title": "Vyprázdnit výstup sestavení",
   "gal_general_flush_desc": "Smaže všechny sestavené soubory. Galerie nebude dostupná, dokud nebude znovu sestavena. Zdrojové fotky nejsou ovlivněny.",

@@ -342,6 +342,8 @@
   "gal_downloads_strip_btn": "Rimuovi originali",
   "gal_photos_sort_asc": "A→Z",
   "gal_photos_sort_desc": "Z→A",
+  "gal_photos_sort_date_asc": "Date ↑",
+  "gal_photos_sort_date_desc": "Date ↓",
   "gal_general_danger_zone": "Zona pericolosa",
   "gal_general_flush_title": "Svuota output di build",
   "gal_general_flush_desc": "Elimina tutti i file compilati. La galleria non sarà disponibile finché non viene ricompilata. Le foto sorgente non sono interessate.",

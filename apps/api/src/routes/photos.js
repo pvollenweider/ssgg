@@ -163,6 +163,8 @@ router.get('/:id/photos', async (req, res) => {
 
     return res.json(dbPhotos.map(p => ({
       file:              p.filename,
+      original_name:     p.original_name || null,
+      exif:              p.exif ? (typeof p.exif === 'string' ? JSON.parse(p.exif) : p.exif) : null,
       size:              p.size_bytes,
       mtime:             p.created_at,
       status:            p.status,

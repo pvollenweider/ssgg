@@ -342,6 +342,8 @@
   "gal_downloads_strip_btn": "Originale entfernen",
   "gal_photos_sort_asc": "A→Z",
   "gal_photos_sort_desc": "Z→A",
+  "gal_photos_sort_date_asc": "Date ↑",
+  "gal_photos_sort_date_desc": "Date ↓",
   "gal_general_danger_zone": "Gefahrenzone",
   "gal_general_flush_title": "Build-Ausgabe leeren",
   "gal_general_flush_desc": "Löscht alle erstellten Dateien. Die Galerie ist nicht verfügbar, bis sie neu erstellt wird. Quellfotos sind nicht betroffen.",

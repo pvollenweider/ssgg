@@ -342,6 +342,8 @@
   "gal_downloads_strip_btn": "Fjern originaler",
   "gal_photos_sort_asc": "A→Z",
   "gal_photos_sort_desc": "Z→A",
+  "gal_photos_sort_date_asc": "Date ↑",
+  "gal_photos_sort_date_desc": "Date ↓",
   "gal_general_danger_zone": "Farezone",
   "gal_general_flush_title": "Tøm byggeoutput",
   "gal_general_flush_desc": "Sletter alle byggede filer. Galleriet er ikke tilgængeligt, før det genopbygges. Killebilleder påvirkes ikke.",

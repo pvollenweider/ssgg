@@ -342,6 +342,8 @@
   "gal_downloads_strip_btn": "Usuń oryginały",
   "gal_photos_sort_asc": "A→Z",
   "gal_photos_sort_desc": "Z→A",
+  "gal_photos_sort_date_asc": "Date ↑",
+  "gal_photos_sort_date_desc": "Date ↓",
   "gal_general_danger_zone": "Strefa niebezpieczna",
   "gal_general_flush_title": "Wyczyść wyniki kompilacji",
   "gal_general_flush_desc": "Usuwa wszystkie skompilowane pliki. Galeria będzie niedostępna do czasu ponownej kompilacji. Zdjęcia źródłowe nie są dotknięte.",

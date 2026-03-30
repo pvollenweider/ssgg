@@ -342,6 +342,8 @@
   "gal_downloads_strip_btn": "Originelen verwijderen",
   "gal_photos_sort_asc": "A→Z",
   "gal_photos_sort_desc": "Z→A",
+  "gal_photos_sort_date_asc": "Date ↑",
+  "gal_photos_sort_date_desc": "Date ↓",
   "gal_general_danger_zone": "Gevarenzone",
   "gal_general_flush_title": "Build-uitvoer leegmaken",
   "gal_general_flush_desc": "Verwijdert alle gebouwde bestanden. De galerij is niet beschikbaar totdat deze opnieuw wordt gebouwd. Bronfoto's worden niet beïnvloed.",

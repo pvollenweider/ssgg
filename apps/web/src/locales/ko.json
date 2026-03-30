@@ -342,6 +342,8 @@
   "gal_downloads_strip_btn": "원본 제거",
   "gal_photos_sort_asc": "A→Z",
   "gal_photos_sort_desc": "Z→A",
+  "gal_photos_sort_date_asc": "Date ↑",
+  "gal_photos_sort_date_desc": "Date ↓",
   "gal_general_danger_zone": "위험 구역",
   "gal_general_flush_title": "빌드 출력 초기화",
   "gal_general_flush_desc": "빌드된 모든 파일을 삭제합니다. 재빌드 전까지 갤러리를 사용할 수 없습니다. 소스 사진에는 영향이 없습니다.",

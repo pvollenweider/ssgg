@@ -28,9 +28,10 @@ export default function GalleryPhotosPage() {
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState('');
   const [toast,      setToast]      = useState('');
-  const [reordering, setReordering] = useState(false);
-  const [sortAsc,    setSortAsc]    = useState(true);
-  const [deleting,   setDeleting]   = useState(null);
+  const [reordering,   setReordering]   = useState(false);
+  const [sortAsc,      setSortAsc]      = useState(true);
+  const [dateSortAsc,  setDateSortAsc]  = useState(true);
+  const [deleting,     setDeleting]     = useState(null);
 
   // Publish state
   const [building,    setBuilding]    = useState(false);
@@ -162,8 +163,22 @@ export default function GalleryPhotosPage() {
   }
 
   async function sortPhotos(dir) {
-    const sorted = [...photos].sort((a, b) =>
-      dir === 'asc' ? a.file.localeCompare(b.file) : b.file.localeCompare(a.file));
+    const sorted = [...photos].sort((a, b) => {
+      const na = (a.original_name || a.file).toLowerCase();
+      const nb = (b.original_name || b.file).toLowerCase();
+      return dir === 'asc' ? na.localeCompare(nb) : nb.localeCompare(na);
+    });
+    setPhotos(sorted);
+    setSelected(new Set());
+    await saveOrder(sorted);
+  }
+
+  async function sortPhotosByDate(dir) {
+    const sorted = [...photos].sort((a, b) => {
+      const da = a.exif?.date ? new Date(a.exif.date).getTime() : 0;
+      const db = b.exif?.date ? new Date(b.exif.date).getTime() : 0;
+      return dir === 'asc' ? da - db : db - da;
+    });
     setPhotos(sorted);
     setSelected(new Set());
     await saveOrder(sorted);
@@ -305,6 +320,14 @@ export default function GalleryPhotosPage() {
             onClick={() => { const next = !sortAsc; setSortAsc(next); sortPhotos(next ? 'asc' : 'desc'); }}
           >
             {sortAsc ? t('gal_photos_sort_asc') : t('gal_photos_sort_desc')}
+          </AdminButton>
+          <AdminButton
+            variant="outline-secondary"
+            size="sm"
+            icon={`fas fa-calendar-alt`}
+            onClick={() => { const next = !dateSortAsc; setDateSortAsc(next); sortPhotosByDate(next ? 'asc' : 'desc'); }}
+          >
+            {dateSortAsc ? t('gal_photos_sort_date_asc') : t('gal_photos_sort_date_desc')}
           </AdminButton>
           <AdminButton
             size="sm"
@@ -454,14 +477,16 @@ export default function GalleryPhotosPage() {
             </div>
           )}
 
-          {/* Upload zone */}
-          <AdminCard title={t('upload_photos')} className="mb-4">
+          {/* Upload zone — sticky so it stays visible while scrolling the photo grid */}
+          <div style={{ position: 'sticky', top: '0.5rem', zIndex: 20, marginBottom: '1.5rem' }}>
+          <AdminCard title={t('upload_photos')}>
             <UploadZone
               galleryId={galleryId}
               existingPhotos={photos}
               onDone={() => refreshPhotos().then(p => { if (p.some(x => !x.thumbnail?.sm)) startPolling(); })}
             />
           </AdminCard>
+          </div>
 
           {/* Photo grid */}
           <AdminCard
@@ -606,8 +631,9 @@ export default function GalleryPhotosPage() {
                           <i className="fas fa-image" style={{ fontSize: '1.5rem', color: '#9ca3af' }} />
                         </div>
                       )}
-                      <div style={{ padding: '0.25rem 0.4rem 0 0.4rem', fontSize: '0.7rem', color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {p.file}
+                      <div style={{ padding: '0.25rem 0.4rem 0 0.4rem', fontSize: '0.7rem', color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                        title={p.original_name || p.file}>
+                        {p.original_name || p.file}
                       </div>
                       {p.photographer_id && (
                         <div style={{ padding: '0 0.4rem 0.2rem', fontSize: '0.65rem', color: '#2563eb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

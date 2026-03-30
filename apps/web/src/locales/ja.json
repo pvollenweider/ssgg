@@ -342,6 +342,8 @@
   "gal_downloads_strip_btn": "元のファイルを削除",
   "gal_photos_sort_asc": "A→Z",
   "gal_photos_sort_desc": "Z→A",
+  "gal_photos_sort_date_asc": "Date ↑",
+  "gal_photos_sort_date_desc": "Date ↓",
   "gal_general_danger_zone": "危険な操作",
   "gal_general_flush_title": "ビルド出力を削除",
   "gal_general_flush_desc": "ビルドされたすべてのファイルを削除します。再ビルドするまでギャラリーは利用できません。ソース写真には影響しません。",
