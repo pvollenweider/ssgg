@@ -16,6 +16,8 @@ export default defineConfig({
       // Forward all /api requests to the API server during development
       '/api':    { target: 'http://localhost:4000', changeOrigin: true },
       '/upload': { target: 'http://localhost:4000', changeOrigin: true },
+      // tus resumable upload endpoint
+      '/api/tus': { target: 'http://localhost:4000', changeOrigin: true },
     },
   },
   build: {

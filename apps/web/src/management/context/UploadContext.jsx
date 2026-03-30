@@ -5,11 +5,50 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-// Global upload queue — survives in-app navigation.
-// UploadZone registers per-gallery onDone callbacks; the queue runs in the background.
+// apps/web/src/management/context/UploadContext.jsx
+//
+// Global upload queue backed by Uppy + @uppy/tus.
+// Survives in-app navigation. Per-gallery item state exposed to UploadZone.
+//
+// tus endpoint: /api/tus  (single endpoint — galleryId in Upload-Metadata)
+//
+// Public API (identical to XHR version):
+//   enqueue(galleryId, fileList)
+//   retryItem(id), retryFailed(galleryId), clearDone(galleryId)
+//   registerOnDone(galleryId, cb) / unregisterOnDone(galleryId)
+//   items[], globalStats, toastMsg, dismissToast
+//
+// Vite env vars:
+//   VITE_UPLOAD_CONCURRENCY     — max simultaneous tus uploads (default 6)
+//   VITE_UPLOAD_CHUNK_SIZE_MB   — tus chunk size in MB         (default 8)
+//   VITE_UPLOAD_MAX_RETRIES     — max automatic retries        (default 5)
 
-import { createContext, useContext, useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { api } from '../../lib/api.js';
+import {
+  createContext, useContext, useState, useRef,
+  useCallback, useEffect, useMemo,
+} from 'react';
+import Uppy  from '@uppy/core';
+import Tus   from '@uppy/tus';
+
+// ── Config ─────────────────────────────────────────────────────────────────────
+
+const MAX_CONCURRENT   = Number(import.meta.env.VITE_UPLOAD_CONCURRENCY   || 6);
+const CHUNK_SIZE_BYTES = (Number(import.meta.env.VITE_UPLOAD_CHUNK_SIZE_MB || 8)) * 1024 * 1024;
+const MAX_RETRIES      = Number(import.meta.env.VITE_UPLOAD_MAX_RETRIES    || 5);
+
+// Build exponential-jitter retry delays: [1s, 2s, 4s, 8s, 16s, ...]
+const RETRY_DELAYS = Array.from({ length: MAX_RETRIES }, (_, i) =>
+  Math.min(1000 * Math.pow(2, i) + Math.random() * 500, 30_000)
+);
+
+const IMG_EXTS = new Set(['jpg','jpeg','png','tiff','tif','heic','heif','avif','webp']);
+function isImage(name) {
+  return IMG_EXTS.has(name.split('.').pop().toLowerCase());
+}
+
+const log = (...a) => console.log('[Upload]', ...a);
+
+// ── Context ────────────────────────────────────────────────────────────────────
 
 const UploadContext = createContext(null);
 
@@ -22,52 +61,104 @@ const EMPTY = {
 
 export const useUpload = () => useContext(UploadContext) ?? EMPTY;
 
-const IMG_EXTS      = new Set(['jpg','jpeg','png','tiff','tif','heic','heif','avif','webp']);
-const MAX_CONCURRENT  = 15;
-const MAX_RETRIES     = 3;
-const RETRY_DELAYS_MS = [1000, 2000, 4000];
-const log = (...args) => console.log('[Upload]', ...args);
+// ── Uppy singleton ─────────────────────────────────────────────────────────────
 
-function isImage(name) {
-  return IMG_EXTS.has(name.split('.').pop().toLowerCase());
+function makeUppy() {
+  const uppy = new Uppy({ autoProceed: true, allowMultipleUploadBatches: true });
+
+  uppy.use(Tus, {
+    endpoint:    '/api/tus',
+    chunkSize:   CHUNK_SIZE_BYTES,
+    retryDelays: RETRY_DELAYS,
+    withCredentials: true,
+    // allowedMetaFields tells @uppy/tus which meta fields to include in Upload-Metadata
+    allowedMetaFields: ['filename', 'galleryId'],
+    limit: MAX_CONCURRENT,         // max concurrent tus uploads
+  });
+
+  return uppy;
 }
 
+// ── Provider ───────────────────────────────────────────────────────────────────
+
 export function UploadProvider({ children }) {
-  const [items,     setItems]     = useState([]);
-  const [offline,   setOffline]   = useState(!navigator.onLine);
-  const [toastMsg,  setToastMsg]  = useState(null);  // string | null
-  const running     = useRef(0);
-  const itemsRef    = useRef([]);
-  const pausedRef   = useRef(false);
-  const onDoneCbs   = useRef({});  // galleryId → cb
+  const [items,    setItems]    = useState([]);
+  const [offline,  setOffline]  = useState(!navigator.onLine);
+  const [toastMsg, setToastMsg] = useState(null);
+
+  const itemsMapRef  = useRef(new Map());  // uppyFileId → item
+  const uppyRef      = useRef(null);
+  const onDoneCbs    = useRef({});
   const wasActiveRef = useRef(false);
 
-  useEffect(() => { itemsRef.current = items; }, [items]);
+  // ── Lazy Uppy init ──────────────────────────────────────────────────────────
 
-  // Offline / online detection
+  function getUppy() {
+    if (!uppyRef.current) {
+      const uppy = makeUppy();
+
+      uppy.on('upload-progress', (file, progress) => {
+        const pct = progress.bytesTotal > 0
+          ? progress.bytesUploaded / progress.bytesTotal : 0;
+        patchItem(file.id, { status: 'uploading', progress: pct });
+      });
+
+      uppy.on('upload-success', (file) => {
+        log(`✓ "${file.name}"`);
+        patchItem(file.id, { status: 'done', progress: 1 });
+        onDoneCbs.current[file.meta?.galleryId]?.();
+      });
+
+      uppy.on('upload-error', (file, error) => {
+        const body = error?.request?.responseText || '';
+        const is422 = error?.request?.status === 422 || body.includes('"error"');
+        log(`✗ "${file.name}" — ${error.message}`);
+        patchItem(file.id, {
+          status:   'error',
+          noRetry:  is422,
+          errorMsg: is422 ? tryParseError(body) || error.message : error.message,
+        });
+      });
+
+      uppyRef.current = uppy;
+    }
+    return uppyRef.current;
+  }
+
+  function tryParseError(body) {
+    try { return JSON.parse(body)?.error; } catch { return null; }
+  }
+
+  // ── Item state helpers ──────────────────────────────────────────────────────
+
+  function patchItem(uppyId, patch) {
+    const existing = itemsMapRef.current.get(uppyId);
+    if (!existing) return;
+    itemsMapRef.current.set(uppyId, { ...existing, ...patch });
+    flushItems();
+  }
+
+  function flushItems() {
+    setItems(Array.from(itemsMapRef.current.values()));
+  }
+
+  // ── Offline / online ────────────────────────────────────────────────────────
+
   useEffect(() => {
-    const goOffline = () => { log('offline — queue paused'); setOffline(true);  pausedRef.current = true; };
-    const goOnline  = () => { log('online — resuming');      setOffline(false); pausedRef.current = false; drainQueue(); };
+    const goOffline = () => { setOffline(true); };
+    const goOnline  = () => { setOffline(false); };
     window.addEventListener('offline', goOffline);
     window.addEventListener('online',  goOnline);
     return () => {
       window.removeEventListener('offline', goOffline);
       window.removeEventListener('online',  goOnline);
     };
-  }, []); // eslint-disable-line
+  }, []);
+
+  // ── Unload warning ──────────────────────────────────────────────────────────
 
   const hasActive = items.some(x => x.status === 'queued' || x.status === 'uploading');
 
-  // Toast when the queue fully drains
-  useEffect(() => {
-    if (wasActiveRef.current && !hasActive) {
-      const n = items.filter(x => x.status === 'done').length;
-      if (n > 0) setToastMsg(n === 1 ? '1 photo uploadée avec succès.' : `${n} photos uploadées avec succès.`);
-    }
-    wasActiveRef.current = hasActive;
-  }, [hasActive]); // eslint-disable-line
-
-  // Warn if closing tab while uploads are in flight
   useEffect(() => {
     if (!hasActive) return;
     const h = e => { e.preventDefault(); e.returnValue = ''; };
@@ -75,112 +166,93 @@ export function UploadProvider({ children }) {
     return () => window.removeEventListener('beforeunload', h);
   }, [hasActive]);
 
-  const drainQueue = useCallback(() => {
-    const tick = () => {
-      if (pausedRef.current || running.current >= MAX_CONCURRENT) return;
-      const next = itemsRef.current.find(x => x.status === 'queued');
-      if (!next) {
-        if (running.current === 0 && itemsRef.current.length > 0) {
-          const d = itemsRef.current.filter(x => x.status === 'done').length;
-          const e = itemsRef.current.filter(x => x.status === 'error').length;
-          log(`drained — ${d} done, ${e} failed`);
-        }
-        return;
-      }
+  // ── Toast on drain ──────────────────────────────────────────────────────────
 
-      running.current += 1;
-      log(`→ start "${next.file.name}" (${(next.file.size/1024/1024).toFixed(2)} MB) slot ${running.current}/${MAX_CONCURRENT}`);
-      setItems(prev => prev.map(x => x.id === next.id ? { ...x, status: 'uploading' } : x));
-
-      const t0 = performance.now();
-      api.uploadPhotos(next.galleryId, [next.file], pct => {
-        setItems(prev => prev.map(x => x.id === next.id ? { ...x, progress: pct } : x));
-      }).then(() => {
-        const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
-        const kbps    = (next.file.size / 1024 / elapsed).toFixed(0);
-        log(`✓ done  "${next.file.name}" in ${elapsed}s (${kbps} KB/s)`);
-        running.current -= 1;
-        setItems(prev => prev.map(x => x.id === next.id ? { ...x, status: 'done', progress: 1 } : x));
-        onDoneCbs.current[next.galleryId]?.();
-        tick();
-      }).catch(err => {
-        running.current -= 1;
-        // 422 = server-side validation error (corrupt file, unsupported format) — never retry
-        if (err?.httpStatus === 422) {
-          log(`✗ rejected "${next.file.name}" — ${err.message}`);
-          setItems(prev => prev.map(x => x.id === next.id
-            ? { ...x, status: 'error', retryLabel: null, errorMsg: err.message, noRetry: true }
-            : x));
-          tick();
-          return;
-        }
-        const retries = itemsRef.current.find(x => x.id === next.id)?.retries ?? 0;
-        if (retries < MAX_RETRIES) {
-          const delay = RETRY_DELAYS_MS[retries] ?? 4000;
-          log(`✗ error "${next.file.name}" — retry ${retries + 1}/${MAX_RETRIES} in ${delay}ms`, err?.message);
-          setItems(prev => prev.map(x => x.id === next.id
-            ? { ...x, status: 'queued', retries: retries + 1, progress: 0, retryLabel: `Retrying (${retries+1}/${MAX_RETRIES})…` }
-            : x));
-          setTimeout(tick, delay);
-        } else {
-          log(`✗ failed "${next.file.name}" — max retries`, err?.message);
-          setItems(prev => prev.map(x => x.id === next.id ? { ...x, status: 'error', retryLabel: null } : x));
-          tick();
-        }
-      });
-
-      if (running.current < MAX_CONCURRENT) tick();
-    };
-    tick();
-  }, []); // eslint-disable-line
-
-  useEffect(() => { drainQueue(); }, [items.length, drainQueue]);
+  useEffect(() => {
+    if (wasActiveRef.current && !hasActive) {
+      const n = items.filter(x => x.status === 'done').length;
+      if (n > 0) setToastMsg(n === 1 ? '1 photo uploadée.' : `${n} photos uploadées.`);
+    }
+    wasActiveRef.current = hasActive;
+  }, [hasActive]); // eslint-disable-line
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
-  function enqueue(galleryId, fileList) {
+  const enqueue = useCallback((galleryId, fileList) => {
+    const uppy   = getUppy();
     const images = Array.from(fileList).filter(f => isImage(f.name));
-    log(`enqueue: ${images.length} image(s) for gallery ${galleryId}`);
-    setItems(prev => {
-      const existing = new Set(prev.filter(x => x.galleryId === galleryId).map(x => x.file.name));
-      const fresh = images
-        .filter(f => !existing.has(f.name))
-        .map(f => ({
-          id: Math.random().toString(36).slice(2),
-          galleryId,
-          file:     f,
-          status:   'queued',
-          progress: 0,
-          preview:  URL.createObjectURL(f),
-          retries:  0,
-        }));
-      if (images.length - fresh.length > 0) log(`  skipped ${images.length - fresh.length} duplicate(s)`);
-      return [...prev, ...fresh];
-    });
-  }
 
-  // Called by UploadZone on mount/unmount so the callback stays current
-  function registerOnDone(galleryId, cb)   { onDoneCbs.current[galleryId] = cb; }
-  function unregisterOnDone(galleryId)     { delete onDoneCbs.current[galleryId]; }
+    const existingNames = new Set(
+      Array.from(itemsMapRef.current.values())
+        .filter(x => x.galleryId === galleryId)
+        .map(x => x.file.name)
+    );
+
+    let added = 0;
+    for (const file of images) {
+      if (existingNames.has(file.name)) continue;
+      let uppyId;
+      try {
+        uppyId = uppy.addFile({
+          name: file.name,
+          type: file.type || 'application/octet-stream',
+          data: file,
+          meta: { galleryId, filename: file.name },
+        });
+      } catch (err) {
+        log(`skip "${file.name}": ${err.message}`);
+        continue;
+      }
+      itemsMapRef.current.set(uppyId, {
+        id:         uppyId,
+        galleryId,
+        file,
+        status:     'queued',
+        progress:   0,
+        preview:    URL.createObjectURL(file),
+        errorMsg:   null,
+        noRetry:    false,
+        retryLabel: null,
+      });
+      added++;
+    }
+    if (added > 0) {
+      log(`enqueue ${added} → gallery ${galleryId}`);
+      flushItems();
+    }
+  }, []); // eslint-disable-line
+
+  function registerOnDone(galleryId, cb)  { onDoneCbs.current[galleryId] = cb; }
+  function unregisterOnDone(galleryId)    { delete onDoneCbs.current[galleryId]; }
 
   function retryItem(id) {
-    setItems(prev => prev.map(x => x.id === id ? { ...x, status: 'queued', progress: 0, retries: 0 } : x));
-  }
-  function retryFailed(galleryId) {
-    setItems(prev => prev.map(x =>
-      (x.galleryId === galleryId && x.status === 'error' && !x.noRetry)
-        ? { ...x, status: 'queued', progress: 0, retries: 0 }
-        : x
-    ));
-  }
-  function clearDone(galleryId) {
-    setItems(prev => {
-      prev.filter(x => x.galleryId === galleryId && x.status === 'done').forEach(x => URL.revokeObjectURL(x.preview));
-      return prev.filter(x => !(x.galleryId === galleryId && x.status === 'done'));
-    });
+    const uppy = getUppy();
+    patchItem(id, { status: 'queued', progress: 0, errorMsg: null, noRetry: false });
+    try { uppy.retryUpload(id); } catch {}
   }
 
-  // Aggregated stats consumed by the sidebar indicator
+  function retryFailed(galleryId) {
+    const uppy = getUppy();
+    Array.from(itemsMapRef.current.values())
+      .filter(x => x.galleryId === galleryId && x.status === 'error' && !x.noRetry)
+      .forEach(item => {
+        patchItem(item.id, { status: 'queued', progress: 0, errorMsg: null });
+        try { uppy.retryUpload(item.id); } catch {}
+      });
+  }
+
+  function clearDone(galleryId) {
+    const uppy = getUppy();
+    Array.from(itemsMapRef.current.values())
+      .filter(x => x.galleryId === galleryId && x.status === 'done')
+      .forEach(item => {
+        URL.revokeObjectURL(item.preview);
+        itemsMapRef.current.delete(item.id);
+        try { uppy.removeFile(item.id); } catch {}
+      });
+    flushItems();
+  }
+
   const globalStats = useMemo(() => ({
     uploading: items.filter(x => x.status === 'uploading').length,
     queued:    items.filter(x => x.status === 'queued').length,
@@ -188,7 +260,12 @@ export function UploadProvider({ children }) {
   }), [items, offline]);
 
   return (
-    <UploadContext.Provider value={{ enqueue, registerOnDone, unregisterOnDone, retryItem, retryFailed, clearDone, items, globalStats, toastMsg, dismissToast: () => setToastMsg(null) }}>
+    <UploadContext.Provider value={{
+      enqueue, registerOnDone, unregisterOnDone,
+      retryItem, retryFailed, clearDone,
+      items, globalStats,
+      toastMsg, dismissToast: () => setToastMsg(null),
+    }}>
       {children}
     </UploadContext.Provider>
   );

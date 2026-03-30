@@ -66,7 +66,7 @@ export function prerenderCacheDir(hash) {
 // Automatically pauses while uploads are in progress so Sharp child processes
 // don't compete with the upload validation pipeline.
 
-const CONCURRENCY = 2;
+const CONCURRENCY = Number(process.env.PRERENDER_CONCURRENCY) || 2;
 const log = (...args) => console.log('[prerender]', ...args);
 
 class PrerenderQueue {

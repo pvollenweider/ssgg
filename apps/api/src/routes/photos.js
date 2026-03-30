@@ -74,9 +74,11 @@ const storage = multer.diskStorage({
   },
 });
 
+const UPLOAD_MAX_SIZE_BYTES = (Number(process.env.UPLOAD_MAX_SIZE_MB) || 100) * 1024 * 1024;
+
 const upload = multer({
   storage,
-  limits: { fileSize: 200 * 1024 * 1024 }, // 200 MB per file
+  limits: { fileSize: UPLOAD_MAX_SIZE_BYTES },
   fileFilter(req, file, cb) {
     const allowed = new Set(['.jpg','.jpeg','.png','.tiff','.tif','.heic','.heif','.avif']);
     if (allowed.has(path.extname(file.originalname).toLowerCase())) cb(null, true);
@@ -238,7 +240,7 @@ router.get('/:id/photos/inbox', async (req, res) => {
   res.json({ photos, counts });
 });
 
-const MAX_PHOTOS_PER_GALLERY = 500;
+const MAX_PHOTOS_PER_GALLERY = Number(process.env.GALLERY_MAX_PHOTOS) || 500;
 
 // POST /api/galleries/:id/photos — upload one or more photos (authenticated)
 router.post('/:id/photos', (req, res, next) => {

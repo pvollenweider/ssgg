@@ -46,6 +46,7 @@ import insightsRoutes         from './routes/insights.js';
 import galleryMaintenanceRoutes from './routes/galleryMaintenance.js';
 import personalTokensRoutes   from './routes/personalTokens.js';
 import personalUploadRoutes   from './routes/personalUpload.js';
+import tusRoutes               from './routes/tus.js';
 
 const __DIR        = path.dirname(fileURLToPath(import.meta.url));
 const PORT         = process.env.PORT || 4000;
@@ -143,6 +144,7 @@ app.use('/api/auth',                authRoutes);
 app.use('/api/galleries',           galleriesRoutes);
 app.use('/api/galleries',           accessRoutes);
 app.use('/api/galleries',           authUploadRateLimit, photosRoutes);
+app.use('/api/tus',                 authUploadRateLimit, tusRoutes);
 app.use('/api/galleries',           jobsRoutes);
 app.use('/api/jobs',                jobsRoutes); // for /api/jobs/:jobId and /api/jobs/:jobId/stream
 app.use('/api/invites',             scopedInvitesRouter); // canonical scoped invites (Sprint 5)
