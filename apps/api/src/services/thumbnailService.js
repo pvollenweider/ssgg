@@ -21,6 +21,7 @@ import path              from 'node:path';
 import fs                from 'node:fs/promises';
 import { existsSync, statSync } from 'node:fs';
 import { INTERNAL_ROOT } from '../../../../packages/engine/src/fs.js';
+import { runSharp }      from './sharpProcess.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -101,20 +102,20 @@ export async function generateSingleThumbnail(srcPath, photoId, size) {
   if (!maxDim) throw new Error(`Unknown thumbnail size: ${size}`);
 
   const dest = thumbPath(photoId, size);
-  const { default: sharp } = await import('sharp');
-  await fs.mkdir(path.dirname(dest), { recursive: true });
+  // Skip if already generated (e.g. by validate-and-thumb during upload).
+  try { if (existsSync(dest) && statSync(dest).size > 0) return dest; } catch {}
 
-  // Use toBuffer() so that a failed Sharp pipeline never leaves a 0-byte file on disk.
-  // .toFile() creates the destination before writing; if Sharp errors mid-stream the file
-  // stays at 0 bytes and photoThumbnails() would serve a broken URL indefinitely.
-  const buf = await sharp(srcPath, { failOn: 'none', sequentialRead: true })
-    .rotate()
-    .resize(maxDim, maxDim, { fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 80 })
-    .toBuffer();
-
-  if (!buf || buf.length === 0) throw new Error('Sharp produced an empty buffer');
-  await fs.writeFile(dest, buf);
+  // Run in an isolated child process — if libvips crashes with SIGBUS on a
+  // corrupt file, only the child dies; the main API process is unaffected.
+  await runSharp({
+    op: 'resize-webp',
+    srcPath,
+    destPath: dest,
+    width:    maxDim,
+    height:   maxDim,
+    fit:      'inside',
+    quality:  80,
+  });
   return dest;
 }
 

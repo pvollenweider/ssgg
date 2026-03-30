@@ -18,6 +18,7 @@ import {
 } from '../db/helpers.js';
 import { enqueueSm, enqueueMd, thumbPath, THUMB_SIZES } from './thumbnailService.js';
 import { SRC_ROOT } from '../../../../packages/engine/src/fs.js';
+import { runSharp } from './sharpProcess.js';
 
 export async function bootstrap() {
   const [rows] = await query('SELECT COUNT(*) AS n FROM studios');
@@ -88,7 +89,6 @@ export async function bootstrap() {
        JOIN galleries g ON g.id = p.gallery_id
        WHERE p.status = 'validated'`
     );
-    const { default: sharp } = await import('sharp');
     let recovered = 0;
     let skipped   = 0;
     for (const p of photos) {
@@ -100,10 +100,10 @@ export async function bootstrap() {
         try { return statSync(tp).size === 0; } catch { return true; }
       });
       if (missingSizes.length === 0) continue;
-      // Validate source file before re-queuing — skip unreadable files to avoid
-      // an infinite failure loop on every API restart.
+      // Validate in an isolated child process — a SIGBUS in the child does not
+      // kill the API. Skip unreadable files to avoid an infinite failure loop.
       try {
-        await sharp(srcPath, { failOn: 'none' }).metadata();
+        await runSharp({ op: 'metadata', srcPath });
       } catch {
         skipped++;
         continue;

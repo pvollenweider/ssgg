@@ -23,6 +23,7 @@ import { getGalleryRole, genId } from '../db/helpers.js';
 import { DIST_ROOT, SRC_ROOT } from '../../../../packages/engine/src/fs.js';
 import { generateSingleThumbnail, thumbPath, THUMB_SIZES } from '../services/thumbnailService.js';
 import { extractExif }   from '../../../../packages/engine/src/exif.js';
+import { runSharp }      from '../services/sharpProcess.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -144,7 +145,6 @@ router.post('/:id/photos/reconcile', async (req, res, next) => {
       diskFiles = [];
     }
 
-    const { default: sharp } = await import('sharp');
     const primaryPhotographerId = await getGalleryPrimaryPhotographer(gallery.id);
 
     // List files in DB
@@ -158,37 +158,17 @@ router.post('/:id/photos/reconcile', async (req, res, next) => {
     const corruptFiles  = [];
     const missingFiles  = [];
 
-    // Remove DB entries whose source file is corrupt (undecodable by Sharp even with failOn:none)
+    // Remove DB entries whose source file is corrupt (undecodable by Sharp)
     for (const row of dbRows) {
       const fullPath = path.join(photosDir, row.filename);
       if (!existsSync(fullPath)) {
-        missingFiles.push(row.filename); // in DB but not on disk — report but don't auto-delete
+        missingFiles.push(row.filename);
         continue;
       }
       try {
-        await sharp(fullPath, { failOn: 'none' }).metadata();
+        await runSharp({ op: 'metadata', srcPath: fullPath });
       } catch (sharpErr) {
-        // --- DEBUG: log why Sharp rejected this file ---
-        let fileSize = '?';
-        let magicHex = '?';
-        try {
-          const stat = statSync(fullPath);
-          fileSize = stat.size;
-          const fd = await fs.open(fullPath, 'r');
-          const buf = Buffer.alloc(16);
-          await fd.read(buf, 0, 16, 0);
-          await fd.close();
-          magicHex = buf.toString('hex').toUpperCase();
-        } catch (debugErr) {
-          magicHex = `(read failed: ${debugErr.message})`;
-        }
-        console.warn(
-          `[reconcile] corrupt source — ${row.filename} (id=${row.id})\n` +
-          `  sharp error : ${sharpErr.message}\n` +
-          `  file size   : ${fileSize} bytes\n` +
-          `  magic bytes : ${magicHex}`
-        );
-        // --- end debug ---
+        console.warn(`[reconcile] corrupt source — ${row.filename} (id=${row.id}): ${sharpErr.message}`);
         try { await fs.unlink(fullPath); } catch {}
         for (const size of Object.keys(THUMB_SIZES)) {
           try { await fs.unlink(thumbPath(row.id, size)); } catch {}
@@ -209,27 +189,10 @@ router.post('/:id/photos/reconcile', async (req, res, next) => {
     for (const filename of diskFiles) {
       if (freshSet.has(filename) || corruptSet.has(filename)) continue;
       const fullPath = path.join(photosDir, filename);
-      // Validate new file before inserting
       try {
-        await sharp(fullPath, { failOn: 'none' }).metadata();
+        await runSharp({ op: 'metadata', srcPath: fullPath });
       } catch (sharpErr) {
-        let fileSize = '?';
-        let magicHex = '?';
-        try {
-          const stat = statSync(fullPath);
-          fileSize = stat.size;
-          const fd = await fs.open(fullPath, 'r');
-          const buf = Buffer.alloc(16);
-          await fd.read(buf, 0, 16, 0);
-          await fd.close();
-          magicHex = buf.toString('hex').toUpperCase();
-        } catch {}
-        console.warn(
-          `[reconcile/new] corrupt file — ${filename}\n` +
-          `  sharp error : ${sharpErr.message}\n` +
-          `  file size   : ${fileSize} bytes\n` +
-          `  magic bytes : ${magicHex}`
-        );
+        console.warn(`[reconcile/new] corrupt file — ${filename}: ${sharpErr.message}`);
         try { await fs.unlink(fullPath); } catch {}
         corruptFiles.push(filename);
         continue;
@@ -411,38 +374,17 @@ router.post('/:id/photos/reanalyze', async (req, res, next) => {
     const errors        = [];
     const deleted       = [];
 
-    const { default: sharp } = await import('sharp');
-
     for (const p of photos) {
       const srcPath   = path.join(photosDir, p.filename);
       const srcExists = existsSync(srcPath);
       if (!srcExists) { skipped++; continue; }
 
-      // Validate the source file with Sharp before doing any work.
-      // If it can't be decoded (corrupt upload, all-zero file, etc.) delete it
-      // from disk and from the DB so the gallery stays consistent.
+      // Validate in an isolated child process — SIGBUS kills the child, not the API.
       try {
-        await sharp(srcPath, { failOn: 'none' }).metadata();
+        await runSharp({ op: 'metadata', srcPath });
       } catch (sharpErr) {
-        let fileSize = '?';
-        let magicHex = '?';
-        try {
-          const stat = statSync(srcPath);
-          fileSize = stat.size;
-          const fd = await fs.open(srcPath, 'r');
-          const buf = Buffer.alloc(16);
-          await fd.read(buf, 0, 16, 0);
-          await fd.close();
-          magicHex = buf.toString('hex').toUpperCase();
-        } catch {}
-        console.warn(
-          `[reanalyze] corrupt source — ${p.filename} (id=${p.id})\n` +
-          `  sharp error : ${sharpErr.message}\n` +
-          `  file size   : ${fileSize} bytes\n` +
-          `  magic bytes : ${magicHex}`
-        );
+        console.warn(`[reanalyze] corrupt source — ${p.filename} (id=${p.id}): ${sharpErr.message}`);
         try { await fs.unlink(srcPath); } catch {}
-        // Clean up any partial thumbnails
         for (const size of Object.keys(THUMB_SIZES)) {
           try { await fs.unlink(thumbPath(p.id, size)); } catch {}
         }

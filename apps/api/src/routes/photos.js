@@ -24,9 +24,10 @@ import { requireAuth } from '../middleware/auth.js';
 import { can } from '../authorization/index.js';
 import { SRC_ROOT }     from '../../../../packages/engine/src/fs.js';
 import { createStorage } from '../../../../packages/shared/src/storage/index.js';
-import { enqueueSm, enqueueMd, photoThumbnails } from '../services/thumbnailService.js';
+import { enqueueSm, enqueueMd, photoThumbnails, thumbPath } from '../services/thumbnailService.js';
 import { enqueuePrerender } from '../services/prerenderService.js';
 import { extractExif } from '../../../../packages/engine/src/exif.js';
+import { runSharp } from '../services/sharpProcess.js';
 
 // Storage adapter — resolved once at startup from env
 export const fileStorage = createStorage();
@@ -65,9 +66,11 @@ const storage = multer.diskStorage({
     }
   },
   filename(req, file, cb) {
-    // Preserve original filename; sanitize to avoid path traversal
-    const safe = path.basename(file.originalname).replace(/[^a-zA-Z0-9._-]/g, '_');
-    cb(null, safe);
+    // UUID-based disk filename — prevents concurrent uploads of the same original
+    // filename from overwriting each other on disk.  original_name stores the
+    // human-readable name; filename is the stable on-disk/URL key.
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${randomUUID()}${ext}`);
   },
 });
 
@@ -96,7 +99,7 @@ router.get('/:id/photos/:filename/preview', async (req, res) => {
 
   try {
     const { default: sharp } = await import('sharp');
-    const buf = await sharp(filePath)
+    const buf = await sharp(filePath, { failOn: 'none', sequentialRead: true })
       .rotate()
       .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 75 })
@@ -265,17 +268,25 @@ router.post('/:id/photos', (req, res, next) => {
 
   const SUPPORTED_FORMATS = 'JPG, PNG, TIFF, HEIC, HEIF, AVIF';
 
-  // Validate each file with Sharp before committing to DB.
-  // Files with unsupported or corrupt content are deleted immediately and returned as rejected.
-  const { default: sharp } = await import('sharp');
+  // Validate each file AND generate the sm thumbnail atomically in an isolated child process.
+  // If this succeeds the sm thumbnail is already on disk; enqueueSm will skip it.
+  // Any SIGBUS crash kills only the child — the API is unaffected.
   const validFiles  = [];
   const rejectedFiles = [];
   for (const f of req.files || []) {
+    // photoId == the UUID multer assigned as the disk filename (minus extension)
+    const ext     = path.extname(f.filename).toLowerCase();
+    const photoId = path.basename(f.filename, ext);
+    const smDest  = thumbPath(photoId, 'sm');
+    const mdDest  = thumbPath(photoId, 'md');
     try {
-      await sharp(f.path, { failOn: 'none' }).metadata();
-      validFiles.push(f);
+      await runSharp({ op: 'validate-and-thumbs', srcPath: f.path, smPath: smDest, mdPath: mdDest });
+      validFiles.push({ ...f, _photoId: photoId });
     } catch {
-      try { fs.unlinkSync(f.path); } catch {}
+      // Do NOT unlink on validation failure — a concurrent upload of the same
+      // filename may have already succeeded and written this file; deleting it
+      // here would break that upload's prerender job.  Orphaned files from
+      // truly-corrupt uploads are cleaned up by the maintenance route.
       rejectedFiles.push({
         name:   f.originalname,
         reason: `Format non reconnu ou fichier corrompu. Formats supportés : ${SUPPORTED_FORMATS}.`,
@@ -293,15 +304,15 @@ router.post('/:id/photos', (req, res, next) => {
 
   const uploaded = [];
   for (const f of validFiles) {
-    const photoId = randomUUID();
+    const photoId = f._photoId;
     await query(
       `INSERT INTO photos (id, gallery_id, filename, original_name, size_bytes, status, uploaded_by_user_id)
        VALUES (?, ?, ?, ?, ?, 'validated', ?)
        ON DUPLICATE KEY UPDATE size_bytes = VALUES(size_bytes), original_name = VALUES(original_name)`,
       [photoId, gallery.id, f.filename, f.originalname, f.size, req.userId]
     );
-    // Phase 2: sm thumbnail — high priority queue, ready in ~1-2s per photo
-    // Phase 3: md thumbnail — low priority queue, starts after all sm are done
+    // sm thumbnail already generated above — enqueueSm will skip if file exists
+    // md thumbnail — low priority queue
     // Phase 4: prerender — very low priority, generates full build variants in background
     enqueueSm(f.path, photoId);
     enqueueMd(f.path, photoId);
