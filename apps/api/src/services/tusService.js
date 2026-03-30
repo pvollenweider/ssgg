@@ -36,6 +36,11 @@ import { enqueuePrerender, uploadStarted, uploadFinished }  from './prerenderSer
 import { extractExif }   from '../../../../packages/engine/src/exif.js';
 import { audit, getUploadLinkByToken, getPhotographerByUploadLink } from '../db/helpers.js';
 import { emit, EVENTS } from './events.js';
+import { uploadLogger as log } from '../lib/logger.js';
+import {
+  uploadTotal, uploadBytesTotal, uploadDuration, uploadFileSize,
+  tusIncompleteUploads,
+} from '../lib/metrics.js';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -75,7 +80,7 @@ async function finaliseUpload({ upload, galleryId, userId, studioId, req }) {
   const ext          = path.extname(originalName).toLowerCase();
 
   if (!ALLOWED_EXTS.has(ext)) {
-    console.error(`[tus] rejected ${originalName} — unsupported extension`);
+    log.warn({ filename: originalName }, 'rejected — unsupported extension');
     return { ok: false, reason: `Unsupported format. Accepted: ${SUPPORTED_FORMATS}` };
   }
 
@@ -129,7 +134,7 @@ async function finaliseUpload({ upload, galleryId, userId, studioId, req }) {
   try {
     await runSharp({ op: 'validate-and-thumbs', srcPath: destPath, smPath: smDest, mdPath: mdDest });
   } catch (err) {
-    console.error(`[tus] Sharp validation failed for ${originalName}:`, err.message);
+    log.error({ filename: originalName, err }, 'Sharp validation failed');
     return { ok: false, reason: `Format non reconnu ou fichier corrompu. Formats supportés : ${SUPPORTED_FORMATS}.` };
   }
 
@@ -167,6 +172,13 @@ async function finaliseUpload({ upload, galleryId, userId, studioId, req }) {
 
   try { await audit(studioId, userId, 'photo.upload', 'gallery', gallery.id, { filename: destName, via: 'tus' }); } catch {}
 
+  uploadTotal.inc({ status: 'success' });
+  uploadBytesTotal.inc({ status: 'success' }, sizeByte);
+  uploadFileSize.observe(sizeByte);
+  tusIncompleteUploads.dec();
+
+  log.info({ photoId, gallery_id: gallery.id, filename: originalName, size_bytes: sizeByte }, 'upload finished');
+
   return { ok: true, photoId, file: destName, thumbnail: photoThumbnails(photoId) };
 }
 
@@ -201,9 +213,12 @@ export function createTusServer(studioId) {
       }
 
       // Attach to upload for use in onUploadFinish
-      upload._galleryId = galleryId;
-      upload._userId    = userId;
-      upload._studioId  = studioId;
+      upload._galleryId  = galleryId;
+      upload._userId     = userId;
+      upload._studioId   = studioId;
+      upload._createdAt  = Date.now();
+
+      tusIncompleteUploads.inc();
 
       return res;
     },
@@ -211,6 +226,7 @@ export function createTusServer(studioId) {
     // ── onUploadFinish: run the full photo pipeline ───────────────────────────
     async onUploadFinish(req, res, upload) {
       uploadStarted();
+      const durationS = upload._createdAt ? (Date.now() - upload._createdAt) / 1000 : 0;
       try {
         const meta      = decodeMetadata(upload.metadata);
         const galleryId = meta.galleryId || upload._galleryId;
@@ -225,8 +241,12 @@ export function createTusServer(studioId) {
         });
 
         if (!outcome.ok) {
+          uploadTotal.inc({ status: 'failed' });
+          tusIncompleteUploads.dec();
           throw { status_code: 422, body: outcome.reason };
         }
+
+        if (durationS > 0) uploadDuration.observe(durationS);
       } finally {
         uploadFinished();
       }
@@ -315,7 +335,7 @@ export function getPublicTusServer() {
           try {
             await runSharp({ op: 'validate-and-thumbs', srcPath: destPath, smPath: smDest, mdPath: mdDest });
           } catch (err) {
-            console.error(`[tus-public] Sharp failed for ${originalName}:`, err.message);
+            log.error({ filename: originalName, err }, 'Sharp validation failed (public)');
             throw { status_code: 422, body: `Format non reconnu. Formats supportés : ${SUPPORTED_FORMATS}.` };
           }
 

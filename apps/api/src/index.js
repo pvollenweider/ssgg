@@ -13,6 +13,9 @@ import fs         from 'fs';
 import { fileURLToPath } from 'url';
 
 import { runMigrations } from './db/migrations/run.js';
+import { logger }        from './lib/logger.js';
+import pinoHttp          from 'pino-http';
+import { registry, httpRequestsTotal, httpRequestDuration } from './lib/metrics.js';
 import { bootstrap }     from './services/bootstrap.js';
 import { loadLicense }   from './services/license.js';
 import { errorHandler }       from './middleware/error.js';
@@ -61,23 +64,23 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// ── HTTP request logger ───────────────────────────────────────────────────────
-// Logs every API request: METHOD /path → STATUS in Xms
-// Skips /api/health and static assets to keep output readable.
-app.use((req, res, next) => {
-  const skip = req.path === '/api/health' || req.path.startsWith('/media/') || req.path.startsWith('/admin') && req.method === 'GET';
-  if (skip) return next();
-  const t0 = Date.now();
-  res.on('finish', () => {
-    const ms     = Date.now() - t0;
-    const status = res.statusCode;
-    const color  = status >= 500 ? '\x1b[31m' : status >= 400 ? '\x1b[33m' : status >= 300 ? '\x1b[36m' : '\x1b[32m';
-    const reset  = '\x1b[0m';
-    const user   = req.userId ? ` (u:${req.userId.slice(0, 8)})` : '';
-    console.log(`${color}${req.method}${reset} ${req.path}${user} → ${color}${status}${reset} ${ms}ms`);
-  });
-  next();
-});
+// ── HTTP request logger (pino-http) ──────────────────────────────────────────
+app.use(pinoHttp({
+  logger,
+  autoLogging: {
+    ignore: req =>
+      req.url === '/api/health' ||
+      req.url?.startsWith('/media/') ||
+      (req.url?.startsWith('/admin') && req.method === 'GET'),
+  },
+  customLogLevel: (_req, res) => res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info',
+  customSuccessMessage: (req, res) => `${req.method} ${req.url} ${res.statusCode}`,
+  customErrorMessage:   (req, res) => `${req.method} ${req.url} ${res.statusCode}`,
+  serializers: {
+    req: req => ({ method: req.method, url: req.url, userId: req.raw?.userId?.slice(0, 8) }),
+    res: res => ({ statusCode: res.statusCode }),
+  },
+}));
 
 // ── Studio context — resolve studio from hostname (before all routes) ─────────
 app.use(resolveStudioContext);
@@ -90,6 +93,24 @@ const authUploadRateLimit = rateLimit({
   windowMs: 60_000,
   max: 600,
   keyFn: req => req.userId || req.ip || 'unknown',
+});
+
+// ── Prometheus metrics endpoint ───────────────────────────────────────────────
+app.get('/metrics', async (_req, res) => {
+  res.set('Content-Type', registry.contentType);
+  res.end(await registry.metrics());
+});
+
+// ── HTTP request instrumentation ──────────────────────────────────────────────
+app.use((req, res, next) => {
+  const t0 = process.hrtime.bigint();
+  res.on('finish', () => {
+    const route      = req.route?.path || req.path.replace(/\/[0-9a-f-]{8,}/gi, '/:id') || 'unknown';
+    const durationS  = Number(process.hrtime.bigint() - t0) / 1e9;
+    httpRequestsTotal.inc({ method: req.method, route, status_code: res.statusCode });
+    httpRequestDuration.observe({ method: req.method, route }, durationS);
+  });
+  next();
 });
 
 // ── Health (registered before routes) ────────────────────────────────────────
@@ -282,7 +303,7 @@ app.use(errorHandler);
 
 // ── Safety net — log unhandled rejections without crashing ───────────────────
 process.on('unhandledRejection', (reason) => {
-  console.error('[unhandledRejection]', reason);
+  logger.error({ err: reason }, 'unhandledRejection');
 });
 
 // ── Bootstrap then start ──────────────────────────────────────────────────────
@@ -292,10 +313,10 @@ process.on('unhandledRejection', (reason) => {
     await runMigrations();
     await bootstrap();
     app.listen(PORT, () => {
-      console.log(`\n  ✓  GalleryPack API listening on port ${PORT}\n`);
+      logger.info({ port: PORT }, 'GalleryPack API listening');
     });
   } catch (err) {
-    console.error('Fatal startup error:', err);
+    logger.fatal({ err }, 'Fatal startup error');
     process.exit(1);
   }
 })();

@@ -22,6 +22,7 @@ import fs                from 'node:fs/promises';
 import { existsSync, statSync } from 'node:fs';
 import { INTERNAL_ROOT } from '../../../../packages/engine/src/fs.js';
 import { runSharp }      from './sharpProcess.js';
+import { thumbLogger as log } from '../lib/logger.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -130,7 +131,7 @@ export function enqueueSm(srcPath, photoId) {
     try {
       await generateSingleThumbnail(srcPath, photoId, 'sm');
     } catch (err) {
-      console.error(`[thumb:sm] ${photoId}: ${err.message}`);
+      log.error({ photoId, err }, 'sm thumbnail failed');
     }
   });
 }
@@ -144,7 +145,7 @@ export function enqueueMd(srcPath, photoId) {
     try {
       await generateSingleThumbnail(srcPath, photoId, 'md');
     } catch (err) {
-      console.error(`[thumb:md] ${photoId}: ${err.message}`);
+      log.error({ photoId, err }, 'md thumbnail failed');
     }
   });
 }
@@ -161,7 +162,7 @@ export async function generateThumbnails(srcPath, photoId) {
     try {
       result[size] = await generateSingleThumbnail(srcPath, photoId, size);
     } catch (err) {
-      console.error(`[thumbnailService] failed to generate ${size} for ${photoId}: ${err.message}`);
+      log.error({ photoId, size, err }, 'thumbnail generation failed');
     }
   }
   return result;

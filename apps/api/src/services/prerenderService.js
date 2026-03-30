@@ -27,6 +27,7 @@ import fs                      from 'node:fs/promises';
 import crypto                  from 'node:crypto';
 import { INTERNAL_ROOT, BUILD_CFG_PATH } from '../../../../packages/engine/src/fs.js';
 import { runSharp } from './sharpProcess.js';
+import { prerenderLogger as log } from '../lib/logger.js';
 
 // ── Build config (sizes & quality) ───────────────────────────────────────────
 
@@ -67,7 +68,6 @@ export function prerenderCacheDir(hash) {
 // don't compete with the upload validation pipeline.
 
 const CONCURRENCY = Number(process.env.PRERENDER_CONCURRENCY) || 2;
-const log = (...args) => console.log('[prerender]', ...args);
 
 class PrerenderQueue {
   constructor(concurrency) {
@@ -128,11 +128,11 @@ export function enqueuePrerender(srcPath, filename) {
     // Skip if all 5 variants are already present.
     const variants = ['full.webp', 'grid-small.webp', 'grid-big.webp', 'grid-sm-small.webp', 'grid-sm-big.webp'];
     if (variants.every(v => existsSync(path.join(dir, v)))) {
-      log(`${hash} — already complete, skip`);
+      log.debug({ hash }, 'already complete, skip');
       return;
     }
 
-    log(`${filename} → ${hash}`);
+    log.info({ filename, hash }, 'start prerender');
     await fs.mkdir(dir, { recursive: true });
 
     const cfg = getBuildCfg();
@@ -142,7 +142,7 @@ export function enqueuePrerender(srcPath, filename) {
     try {
       await runSharp({ op: 'metadata', srcPath });
     } catch (err) {
-      log(`  ✗ skipped (undecodable): ${err.message}`);
+      log.warn({ filename, hash, err }, 'skipped — undecodable');
       return;
     }
 
@@ -168,13 +168,13 @@ export function enqueuePrerender(srcPath, filename) {
       if (existsSync(out)) continue;
       try {
         await runSharp(msg);
-        log(`  ✓ ${label}`);
+        log.debug({ hash, label }, 'variant done');
       } catch (err) {
-        log(`  ✗ ${label}: ${err.message}`);
+        log.warn({ hash, label, err }, 'variant failed');
       }
     }
 
-    log(`${hash} — done`);
+    log.info({ hash }, 'prerender complete');
   });
 }
 
