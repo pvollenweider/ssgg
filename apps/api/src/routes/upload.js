@@ -92,20 +92,38 @@ router.post('/:token/photos', upload.array('photos', 50), async (req, res) => {
   // Resolve linked photographer for auto-attribution
   const photographer = await getPhotographerByUploadLink(link.id);
 
-  // Enforce quota
+  // Deduplicate by original_name
+  const incomingFiles = req.files || [];
+  const incomingNames = incomingFiles.map(f => f.originalname);
+  let newFiles = incomingFiles;
+  if (incomingNames.length > 0) {
+    const placeholders = incomingNames.map(() => '?').join(',');
+    const [dupRows] = await query(
+      `SELECT original_name FROM photos WHERE gallery_id = ? AND original_name IN (${placeholders})`,
+      [link.gallery_id, ...incomingNames],
+    );
+    const dupNames = new Set(dupRows.map(r => r.original_name));
+    if (dupNames.size > 0) {
+      newFiles = incomingFiles.filter(f => !dupNames.has(f.originalname));
+      for (const f of incomingFiles.filter(f => dupNames.has(f.originalname))) {
+        try { fs.unlinkSync(f.path); } catch {}
+      }
+    }
+  }
+
+  // Enforce quota against truly new files only
   const [countRows] = await query('SELECT COUNT(*) AS n FROM photos WHERE gallery_id = ?', [link.gallery_id]);
   const existing = Number(countRows[0].n);
-  if (existing + (req.files?.length || 0) > MAX_PHOTOS_PER_GALLERY) {
-    for (const f of req.files || []) { try { fs.unlinkSync(f.path); } catch {} }
+  if (existing + newFiles.length > MAX_PHOTOS_PER_GALLERY) {
+    for (const f of newFiles) { try { fs.unlinkSync(f.path); } catch {} }
     return res.status(422).json({
       error: `Gallery quota exceeded. Max ${MAX_PHOTOS_PER_GALLERY} photos (currently ${existing}).`,
     });
   }
 
-  // Validate each file AND generate sm thumbnail atomically in an isolated child process.
   const validFiles    = [];
   const rejectedFiles = [];
-  for (const f of req.files || []) {
+  for (const f of newFiles) {
     const ext     = path.extname(f.filename).toLowerCase();
     const photoId = path.basename(f.filename, ext);
     const smDest  = thumbPath(photoId, 'sm');

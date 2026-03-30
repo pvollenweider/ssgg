@@ -112,23 +112,41 @@ router.post('/', authAndResolve, upload.array('photos', MAX_FILES), async (req, 
     return res.status(400).json({ error: 'No files received. Field name must be "photos".' });
   }
 
-  // Enforce quota
+  // Deduplicate by original_name
+  const incomingFiles = req.files;
+  const incomingNames = incomingFiles.map(f => f.originalname);
+  let newFiles = incomingFiles;
+  if (incomingNames.length > 0) {
+    const placeholders = incomingNames.map(() => '?').join(',');
+    const [dupRows] = await query(
+      `SELECT original_name FROM photos WHERE gallery_id = ? AND original_name IN (${placeholders})`,
+      [gallery.id, ...incomingNames],
+    );
+    const dupNames = new Set(dupRows.map(r => r.original_name));
+    if (dupNames.size > 0) {
+      newFiles = incomingFiles.filter(f => !dupNames.has(f.originalname));
+      for (const f of incomingFiles.filter(f => dupNames.has(f.originalname))) {
+        try { fs.unlinkSync(f.path); } catch {}
+      }
+    }
+  }
+
+  // Enforce quota against truly new files only
   const [countRows] = await query(
     'SELECT COUNT(*) AS n FROM photos WHERE gallery_id = ?',
     [gallery.id]
   );
   const existing = Number(countRows[0].n);
-  if (existing + req.files.length > MAX_PER_GALLERY) {
-    for (const f of req.files) { try { fs.unlinkSync(f.path); } catch {} }
+  if (existing + newFiles.length > MAX_PER_GALLERY) {
+    for (const f of newFiles) { try { fs.unlinkSync(f.path); } catch {} }
     return res.status(422).json({
       error: `Gallery quota exceeded. Max ${MAX_PER_GALLERY} photos (currently ${existing}).`,
     });
   }
 
-  // Validate AND generate sm thumbnail atomically — child process isolates SIGBUS.
   const validFiles    = [];
   const rejectedFiles = [];
-  for (const f of req.files) {
+  for (const f of newFiles) {
     const ext     = path.extname(f.filename).toLowerCase();
     const photoId = path.basename(f.filename, ext);
     const smDest  = thumbPath(photoId, 'sm');
