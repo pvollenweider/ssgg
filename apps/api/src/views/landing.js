@@ -182,71 +182,126 @@ export function renderProjectIndex(projects, siteTitle = 'GalleryPack', isLogged
 
 export function renderProjectListing(projectSlug, projectName, galleries, siteTitle = 'GalleryPack', isLoggedIn = false, projectDescHtml = '') {
   const cards = galleries.length === 0
-    ? '<p style="color:#666;text-align:center;padding:3rem 0;grid-column:1/-1">No galleries published yet.</p>'
+    ? `<p class="empty">Aucune galerie publiée pour l'instant.</p>`
     : galleries.map(g => {
         const href  = `/${projectSlug}/${g.slug}/`;
         const thumb = g.coverName
-          ? `<img src="${href}img/grid/${g.coverName}.webp" style="width:100%;height:100%;object-fit:cover;display:block" alt="" onerror="this.style.display='none'">`
-          : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;color:#555">&#128247;</div>`;
+          ? `<img src="${href}img/grid/${g.coverName}.webp" class="card-img" alt="" loading="lazy" onerror="this.style.display='none'">`
+          : `<div class="card-img-placeholder">&#128247;</div>`;
         const dateLabel  = fmtDateRange(g.dateRange, g.date);
         const photoLabel = g.photoCount === 1 ? '1 photo' : `${g.photoCount || 0} photos`;
         const pgLine = g.photographers?.length > 0
-          ? `<p style="margin:0 0 0.3rem;font-size:0.8rem;color:#9ca3af">${g.photographers.map(n => esc(n)).join(' · ')}</p>`
+          ? `<p class="card-authors">${g.photographers.map(n => esc(n)).join('<span class="sep">·</span>')}</p>`
           : '';
         const descLine = g.description
-          ? `<p style="margin:0 0 0.3rem;font-size:0.8rem;color:#9ca3af;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(g.description)}</p>`
+          ? `<p class="card-desc">${esc(g.description)}</p>`
           : '';
-        const inner = `
-          <div style="position:relative;height:220px;background:#2a2a2a;overflow:hidden">${thumb}</div>
-          <div style="padding:0.9rem 1.1rem 1rem">
-            <h3 style="margin:0 0 0.25rem;font-size:1rem;font-weight:600;color:#eee;line-height:1.3">${esc(g.title || g.slug)}</h3>
+        return `<a href="${href}" class="card">
+          <div class="card-cover">${thumb}</div>
+          <div class="card-body">
+            <h3 class="card-title">${esc(g.title || g.slug)}</h3>
             ${pgLine}
-            ${dateLabel ? `<p style="margin:0 0 0.25rem;font-size:0.8rem;color:#777">${esc(dateLabel)}</p>` : ''}
-            ${g.location ? `<p style="margin:0 0 0.25rem;font-size:0.8rem;color:#777">${esc(g.location)}</p>` : ''}
+            ${dateLabel ? `<p class="card-meta">${esc(dateLabel)}${g.location ? `<span class="sep">·</span>${esc(g.location)}` : ''}</p>` : (g.location ? `<p class="card-meta">${esc(g.location)}</p>` : '')}
             ${descLine}
-            <p style="margin:0;font-size:0.75rem;color:#555">${photoLabel}</p>
-          </div>`;
-        return `<a href="${href}" style="background:#272727;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,0.3);text-decoration:none;display:block;transition:box-shadow 0.15s" onmouseover="this.style.boxShadow='0 6px 24px rgba(0,0,0,0.55)'" onmouseout="this.style.boxShadow='0 1px 6px rgba(0,0,0,0.3)'">${inner}</a>`;
+            <p class="card-count">${photoLabel}</p>
+          </div>
+        </a>`;
       }).join('');
 
-  const adminBtn = isLoggedIn ? `<a class="admin-link" href="/admin/">Admin</a>` : '';
+  const adminBtn = isLoggedIn ? `<a class="bar-admin" href="/admin/">Admin</a>` : '';
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>${esc(projectName)} — ${esc(siteTitle)}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
   <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#1c1c1c;min-height:100vh}
-    header{background:#222;border-bottom:1px solid #333;padding:0 1.5rem;height:52px;display:flex;align-items:center;justify-content:space-between;gap:1rem}
-    .back{font-size:0.82rem;color:#aaa;text-decoration:none}
-    .back:hover{color:#fff}
-    .logo{font-weight:700;letter-spacing:-0.02em;font-size:1rem;color:#fff;text-decoration:none;flex:1;text-align:center}
-    .admin-link{font-size:0.82rem;color:#aaa;text-decoration:none;padding:0.3rem 0.75rem;border:1px solid #444;border-radius:5px}
-    main{width:100%}
-    .grid{max-width:1200px;width:100%;margin:0 auto;padding:1.5rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.25rem}
-    .proj-desc{max-width:1200px;width:100%;margin:0 auto;padding:1.5rem 1.5rem 0;color:#bbb;font-size:0.9rem;line-height:1.7}
-    .proj-desc p{margin:0 0 0.75em}.proj-desc h1,.proj-desc h2,.proj-desc h3{color:#ddd;margin:0 0 0.5em}
-    footer{border-top:1px solid #333;padding:0.75rem 1.5rem;display:flex;align-items:center;gap:0.5rem;font-size:0.78rem;color:#555}
-    footer a{color:#555;text-decoration:none}
-    footer .brand{font-weight:600;color:#777;letter-spacing:-0.01em}
-    footer .sep{color:#444}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#1c1c1c;--ink:#e8e4dd;--muted:#706860;--accent:#c8a96e;--bar:56px}
+    html,body{background:var(--bg);color:var(--ink);font-family:'Poppins',sans-serif;min-height:100vh}
+
+    /* ── Top bar ── */
+    .bar{position:fixed;top:0;left:0;right:0;height:var(--bar);
+      display:flex;align-items:center;justify-content:space-between;padding:0 22px;
+      background:rgba(0,0,0,.85);backdrop-filter:blur(18px) saturate(120%);
+      -webkit-backdrop-filter:blur(18px) saturate(120%);
+      border-bottom:1px solid rgba(255,255,255,.07);z-index:90}
+    .bar-back{font-size:11px;letter-spacing:.07em;text-transform:uppercase;
+      color:var(--muted);text-decoration:none;transition:color .2s}
+    .bar-back:hover{color:var(--ink)}
+    .bar-title{font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+    .bar-admin{font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+      color:var(--muted);text-decoration:none;
+      border:1px solid rgba(255,255,255,.12);border-radius:4px;padding:4px 10px;
+      transition:color .2s,border-color .2s}
+    .bar-admin:hover{color:var(--ink);border-color:rgba(255,255,255,.3)}
+
+    /* ── Hero ── */
+    .hero{max-width:1320px;margin:0 auto;padding:calc(var(--bar) + 52px) 32px 40px;text-align:center}
+    .hero-title{font-size:clamp(26px,4.5vw,52px);font-weight:600;color:var(--ink);
+      margin:0 0 14px;letter-spacing:-.02em;line-height:1.15}
+    .hero-desc{max-width:700px;margin:0 auto;font-size:14px;font-weight:300;
+      color:rgba(232,228,221,.65);line-height:1.85;text-align:left}
+    .hero-desc p{margin:0 0 14px}.hero-desc p:last-child{margin-bottom:0}
+    .hero-desc h2,.hero-desc h3{color:rgba(232,228,221,.9);margin:20px 0 8px;font-weight:600}
+    .hero-desc a{color:var(--accent);text-decoration:none}.hero-desc a:hover{text-decoration:underline}
+    .hero-divider{width:40px;height:1px;background:rgba(255,255,255,.1);margin:0 auto 48px}
+
+    /* ── Grid ── */
+    .grid{max-width:1320px;margin:0 auto;padding:0 24px 64px;
+      display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:1.5rem}
+    .empty{color:var(--muted);text-align:center;padding:4rem 0;grid-column:1/-1;font-size:14px}
+
+    /* ── Card ── */
+    .card{background:#232323;border:1px solid rgba(255,255,255,.06);border-radius:10px;
+      overflow:hidden;text-decoration:none;display:flex;flex-direction:column;
+      transition:border-color .2s,box-shadow .2s}
+    .card:hover{border-color:rgba(200,169,110,.3);box-shadow:0 8px 32px rgba(0,0,0,.45)}
+    .card-cover{position:relative;aspect-ratio:4/3;background:#2a2a2a;overflow:hidden}
+    .card-img{width:100%;height:100%;object-fit:cover;display:block;transition:transform .4s}
+    .card:hover .card-img{transform:scale(1.03)}
+    .card-img-placeholder{width:100%;height:100%;display:flex;align-items:center;
+      justify-content:center;font-size:2.5rem;color:#444}
+    .card-body{padding:1rem 1.1rem 1.1rem;display:flex;flex-direction:column;gap:5px;flex:1}
+    .card-title{font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-.01em;line-height:1.3}
+    .card-authors{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent)}
+    .card-authors .sep{margin:0 6px;opacity:.4}
+    .card-meta{font-size:11px;color:var(--muted);letter-spacing:.04em}
+    .card-meta .sep{margin:0 6px;opacity:.4}
+    .card-desc{font-size:12px;color:rgba(232,228,221,.45);line-height:1.6;
+      display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
+    .card-count{font-size:10px;color:rgba(255,255,255,.2);letter-spacing:.06em;
+      text-transform:uppercase;margin-top:auto;padding-top:6px}
+
+    /* ── Footer ── */
+    .footer{border-top:1px solid rgba(255,255,255,.06);padding:24px;
+      text-align:center;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+      color:rgba(255,255,255,.15)}
+    .footer a{color:rgba(255,255,255,.15);text-decoration:none;transition:color .2s}
+    .footer a:hover{color:rgba(255,255,255,.45)}
+    .footer .sep{margin:0 10px;opacity:.5}
   </style>
 </head>
-<body style="display:flex;flex-direction:column;min-height:100vh">
-  <header>
-    <a class="back" href="/">← ${esc(siteTitle)}</a>
-    <span class="logo">${esc(projectName)}</span>
+<body>
+  <nav class="bar">
+    <a class="bar-back" href="/">← ${esc(siteTitle)}</a>
+    <span class="bar-title">${esc(projectName)}</span>
     ${adminBtn}
-  </header>
-  <main style="flex:1">
-    ${projectDescHtml ? `<div class="proj-desc">${projectDescHtml}</div>` : ''}
+  </nav>
+  <main>
+    <div class="hero">
+      <h1 class="hero-title">${esc(projectName)}</h1>
+      ${projectDescHtml ? `<div class="hero-desc">${projectDescHtml}</div>` : ''}
+    </div>
+    <div class="hero-divider"></div>
     <div class="grid">${cards}</div>
   </main>
-  <footer>
-    <span class="brand">GalleryPack</span>
+  <footer class="footer">
+    <a href="/">← ${esc(siteTitle)}</a>
     <span class="sep">·</span>
     <a href="/admin/">Admin</a>
   </footer>
