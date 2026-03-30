@@ -17,7 +17,9 @@ import { useEffect } from 'react';
  * @param {'success'|'danger'|'warning'|'info'|'secondary'} [variant='success']
  * @param {number}   [duration=3000]   - Auto-close delay in ms. 0 = no auto-close.
  */
-export default function AdminToast({ show, onClose, message, variant = 'success', duration = 3000 }) {
+export default function AdminToast({ message, onDone, variant = 'success', duration = 3000 }) {
+  const show = !!message;
+  const onClose = onDone;
   useEffect(() => {
     if (!show || duration === 0) return;
     const t = setTimeout(onClose, duration);

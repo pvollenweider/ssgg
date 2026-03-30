@@ -79,6 +79,7 @@ export default function GalleryPhotosPage() {
   }
 
   useEffect(() => {
+    setError('');
     Promise.all([api.getGallery(galleryId), api.listPhotos(galleryId), api.listOrgPhotographers(orgId)])
       .then(([g, p, pgs]) => {
         setGallery(g);
