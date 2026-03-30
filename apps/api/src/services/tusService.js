@@ -34,7 +34,8 @@ import { runSharp }      from './sharpProcess.js';
 import { enqueueSm, enqueueMd, thumbPath, photoThumbnails } from './thumbnailService.js';
 import { enqueuePrerender, uploadStarted, uploadFinished }  from './prerenderService.js';
 import { extractExif }   from '../../../../packages/engine/src/exif.js';
-import { audit }         from '../db/helpers.js';
+import { audit, getUploadLinkByToken, getPhotographerByUploadLink } from '../db/helpers.js';
+import { emit, EVENTS } from './events.js';
 
 // ── Config ────────────────────────────────────────────────────────────────────
 
@@ -235,4 +236,144 @@ export function createTusServer(studioId) {
   });
 
   return server;
+}
+
+// ── Public tus server (upload-link / token flow) ───────────────────────────────
+// Token is attached to req._uploadToken by the route middleware before calling server.handle().
+// Photos are inserted with status 'approved' and auto-attributed to the linked photographer.
+
+const _publicTusServer = new Map(); // one server (stateless — token validated per-request)
+
+export function getPublicTusServer() {
+  const key = '__public__';
+  if (!_publicTusServer.has(key)) {
+    const datastore = new FileStore({ directory: tusStoreDir() });
+
+    const server = new Server({
+      path:     '/upload/tus',
+      datastore,
+      maxSize:  MAX_FILE_SIZE_BYTES,
+
+      async onUploadCreate(req, res, upload) {
+        const token = req._uploadToken;
+        if (!token) throw { status_code: 400, body: 'Missing upload token' };
+
+        const link = await getUploadLinkByToken(token);
+        if (!link) throw { status_code: 401, body: 'Invalid or expired upload link' };
+
+        upload._link = link;
+        return res;
+      },
+
+      async onUploadFinish(req, res, upload) {
+        const link = upload._link;
+        if (!link) throw { status_code: 401, body: 'Invalid or expired upload link' };
+
+        uploadStarted();
+        try {
+          const meta         = decodeMetadata(upload.metadata);
+          const originalName = meta.filename || meta.name || path.basename(upload.id);
+          const ext          = path.extname(originalName).toLowerCase();
+
+          if (!ALLOWED_EXTS.has(ext)) {
+            throw { status_code: 422, body: `Unsupported format. Accepted: ${SUPPORTED_FORMATS}` };
+          }
+
+          // Dedup check
+          const [dupRows] = await query(
+            'SELECT id FROM photos WHERE gallery_id = ? AND original_name = ? LIMIT 1',
+            [link.gallery_id, originalName],
+          );
+          if (dupRows[0]) {
+            try { fs.unlinkSync(upload.storage?.path); } catch {}
+            return res;
+          }
+
+          // Quota
+          const [countRows] = await query('SELECT COUNT(*) AS n FROM photos WHERE gallery_id = ?', [link.gallery_id]);
+          if (Number(countRows[0].n) >= MAX_PHOTOS_PER_GALLERY) {
+            throw { status_code: 422, body: `Gallery quota exceeded (max ${MAX_PHOTOS_PER_GALLERY} photos)` };
+          }
+
+          const destDir  = photosDir(link.gallery_slug);
+          fs.mkdirSync(destDir, { recursive: true });
+
+          const tusPath = upload.storage?.path;
+          if (!tusPath || !fs.existsSync(tusPath)) {
+            throw { status_code: 500, body: 'Upload data file not found' };
+          }
+
+          const photoId  = randomUUID();
+          const destName = `${photoId}${ext}`;
+          const destPath = path.join(destDir, destName);
+
+          fs.renameSync(tusPath, destPath);
+          try { fs.unlinkSync(`${tusPath}.json`); } catch {}
+
+          const smDest = thumbPath(photoId, 'sm');
+          const mdDest = thumbPath(photoId, 'md');
+          try {
+            await runSharp({ op: 'validate-and-thumbs', srcPath: destPath, smPath: smDest, mdPath: mdDest });
+          } catch (err) {
+            console.error(`[tus-public] Sharp failed for ${originalName}:`, err.message);
+            throw { status_code: 422, body: `Format non reconnu. Formats supportés : ${SUPPORTED_FORMATS}.` };
+          }
+
+          const photographer = await getPhotographerByUploadLink(link.id);
+          const sizeByte     = fs.statSync(destPath).size;
+
+          const [result] = await query(
+            `INSERT INTO photos (id, gallery_id, filename, original_name, size_bytes, status, upload_link_id, photographer_id)
+             VALUES (?, ?, ?, ?, ?, 'approved', ?, ?)
+             ON DUPLICATE KEY UPDATE
+               size_bytes = VALUES(size_bytes),
+               original_name = VALUES(original_name),
+               photographer_id = VALUES(photographer_id)`,
+            [photoId, link.gallery_id, destName, originalName, sizeByte, link.id, photographer?.id ?? null],
+          );
+
+          if (result.affectedRows === 2) {
+            try { fs.unlinkSync(destPath); } catch {}
+            try { fs.unlinkSync(thumbPath(photoId, 'sm')); } catch {}
+            try { fs.unlinkSync(thumbPath(photoId, 'md')); } catch {}
+            return res;
+          }
+
+          enqueueSm(destPath, photoId);
+          enqueueMd(destPath, photoId);
+          enqueuePrerender(destPath, destName);
+
+          extractExif(destPath).then(exif => {
+            if (exif && Object.keys(exif).length > 0) {
+              query('UPDATE photos SET exif = ? WHERE id = ?', [JSON.stringify(exif), photoId]).catch(() => {});
+            }
+          }).catch(() => {});
+
+          await query(
+            'UPDATE galleries SET needs_rebuild = 1, updated_at = ? WHERE id = ?',
+            [Date.now(), link.gallery_id],
+          );
+
+          // Business event — notifies editors
+          const orgId = link.organization_id || link.studio_id;
+          emit(EVENTS.PHOTO_UPLOADED, {
+            studioId:         orgId,
+            galleryId:        link.gallery_id,
+            galleryTitle:     link.gallery_title,
+            uploadLinkLabel:  link.label,
+            photographerName: photographer?.name ?? null,
+            photoCount:       1,
+          });
+
+        } finally {
+          uploadFinished();
+        }
+
+        return res;
+      },
+    });
+
+    _publicTusServer.set(key, server);
+  }
+  return _publicTusServer.get(key);
 }

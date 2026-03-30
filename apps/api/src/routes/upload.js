@@ -15,6 +15,7 @@ import { query }      from '../db/database.js';
 import { getUploadLinkByToken, getPhotographerByUploadLink } from '../db/helpers.js';
 import { emit, EVENTS } from '../services/events.js';
 import { SRC_ROOT }       from '../../../../packages/engine/src/fs.js';
+import { getPublicTusServer } from '../services/tusService.js';
 import { generateThumbnails, photoThumbnails, thumbPath } from '../services/thumbnailService.js';
 import { extractExif } from '../../../../packages/engine/src/exif.js';
 import { runSharp } from '../services/sharpProcess.js';
@@ -186,5 +187,24 @@ router.post('/:token/photos', upload.array('photos', 50), async (req, res) => {
 
   res.status(201).json({ uploaded: uploaded.length, files: uploaded });
 });
+
+// ── tus resumable upload endpoint for token-based (photographer) uploads ───────
+// /upload/:token/tus  and  /upload/:token/tus/:uploadId
+// Token is passed in via URL — attached to req before handing off to tus server.
+
+const TUS_METHODS = ['OPTIONS', 'HEAD', 'POST', 'PATCH', 'DELETE'];
+
+function handlePublicTus(req, res) {
+  if (!TUS_METHODS.includes(req.method)) {
+    return res.status(405).set('Allow', TUS_METHODS.join(', ')).end();
+  }
+  req._uploadToken = req.params.token;
+  const server = getPublicTusServer();
+  req.url = req.originalUrl.replace(`/upload/${req.params.token}/tus`, '') || '/';
+  server.handle(req, res);
+}
+
+router.all('/:token/tus',           handlePublicTus);
+router.all('/:token/tus/:uploadId', handlePublicTus);
 
 export default router;
