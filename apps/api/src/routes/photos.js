@@ -25,7 +25,7 @@ import { can } from '../authorization/index.js';
 import { SRC_ROOT }     from '../../../../packages/engine/src/fs.js';
 import { createStorage } from '../../../../packages/shared/src/storage/index.js';
 import { enqueueSm, enqueueMd, photoThumbnails, thumbPath } from '../services/thumbnailService.js';
-import { enqueuePrerender } from '../services/prerenderService.js';
+import { enqueuePrerender, uploadStarted, uploadFinished } from '../services/prerenderService.js';
 import { extractExif } from '../../../../packages/engine/src/exif.js';
 import { runSharp } from '../services/sharpProcess.js';
 
@@ -247,6 +247,8 @@ router.post('/:id/photos', (req, res, next) => {
     next();
   });
 }, async (req, res) => {
+  uploadStarted();
+  try {
   const gallery = await ensureGalleryBelongsToStudio(req, res);
   if (!gallery) return;
   const galleryRole = await getGalleryRole(req.userId, gallery.id);
@@ -354,6 +356,9 @@ router.post('/:id/photos', (req, res, next) => {
     }
   }
   res.status(201).json({ uploaded: uploaded.length, files: uploaded, rejected: rejectedFiles });
+  } finally {
+    uploadFinished();
+  }
 });
 
 // POST /api/galleries/:id/photos/validate — bulk validate (accept) inbox photos

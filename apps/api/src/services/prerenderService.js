@@ -63,18 +63,23 @@ export function prerenderCacheDir(hash) {
 
 // ── Queue ─────────────────────────────────────────────────────────────────────
 // Very low concurrency — this runs silently while the API handles other requests.
+// Automatically pauses while uploads are in progress so Sharp child processes
+// don't compete with the upload validation pipeline.
 
 const CONCURRENCY = 2;
 const log = (...args) => console.log('[prerender]', ...args);
 
 class PrerenderQueue {
   constructor(concurrency) {
-    this.concurrency = concurrency;
-    this.running     = 0;
-    this.jobs        = [];
+    this.concurrency   = concurrency;
+    this.running       = 0;
+    this.jobs          = [];
+    this.activeUploads = 0;   // incremented by uploadStarted(), decremented by uploadFinished()
   }
   push(fn) { this.jobs.push(fn); this._tick(); }
   _tick() {
+    // Pause while any upload is in flight — uploads get exclusive access to Sharp workers.
+    if (this.activeUploads > 0) return;
     while (this.running < this.concurrency) {
       const fn = this.jobs.shift();
       if (!fn) break;
@@ -87,6 +92,24 @@ class PrerenderQueue {
 }
 
 const queue = new PrerenderQueue(CONCURRENCY);
+
+/**
+ * Call at the start of every upload request.
+ * Pauses prerender processing for the duration of the upload.
+ */
+export function uploadStarted() {
+  queue.activeUploads++;
+}
+
+/**
+ * Call when an upload request finishes (success or error).
+ * Resumes prerender processing once all concurrent uploads have completed.
+ */
+export function uploadFinished() {
+  if (queue.activeUploads > 0) queue.activeUploads--;
+  // Drain any jobs that were queued while uploads were running.
+  queue._tick();
+}
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
