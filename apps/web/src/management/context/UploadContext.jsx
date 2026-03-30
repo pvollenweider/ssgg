@@ -74,6 +74,9 @@ function makeUppy() {
     // allowedMetaFields tells @uppy/tus which meta fields to include in Upload-Metadata
     allowedMetaFields: ['filename', 'galleryId'],
     limit: MAX_CONCURRENT,         // max concurrent tus uploads
+    // Remove the stored URL from localStorage after each successful upload so stale
+    // fingerprints don't accumulate across sessions and trigger spurious HEAD 404s.
+    removeFingerprintOnSuccess: true,
   });
 
   return uppy;
@@ -110,8 +113,15 @@ export function UploadProvider({ children }) {
       });
 
       uppy.on('upload-error', (file, error) => {
-        const body = error?.request?.responseText || '';
-        const is422 = error?.request?.status === 422 || body.includes('"error"');
+        const status = error?.request?.status;
+        // 404 on HEAD = stale fingerprint from a previous session.
+        // @uppy/tus will retry automatically and create a fresh upload — suppress UI error.
+        if (status === 404) {
+          log(`resume 404 for "${file.name}" — retrying fresh`);
+          return;
+        }
+        const body   = error?.request?.responseText || '';
+        const is422  = status === 422 || body.includes('"error"');
         log(`✗ "${file.name}" — ${error.message}`);
         patchItem(file.id, {
           status:   'error',
