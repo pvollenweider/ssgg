@@ -60,7 +60,17 @@ Private galleries use a hash-based `distName` derived from the gallery ID so the
 5. The worker updates the job status to `done` (or `error`)
 6. The browser receives real-time log lines via SSE and shows a progress bar
 
+A build can be **cancelled** at any point while it is `queued` or `running` via the stop button in the build log page or the gallery jobs list. The API sets the job status to `cancelled`; the worker detects this before writing the final `done` status and aborts cleanly.
+
+### Watermark
+
+When the gallery's watermark setting is enabled, the engine composites a text overlay onto every full-size image using Sharp's SVG compositing. The watermark renders bottom-right, using the DIN Tape font bundled in `packages/engine/assets/din-tape.ttf`. Font size is 1.5 % of the image height. The Docker worker image registers the font via `fc-cache` so that librsvg (Sharp's SVG renderer) can resolve it by family name.
+
 Caddy serves the `dist/` directory directly as static files.
+
+### Gallery ordering
+
+Within a project, galleries are displayed in the order defined by the admin via drag-and-drop in the project galleries page. This order is stored as `sort_order` on the `galleries` table and respected on both the static prerendered page and the dynamic fallback route.
 
 ---
 

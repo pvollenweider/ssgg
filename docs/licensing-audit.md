@@ -30,7 +30,11 @@ Dependencies must be AGPL-compatible (MIT, Apache-2.0, BSD, ISC, etc.).
 
 **Result:** all dependencies are permissive. No GPL/AGPL contamination. Compatible with AGPL-3.0 distribution.
 
-**Assets:** no fonts, icons, or image assets bundled in `packages/engine/`. No asset license concerns.
+**Assets:** one font bundled in `packages/engine/assets/`:
+
+| Asset | File | License | Notes |
+|---|---|---|---|
+| DIN Tape | `din-tape.ttf` | Commercial — licensed to Philippe Vollenweider | Used for watermark overlay on full-size images; not redistributed to end users |
 
 ---
 

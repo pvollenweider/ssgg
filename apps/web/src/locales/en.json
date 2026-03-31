@@ -4,6 +4,8 @@
   "back_to_galleries": "← Galleries",
   "loading": "Loading…",
   "cancel": "Cancel",
+  "job_cancel": "Stop build",
+  "job_cancelled": "Build cancelled",
   "save": "Save",
   "saving": "Saving…",
   "create": "Create",

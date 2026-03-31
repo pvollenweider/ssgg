@@ -8,14 +8,28 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { api }       from '../lib/api.js';
+import { useT }      from '../lib/I18nContext.jsx';
 import { BuildLog }  from '../components/BuildLog.jsx';
 
 export default function BuildStatus() {
+  const t           = useT();
   const { jobId }   = useParams();
   const navigate    = useNavigate();
-  const [job,     setJob]     = useState(null);
-  const [gallery, setGallery] = useState(null);
-  const [done,    setDone]    = useState(false);
+  const [job,        setJob]        = useState(null);
+  const [gallery,    setGallery]    = useState(null);
+  const [done,       setDone]       = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  async function cancelJob() {
+    setCancelling(true);
+    try {
+      await api.cancelJob(jobId);
+      const j = await api.getJob(jobId);
+      setJob(j);
+      setDone(true);
+    } catch {}
+    setCancelling(false);
+  }
 
   useEffect(() => {
     api.getJob(jobId)
@@ -52,12 +66,24 @@ export default function BuildStatus() {
               {/* Build meta */}
               {job && (
                 <div className="card">
-                  <div className="card-body py-2">
+                  <div className="card-body py-2 d-flex align-items-center justify-content-between flex-wrap gap-2">
                     <div className="d-flex flex-wrap" style={{ gap: '1.5rem', fontSize: '0.85rem', color: '#666' }}>
                       <span><strong>Gallery:</strong> {gallery ? (gallery.title || gallery.slug) : job.galleryId}</span>
                       <span><strong>Triggered:</strong> {new Date(job.createdAt).toLocaleString()}</span>
                       {job.durationMs && <span><strong>Duration:</strong> {(job.durationMs / 1000).toFixed(1)}s</span>}
                     </div>
+                    {['queued', 'running'].includes(job.status) && !done && (
+                      <button
+                        className="btn btn-sm btn-outline-danger"
+                        onClick={cancelJob}
+                        disabled={cancelling}
+                      >
+                        {cancelling
+                          ? <><i className="fas fa-spinner fa-spin me-1" />…</>
+                          : <><i className="fas fa-stop me-1" />{t('job_cancel')}</>
+                        }
+                      </button>
+                    )}
                   </div>
                 </div>
               )}

@@ -2,6 +2,11 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
+# fontconfig + fonts-dejavu needed so librsvg (Sharp SVG) can render text
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      fontconfig fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY package*.json ./
 COPY packages/engine/package.json   packages/engine/
 COPY packages/shared/package.json   packages/shared/
@@ -13,6 +18,11 @@ COPY packages/          packages/
 COPY apps/api/          apps/api/
 COPY workers/           workers/
 COPY build.config.json  ./
+
+# Register the bundled watermark font with fontconfig
+RUN mkdir -p /usr/share/fonts/truetype/gallerypack \
+    && cp packages/engine/assets/din-tape.ttf /usr/share/fonts/truetype/gallerypack/din-tape.ttf \
+    && fc-cache -fv
 
 RUN mkdir -p /srv/gallerypack/public /srv/gallerypack/internal /srv/gallerypack/private \
     && mkdir -p data

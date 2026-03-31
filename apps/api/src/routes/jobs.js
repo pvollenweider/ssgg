@@ -103,6 +103,20 @@ router.get('/:jobId', async (req, res) => {
   res.json(jobToJson(job));
 });
 
+// ── DELETE /api/jobs/:jobId — cancel a queued or running job ─────────────────
+router.delete('/:jobId', async (req, res) => {
+  const job = await getJob(req.params.jobId);
+  if (!job || job.studio_id !== req.studioId) return res.status(404).json({ error: 'Job not found' });
+  if (!['queued', 'running'].includes(job.status)) {
+    return res.status(409).json({ error: 'Job cannot be cancelled' });
+  }
+  await query(
+    'UPDATE build_jobs SET status = ?, finished_at = ? WHERE id = ?',
+    ['cancelled', Date.now(), job.id]
+  );
+  res.json({ ok: true });
+});
+
 // ── GET /api/jobs/:jobId/stream — SSE live build log ─────────────────────────
 // Polls build_events table every 500ms and pushes new events to the client.
 // Closes the stream when the job reaches done/error status.

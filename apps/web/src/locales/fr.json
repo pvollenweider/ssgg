@@ -4,6 +4,8 @@
   "back_to_galleries": "← Galeries",
   "loading": "Chargement…",
   "cancel": "Annuler",
+  "job_cancel": "Arrêter le build",
+  "job_cancelled": "Build annulé",
   "save": "Enregistrer",
   "saving": "Enregistrement…",
   "create": "Créer",

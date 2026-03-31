@@ -11,14 +11,15 @@ import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
 import { AdminPage, AdminCard, AdminBadge, AdminAlert } from '../../../components/ui/index.js';
 
-const STATUS_BADGE = { done: 'success', error: 'danger', running: 'primary', queued: 'warning' };
+const STATUS_BADGE = { done: 'success', error: 'danger', running: 'primary', queued: 'warning', cancelled: 'secondary' };
 
 export default function GalleryJobsPage() {
   const t = useT();
   const { galleryId } = useParams();
-  const [jobs,    setJobs]    = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState('');
+  const [jobs,       setJobs]       = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState('');
+  const [cancelling, setCancelling] = useState(null);
 
   useEffect(() => {
     api.listJobs(galleryId)
@@ -26,6 +27,15 @@ export default function GalleryJobsPage() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [galleryId]);
+
+  async function cancelJob(jobId) {
+    setCancelling(jobId);
+    try {
+      await api.cancelJob(jobId);
+      setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: 'cancelled' } : j));
+    } catch {}
+    setCancelling(null);
+  }
 
   return (
     <AdminPage title={t('tab_jobs')}>
@@ -54,7 +64,19 @@ export default function GalleryJobsPage() {
                     <td className="text-muted" style={{ fontSize: '0.85rem' }}>
                       {new Date(j.createdAt).toLocaleString()}
                     </td>
-                    <td className="text-end">
+                    <td className="text-end d-flex gap-2 justify-content-end">
+                      {['queued', 'running'].includes(j.status) && (
+                        <button
+                          className="btn btn-sm btn-outline-danger"
+                          onClick={() => cancelJob(j.id)}
+                          disabled={cancelling === j.id}
+                        >
+                          {cancelling === j.id
+                            ? <i className="fas fa-spinner fa-spin" />
+                            : <i className="fas fa-stop" />
+                          }
+                        </button>
+                      )}
                       <Link to={`/admin/jobs/${j.id}`} className="btn btn-sm btn-outline-secondary">
                         {t('hub_logs')} <i className="fas fa-arrow-right ms-1" />
                       </Link>

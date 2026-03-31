@@ -83,10 +83,11 @@ export const api = {
   revokeToken:  (tokenId)                => req('DELETE', `/tokens/${tokenId}`),
 
   // Jobs
-  triggerBuild:   (galleryId, force = false) => req('POST', `/galleries/${galleryId}/build`, { force }),
-  listJobs:       (galleryId)               => req('GET',  `/galleries/${galleryId}/jobs`),
-  getJob:         (jobId)                   => req('GET',  `/jobs/${jobId}`),
-  listActiveJobs: ()                        => req('GET',  `/jobs`),
+  triggerBuild:   (galleryId, force = false) => req('POST',   `/galleries/${galleryId}/build`, { force }),
+  listJobs:       (galleryId)               => req('GET',    `/galleries/${galleryId}/jobs`),
+  getJob:         (jobId)                   => req('GET',    `/jobs/${jobId}`),
+  cancelJob:      (jobId)                   => req('DELETE', `/jobs/${jobId}`),
+  listActiveJobs: ()                        => req('GET',    `/jobs`),
 
   // Gallery members
   getGalleryMembers:  (id)                      => req('GET',    `/galleries/${id}/members`),
@@ -121,6 +122,7 @@ export const api = {
   createProjectGallery:   (projectId, data) => req('POST', `/projects/${projectId}/galleries`, data),
   reorderProjectGalleries: (projectId, order) => req('POST', `/projects/${projectId}/galleries/reorder`, { order }),
   reorderOrgProjects:      (orgId, order)     => req('POST', `/organizations/${orgId}/projects/reorder`, { order }),
+  setOrgCoverProject:      (orgId, projectId) => req('PUT',  `/organizations/${orgId}/cover-project`, { projectId }),
   buildAllProjectGalleries:(projectId)      => req('POST', `/projects/${projectId}/galleries/build-all`),
   buildAllStudioGalleries: ()               => req('POST', `/studios/build-all`),
   prerenderAll:            ()               => req('POST', `/studios/prerender`),

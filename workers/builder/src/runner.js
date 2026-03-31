@@ -210,6 +210,13 @@ export async function runJob(jobId) {
       ['done', Date.now(), result?.distName || null, Date.now(), gallery.id]
     );
 
+    // Honour a cancellation that arrived while the build was running
+    const currentJob = await getJob(jobId);
+    if (currentJob?.status === 'cancelled') {
+      await appendEvent(jobId, 'log', 'Build annulé par l\'utilisateur');
+      return;
+    }
+
     await updateJobStatus(jobId, 'done', { finished_at: Date.now() });
     await appendEvent(jobId, 'done', JSON.stringify({
       photoCount: result?.photoCount,

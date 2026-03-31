@@ -43,9 +43,15 @@ export default function OrganizationProjectsPage() {
   useEffect(load, [orgId]);
 
   async function setCover(projectId) {
-    const next = coverProjectId === projectId ? null : projectId;
+    const prev = coverProjectId;
+    const next = prev === projectId ? null : projectId;
     setCoverProjectId(next);
-    try { await api.updateOrganization(orgId, { coverProjectId: next }); } catch {}
+    try {
+      await api.setOrgCoverProject(orgId, next);
+    } catch (err) {
+      setCoverProjectId(prev);
+      setToast(err.message || 'Error saving cover project');
+    }
   }
 
   function handleNameChange(e) {

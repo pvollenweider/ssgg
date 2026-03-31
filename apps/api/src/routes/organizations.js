@@ -133,7 +133,20 @@ router.delete('/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
-// ── Project reorder + cover project ──────────────────────────────────────────
+// ── Cover project ─────────────────────────────────────────────────────────────
+
+router.put('/:id/cover-project', async (req, res) => {
+  const org = await loadOrg(req, res);
+  if (!org) return;
+  const callerRole = isSuperadmin(req) ? 'owner' : (await getOrgRole(req.userId, org.id));
+  if (!['admin', 'owner'].includes(callerRole)) return res.status(403).json({ error: 'Requires admin role or higher' });
+  const { projectId } = req.body || {};
+  await query('UPDATE organizations SET cover_project_id = ? WHERE id = ?', [projectId || null, org.id]);
+  prerenderRoot().catch(() => {});
+  res.json({ ok: true });
+});
+
+// ── Project reorder ───────────────────────────────────────────────────────────
 
 router.post('/:id/projects/reorder', async (req, res) => {
   const org = await loadOrg(req, res);

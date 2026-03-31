@@ -133,7 +133,7 @@ export async function prerenderProject(projectSlug) {
     }
   }
 
-  const galleries = (await Promise.all(galRows.map(async g => {
+  const galleries = await Promise.all(galRows.map(async g => {
     const distSlug = `${projectSlug}/${g.slug}`;
     const [coverName, photoCount, dateRange] = await Promise.all([
       getCoverName(g, distSlug),
@@ -146,11 +146,7 @@ export async function prerenderProject(projectSlug) {
       photographers: pgMap[g.id] || [],
       coverName, photoCount, dateRange,
     };
-  }))).sort((a, b) => {
-    const da = a.dateRange?.to || a.dateRange?.from || a.date || '';
-    const db = b.dateRange?.to || b.dateRange?.from || b.date || '';
-    return da > db ? -1 : da < db ? 1 : 0;
-  });
+  }));
 
   const siteTitle = await getSiteTitle();
   const [orgRows] = await query('SELECT name FROM organizations WHERE is_default = 1 LIMIT 1');
