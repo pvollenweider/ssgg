@@ -27,7 +27,7 @@ export default function OrganizationTeamPage() {
   const t = useT();
   const { orgId } = useParams();
   const { user } = useAuth();
-  const canManage = ['admin', 'owner'].includes(user?.studioRole) || user?.platformRole === 'superadmin';
+  const canManage = ['admin', 'owner'].includes(user?.organizationRole) || user?.platformRole === 'superadmin';
   const canAccess = canManage;
 
   const [members,     setMembers]     = useState([]);

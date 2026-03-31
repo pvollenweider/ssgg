@@ -12,7 +12,7 @@ import { useT } from '../lib/I18nContext.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { Toast } from '../components/Toast.jsx';
 
-const STUDIO_ROLES = ['photographer', 'collaborator', 'admin', 'owner'];
+const ORG_ROLES = ['photographer', 'collaborator', 'admin', 'owner'];
 const ROLE_COLORS  = { owner: '#7c3aed', admin: '#2563eb', collaborator: '#0891b2', photographer: '#059669' };
 const GALLERY_ROLE_COLORS = { viewer: '#888', contributor: '#059669', editor: '#0891b2' };
 
@@ -34,7 +34,7 @@ export default function Team() {
   async function load() {
     setLoading(true);
     try {
-      const [m, i] = await Promise.all([api.listStudioMembers(), api.getInvitations()]);
+      const [m, i] = await Promise.all([api.listOrgLegacyMembers(), api.getInvitations()]);
       setMembers(m);
       setInvitations(i);
     } catch (e) { setToast(e.message); }
@@ -50,7 +50,7 @@ export default function Team() {
       return;
     }
     try {
-      await api.updateStudioMember(userId, role);
+      await api.updateOrgLegacyMember(userId, role);
       setMembers(ms => ms.map(m => m.user.id === userId ? { ...m, role } : m));
       setToast(t('team_toast_role_updated'));
     } catch (e) { setToast(e.message); }
@@ -64,7 +64,7 @@ export default function Team() {
     }
     if (!confirm(t('team_confirm_remove'))) return;
     try {
-      await api.removeStudioMember(userId);
+      await api.removeOrgLegacyMember(userId);
       setToast(t('team_toast_member_removed'));
       await load();
     } catch (e) { setToast(e.message); }
@@ -105,13 +105,13 @@ export default function Team() {
     return new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
   }
 
-  const STUDIO_ROLE_LABELS = {
+  const ORG_ROLE_LABELS = {
     photographer: t('role_photographer'),
     collaborator: t('role_collaborator'),
     admin:        t('role_admin'),
     owner:        t('role_owner'),
   };
-  const STUDIO_ROLE_DESC = {
+  const ORG_ROLE_DESC = {
     photographer: t('role_photographer_desc'),
     collaborator: t('role_collaborator_desc'),
     admin:        t('role_admin_desc'),
@@ -134,7 +134,7 @@ export default function Team() {
             <div className="col-sm-6">
               <h1 className="m-0">
                 <Link to="/studio" className="text-muted me-1" style={{ fontSize: '0.875rem' }}>
-                  {user?.studioName || t('studio_back')}
+                  {user?.organizationName || t('studio_back')}
                 </Link>
                 <span className="text-muted me-1">/</span>
                 {t('team_title')}
@@ -176,13 +176,13 @@ export default function Team() {
                         value={m.role}
                         onChange={e => handleRoleChange(m.user.id, e.target.value)}
                       >
-                        {STUDIO_ROLES.map(r => (
-                          <option key={r} value={r} title={STUDIO_ROLE_DESC[r]}>
-                            {STUDIO_ROLE_LABELS[r]}
+                        {ORG_ROLES.map(r => (
+                          <option key={r} value={r} title={ORG_ROLE_DESC[r]}>
+                            {ORG_ROLE_LABELS[r]}
                           </option>
                         ))}
                       </select>
-                      <div style={s.roleDesc}>{STUDIO_ROLE_DESC[m.role]}</div>
+                      <div style={s.roleDesc}>{ORG_ROLE_DESC[m.role]}</div>
                       {m.galleries && m.galleries.length > 0 && (
                         <div style={{ marginTop: '0.35rem', display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
                           {m.galleries.map(g => (
@@ -232,7 +232,7 @@ export default function Team() {
                     <td style={s.td}>{inv.email}</td>
                     <td style={s.td}>
                       <span style={{ ...s.roleBadge, background: (ROLE_COLORS[inv.role] || '#888') + '18', color: ROLE_COLORS[inv.role] || '#888' }}>
-                        {STUDIO_ROLE_LABELS[inv.role] || inv.role}
+                        {ORG_ROLE_LABELS[inv.role] || inv.role}
                       </span>
                     </td>
                     <td style={{ ...s.td, color: '#999', fontSize: '0.8rem' }}>{formatDate(inv.expires_at)}</td>
@@ -261,10 +261,10 @@ export default function Team() {
               <div style={{ flex:'none' }}>
                 <select style={{ ...s.input, width: 155 }} value={invRole} onChange={e => setInvRole(e.target.value)}>
                   {['collaborator', 'admin', 'owner'].map(r => (
-                    <option key={r} value={r}>{STUDIO_ROLE_LABELS[r]}</option>
+                    <option key={r} value={r}>{ORG_ROLE_LABELS[r]}</option>
                   ))}
                 </select>
-                <div style={s.roleDesc}>{STUDIO_ROLE_DESC[invRole]}</div>
+                <div style={s.roleDesc}>{ORG_ROLE_DESC[invRole]}</div>
               </div>
               <button style={{ ...s.btn, flex:'none', whiteSpace:'nowrap' }} type="submit" disabled={inviting}>
                 {inviting ? t('sending') : t('team_invite_btn')}

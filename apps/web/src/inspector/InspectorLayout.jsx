@@ -24,7 +24,7 @@ export default function InspectorLayout() {
   const inputRef = useRef();
 
   const NAV = [
-    { label: t('inspector_nav_orgs'),      to: '/inspector/studios',   icon: 'fas fa-building' },
+    { label: t('inspector_nav_orgs'),      to: '/inspector/organizations',   icon: 'fas fa-building' },
     { label: t('inspector_nav_projects'),  to: '/inspector/projects',  icon: 'fas fa-folder' },
     { label: t('inspector_nav_galleries'), to: '/inspector/galleries', icon: 'fas fa-images' },
     { label: t('inspector_nav_users'),     to: '/inspector/users',     icon: 'fas fa-users' },
@@ -86,7 +86,7 @@ export default function InspectorLayout() {
   if (!user || user.platformRole !== 'superadmin') return null;
 
   const hasResults = results && (
-    results.studios?.length || results.projects?.length ||
+    results.organizations?.length || results.projects?.length ||
     results.galleries?.length || results.users?.length
   );
 
@@ -169,7 +169,7 @@ export default function InspectorLayout() {
                   <p style={{ padding: '0.5rem 0.75rem', fontSize: '0.8rem', color: '#555', margin: 0 }}>{t('inspector_no_results')}</p>
                 )}
                 {[
-                  ...(results?.studios  || []).map(r => ({ ...r, type: t('inspector_result_org'),     path: `/inspector/studios/${r.id}`,   label: r.name })),
+                  ...(results?.organizations  || []).map(r => ({ ...r, type: t('inspector_result_org'),     path: `/inspector/organizations/${r.id}`,   label: r.name })),
                   ...(results?.projects || []).map(r => ({ ...r, type: t('inspector_result_project'), path: `/inspector/projects/${r.id}`,  label: r.name })),
                   ...(results?.galleries|| []).map(r => ({ ...r, type: t('inspector_result_gallery'), path: `/inspector/galleries/${r.id}`, label: r.title || r.slug })),
                   ...(results?.users    || []).map(r => ({ ...r, type: t('inspector_result_user'),    path: `/inspector/users/${r.id}`,     label: r.email })),

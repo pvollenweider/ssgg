@@ -51,38 +51,38 @@ export default function Settings() {
   const location = useLocation();
   const { user, setUser } = useAuth();
   const { locale, setLocale } = useLocale();
-  const isAdmin     = ['admin', 'owner'].includes(user?.studioRole) || user?.platformRole === 'superadmin';
-  const isOwner     = user?.studioRole === 'owner' || user?.platformRole === 'superadmin';
+  const isAdmin     = ['admin', 'owner'].includes(user?.organizationRole) || user?.platformRole === 'superadmin';
+  const isOwner     = user?.organizationRole === 'owner' || user?.platformRole === 'superadmin';
 
   if (!isAdmin) return <ProfilePage user={user} setUser={setUser} />;
 
-  // Studio settings
-  const [studioForm,    setStudioForm]    = useState({ name: '', locale: '', country: '' });
+  // Organization settings
+  const [orgForm,    setOrgForm]    = useState({ name: '', locale: '', country: '' });
   const [slugForm,      setSlugForm]      = useState('');
   const [slugConfirm,   setSlugConfirm]   = useState('');
   const [currentSlug,   setCurrentSlug]   = useState('');
-  const [studioSaving,  setStudioSaving]  = useState(false);
+  const [orgSaving,  setOrgSaving]  = useState(false);
   const [slugSaving,    setSlugSaving]    = useState(false);
   const [isDefault,     setIsDefault]     = useState(false);
   const [settingDefault, setSettingDefault] = useState(false);
 
   useEffect(() => {
-    api.getMyStudio().then(s => {
-      setStudioForm({ name: s.name || '', locale: s.locale || '', country: s.country || '' });
+    api.getMyOrganization().then(s => {
+      setOrgForm({ name: s.name || '', locale: s.locale || '', country: s.country || '' });
       setSlugForm(s.slug || '');
       setCurrentSlug(s.slug || '');
       setIsDefault(!!s.is_default);
     }).catch(() => {});
   }, []);
 
-  async function handleStudioSave(e) {
+  async function handleOrgSave(e) {
     e.preventDefault();
-    setStudioSaving(true);
+    setOrgSaving(true);
     try {
-      await api.updateMyStudio({ name: studioForm.name, locale: studioForm.locale || null, country: studioForm.country || null });
+      await api.updateMyOrganization({ name: orgForm.name, locale: orgForm.locale || null, country: orgForm.country || null });
       setToast(t('studio_settings_saved'));
     } catch (err) { setToast(err.message); }
-    finally { setStudioSaving(false); }
+    finally { setOrgSaving(false); }
   }
 
   async function handleSlugRename(e) {
@@ -90,7 +90,7 @@ export default function Settings() {
     if (slugConfirm !== currentSlug) { setToast(t('studio_slug_confirm')); return; }
     setSlugSaving(true);
     try {
-      const updated = await api.updateMyStudio({ slug: slugForm });
+      const updated = await api.updateMyOrganization({ slug: slugForm });
       setCurrentSlug(updated.slug);
       setSlugForm(updated.slug);
       setSlugConfirm('');
@@ -294,7 +294,7 @@ export default function Settings() {
                     </FormRow>
                     <FormRow label={t('profile_role')}>
                       {(() => {
-                        const role = user?.studioRole;
+                        const role = user?.organizationRole;
                         const platformRole = user?.platformRole;
                         const COLORS = { owner: '#7c3aed', admin: '#2563eb', collaborator: '#0891b2', photographer: '#059669', superadmin: '#dc2626' };
                         const label = platformRole === 'superadmin'
@@ -376,34 +376,34 @@ export default function Settings() {
 
               {activeTab === 'studio' && <>
 
-              {/* ── Studio settings ── */}
+              {/* ── Organization settings ── */}
               <div className="card mb-3">
                 <div className="card-header">
                   <h3 className="card-title">{t('section_studio')}</h3>
                 </div>
-                <form onSubmit={handleStudioSave}>
+                <form onSubmit={handleOrgSave}>
                   <div className="card-body">
                     <FormRow label={t('field_studio_name')}>
-                      <input className="form-control form-control-sm" value={studioForm.name}
-                        onChange={e => setStudioForm(f => ({ ...f, name: e.target.value }))} />
+                      <input className="form-control form-control-sm" value={orgForm.name}
+                        onChange={e => setOrgForm(f => ({ ...f, name: e.target.value }))} />
                     </FormRow>
                     <FormRow label={t('field_studio_locale')}>
-                      <select className="form-control form-control-sm" style={{ maxWidth: 140 }} value={studioForm.locale}
-                        onChange={e => setStudioForm(f => ({ ...f, locale: e.target.value }))}>
+                      <select className="form-control form-control-sm" style={{ maxWidth: 140 }} value={orgForm.locale}
+                        onChange={e => setOrgForm(f => ({ ...f, locale: e.target.value }))}>
                         <option value="">—</option>
                         {UI_LOCALE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                       </select>
                     </FormRow>
                     <FormRow label={t('field_studio_country')}>
-                      <select className="form-control form-control-sm" style={{ maxWidth: 140 }} value={studioForm.country}
-                        onChange={e => setStudioForm(f => ({ ...f, country: e.target.value }))}>
+                      <select className="form-control form-control-sm" style={{ maxWidth: 140 }} value={orgForm.country}
+                        onChange={e => setOrgForm(f => ({ ...f, country: e.target.value }))}>
                         {COUNTRIES.map(c => <option key={c} value={c}>{c ? countryName(c, locale) : '—'}</option>)}
                       </select>
                     </FormRow>
                   </div>
                   <div className="card-footer">
-                    <button className="btn btn-primary" type="submit" disabled={studioSaving}>
-                      {studioSaving ? t('saving') : t('save')}
+                    <button className="btn btn-primary" type="submit" disabled={orgSaving}>
+                      {orgSaving ? t('saving') : t('save')}
                     </button>
                   </div>
                 </form>
@@ -451,7 +451,7 @@ export default function Settings() {
                       onClick={async () => {
                         setSettingDefault(true);
                         try {
-                          await api.setDefaultStudio(user.studioId);
+                          await api.setDefaultOrganization(user.organizationId);
                           setIsDefault(true);
                           setToast(t('studios_toast_set_default'));
                         } catch (e) { setToast(e.message); }
@@ -763,11 +763,11 @@ function ProfilePage({ user, setUser }) {
     finally { setPwdSaving(false); }
   }
 
-  const STUDIO_ROLE_LABEL = {
+  const ORG_ROLE_LABEL = {
     photographer: t('role_photographer'), editor: t('role_editor'),
     admin: t('role_admin'), owner: t('role_owner'),
   };
-  const STUDIO_ROLE_DESC = {
+  const ORG_ROLE_DESC = {
     photographer: t('role_photographer_desc'), editor: t('role_editor_desc'),
     admin: t('role_admin_desc'), owner: t('role_owner_desc'),
   };
@@ -812,8 +812,8 @@ function ProfilePage({ user, setUser }) {
                     </FormRow>
                     <FormRow label={t('profile_role')}>
                       <div>
-                        <strong style={{ fontSize: '0.875rem' }}>{STUDIO_ROLE_LABEL[user?.studioRole] || user?.studioRole}</strong>
-                        <div className="text-muted" style={{ fontSize: '0.78rem' }}>{STUDIO_ROLE_DESC[user?.studioRole]}</div>
+                        <strong style={{ fontSize: '0.875rem' }}>{ORG_ROLE_LABEL[user?.organizationRole] || user?.organizationRole}</strong>
+                        <div className="text-muted" style={{ fontSize: '0.78rem' }}>{ORG_ROLE_DESC[user?.organizationRole]}</div>
                       </div>
                     </FormRow>
                   </div>
@@ -895,7 +895,7 @@ function ProfilePage({ user, setUser }) {
                 </div>
               </form>
 
-              {user?.studioRole === 'photographer' && galleries && galleries.length > 0 && (
+              {user?.organizationRole === 'photographer' && galleries && galleries.length > 0 && (
                 <div className="card">
                   <div className="card-header">
                     <h3 className="card-title">{t('profile_section_galleries')}</h3>

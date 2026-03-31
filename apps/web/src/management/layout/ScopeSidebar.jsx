@@ -48,7 +48,7 @@ export default function ScopeSidebar({ scope, params = {}, isMobileDrawer = fals
   const { user, logout } = useAuth();
   const t = useT();
   const isSuperadmin  = user?.platformRole === 'superadmin';
-  const canManageOrg  = ['admin', 'owner'].includes(user?.studioRole) || isSuperadmin;
+  const canManageOrg  = ['admin', 'owner'].includes(user?.organizationRole) || isSuperadmin;
   const { globalStats } = useUpload();
   const uploadTotal  = globalStats.uploading + globalStats.queued;
   const uploadActive = uploadTotal > 0;

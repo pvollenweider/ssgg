@@ -5,10 +5,11 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-// apps/web/src/pages/Dashboard.jsx — studio field dashboard
+// apps/web/src/pages/Dashboard.jsx — organization field dashboard
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
+import { useT } from '../lib/I18nContext.jsx';
 
 const ACTION_PRIORITY = { build_failed: 0, photos_to_validate: 1, gallery_ready: 2, no_upload_link: 3 };
 const STATUS_COLOR = { done: 'success', error: 'danger', running: 'primary', queued: 'warning' };
@@ -20,12 +21,14 @@ const ACTION_CONFIG = {
   no_upload_link:     { icon: 'fas fa-link text-info',                   bg: 'info'    },
 };
 
-const ACTION_LABEL = {
-  build_failed:       a => `Build failed — ${a.gallery_title}`,
-  photos_to_validate: a => `${a.count} photo${a.count > 1 ? 's' : ''} to review — ${a.gallery_title}`,
-  gallery_ready:      a => `Ready to publish — ${a.gallery_title}`,
-  no_upload_link:     a => `No upload link — ${a.gallery_title}`,
-};
+function makeActionLabels(t) {
+  return {
+    build_failed:       a => `${t('hub_action_build_failed')} — ${a.gallery_title}`,
+    photos_to_validate: a => `${a.count} ${a.count > 1 ? t('hub_action_photos_plural') : t('hub_action_photos_singular')} — ${a.gallery_title}`,
+    gallery_ready:      a => `${t('hub_action_ready')} — ${a.gallery_title}`,
+    no_upload_link:     a => `${t('hub_action_no_link')} — ${a.gallery_title}`,
+  };
+}
 
 const ACTION_HREF = {
   build_failed:       a => `/jobs/${a.job_id}`,
@@ -35,6 +38,8 @@ const ACTION_HREF = {
 };
 
 export default function Dashboard() {
+  const t = useT();
+  const ACTION_LABEL = makeActionLabels(t);
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
@@ -50,7 +55,7 @@ export default function Dashboard() {
     <>
       <div className="content-header">
         <div className="container-fluid">
-          <h1 className="m-0">Dashboard</h1>
+          <h1 className="m-0">{t('nav_dashboard')}</h1>
         </div>
       </div>
       <section className="content">
@@ -63,7 +68,7 @@ export default function Dashboard() {
 
   if (error) return (
     <>
-      <div className="content-header"><div className="container-fluid"><h1 className="m-0">Dashboard</h1></div></div>
+      <div className="content-header"><div className="container-fluid"><h1 className="m-0">{t('nav_dashboard')}</h1></div></div>
       <section className="content"><div className="container-fluid">
         <div className="alert alert-danger">{error}</div>
       </div></section>
@@ -79,7 +84,7 @@ export default function Dashboard() {
         <div className="container-fluid">
           <div className="row mb-2">
             <div className="col-sm-6">
-              <h1 className="m-0">Dashboard</h1>
+              <h1 className="m-0">{t('nav_dashboard')}</h1>
             </div>
           </div>
         </div>
@@ -94,7 +99,7 @@ export default function Dashboard() {
               <div className="info-box">
                 <span className="info-box-icon bg-info elevation-1"><i className="fas fa-images" /></span>
                 <div className="info-box-content">
-                  <span className="info-box-text">Total Galleries</span>
+                  <span className="info-box-text">{t('hub_total_galleries')}</span>
                   <span className="info-box-number">{data.galleries.total}</span>
                 </div>
               </div>
@@ -103,7 +108,7 @@ export default function Dashboard() {
               <div className="info-box">
                 <span className="info-box-icon bg-secondary elevation-1"><i className="fas fa-file-alt" /></span>
                 <div className="info-box-content">
-                  <span className="info-box-text">Draft</span>
+                  <span className="info-box-text">{t('hub_draft')}</span>
                   <span className="info-box-number">{data.galleries.draft}</span>
                 </div>
               </div>
@@ -112,7 +117,7 @@ export default function Dashboard() {
               <div className="info-box">
                 <span className="info-box-icon bg-warning elevation-1"><i className="fas fa-clock" /></span>
                 <div className="info-box-content">
-                  <span className="info-box-text">Ready</span>
+                  <span className="info-box-text">{t('hub_ready')}</span>
                   <span className="info-box-number">{data.galleries.ready}</span>
                 </div>
               </div>
@@ -121,7 +126,7 @@ export default function Dashboard() {
               <div className="info-box">
                 <span className="info-box-icon bg-success elevation-1"><i className="fas fa-check" /></span>
                 <div className="info-box-content">
-                  <span className="info-box-text">Published</span>
+                  <span className="info-box-text">{t('hub_published')}</span>
                   <span className="info-box-number">{data.galleries.published}</span>
                 </div>
               </div>
@@ -131,7 +136,7 @@ export default function Dashboard() {
                 <div className="info-box">
                   <span className="info-box-icon bg-danger elevation-1"><i className="fas fa-exclamation-triangle" /></span>
                   <div className="info-box-content">
-                    <span className="info-box-text">Needs Rebuild</span>
+                    <span className="info-box-text">{t('hub_needs_rebuild')}</span>
                     <span className="info-box-number">{data.galleries.needs_rebuild}</span>
                   </div>
                 </div>
@@ -146,7 +151,7 @@ export default function Dashboard() {
               <div className="col-md-6">
                 <div className="card">
                   <div className="card-header">
-                    <h3 className="card-title"><i className="fas fa-tasks me-2" />Actions needed</h3>
+                    <h3 className="card-title"><i className="fas fa-tasks me-2" />{t('hub_actions_needed')}</h3>
                   </div>
                   <div className="card-body p-0">
                     <ul className="list-group list-group-flush">
@@ -175,7 +180,7 @@ export default function Dashboard() {
                   <div className="card-header">
                     <h3 className="card-title">
                       <i className="fas fa-inbox me-2" />
-                      Inbox — <span className="badge bg-warning">{data.inbox.total_unvalidated}</span> pending
+                      {t('hub_inbox_prefix')} <span className="badge bg-warning">{data.inbox.total_unvalidated}</span> {t('hub_pending')}
                     </h3>
                   </div>
                   <div className="card-body p-0">
@@ -189,7 +194,7 @@ export default function Dashboard() {
                               </Link>
                             </td>
                             <td className="text-end text-warning fw-bold">
-                              {g.unvalidated_count} pending
+                              {g.unvalidated_count} {t('hub_pending')}
                             </td>
                           </tr>
                         ))}
@@ -204,18 +209,18 @@ export default function Dashboard() {
             <div className="col-12">
               <div className="card">
                 <div className="card-header">
-                  <h3 className="card-title"><i className="fas fa-hammer me-2" />Recent Builds</h3>
+                  <h3 className="card-title"><i className="fas fa-hammer me-2" />{t('hub_recent_builds')}</h3>
                 </div>
                 <div className="card-body p-0">
                   {data.builds.recent.length === 0 ? (
-                    <div className="text-center text-muted py-4">No builds yet.</div>
+                    <div className="text-center text-muted py-4">{t('hub_no_builds')}</div>
                   ) : (
                     <table className="table table-sm table-hover mb-0">
                       <thead>
                         <tr>
-                          <th>Gallery</th>
-                          <th>Status</th>
-                          <th>Date</th>
+                          <th>{t('hub_col_gallery')}</th>
+                          <th>{t('hub_col_status')}</th>
+                          <th>{t('hub_col_date')}</th>
                           <th></th>
                         </tr>
                       </thead>
@@ -233,7 +238,7 @@ export default function Dashboard() {
                             </td>
                             <td>
                               <Link to={`/jobs/${b.job_id}`} className="btn btn-xs btn-outline-secondary">
-                                Logs <i className="fas fa-arrow-right ms-1" />
+                                {t('hub_logs')} <i className="fas fa-arrow-right ms-1" />
                               </Link>
                             </td>
                           </tr>

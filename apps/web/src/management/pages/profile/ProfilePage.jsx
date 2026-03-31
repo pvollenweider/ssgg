@@ -32,7 +32,7 @@ export default function ProfilePage() {
   // Debounce ref for name field
   const saveTimer = useRef(null);
 
-  const STUDIO_ROLE_LABEL = {
+  const ORG_ROLE_LABEL = {
     photographer: t('role_photographer'), editor: t('role_editor'),
     admin: t('role_admin'), owner: t('role_owner'), collaborator: t('role_collaborator') || 'Collaborator',
   };
@@ -107,7 +107,7 @@ export default function ProfilePage() {
             <div className="mb-0 row">
               <label className="col-sm-3 col-form-label col-form-label-sm text-muted">{t('profile_role')}</label>
               <div className="col-sm-9 d-flex align-items-center">
-                <strong style={{ fontSize: '0.875rem' }}>{STUDIO_ROLE_LABEL[user?.studioRole] || user?.studioRole}</strong>
+                <strong style={{ fontSize: '0.875rem' }}>{ORG_ROLE_LABEL[user?.organizationRole] || user?.organizationRole}</strong>
               </div>
             </div>
           </AdminCard>

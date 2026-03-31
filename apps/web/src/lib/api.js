@@ -65,8 +65,11 @@ export const api = {
   getSettings:    ()     => req('GET',   '/settings'),
   saveSettings:   (data) => req('PATCH', '/settings', data),
   smtpTest:       ()     => req('POST',  '/settings/smtp-test'),
-  getMyStudio:    ()     => req('GET',   '/settings/studio'),
-  updateMyStudio: (data) => req('PATCH', '/settings/studio', data),
+  getMyOrganization:    ()     => req('GET',   '/settings/organization'),
+  updateMyOrganization: (data) => req('PATCH', '/settings/organization', data),
+  // Backward-compat aliases
+  getMyStudio:    ()     => req('GET',   '/settings/organization'),
+  updateMyStudio: (data) => req('PATCH', '/settings/organization', data),
 
   // Photographer ready notification
   notifyReady: (galleryId) => req('POST', `/galleries/${galleryId}/notify-ready`),
@@ -99,11 +102,16 @@ export const api = {
   createViewerToken: (id, data)   => req('POST',   `/galleries/${id}/viewer-tokens`, data),
   deleteViewerToken: (galleryId, tokenId) => req('DELETE', `/galleries/${galleryId}/viewer-tokens/${tokenId}`),
 
-  // Studio members
-  listStudioMembers:   ()              => req('GET',    `/studios/members`),
-  getStudioMember:     (userId)        => req('GET',    `/studios/members/${userId}`),
-  updateStudioMember:  (userId, role)  => req('PUT',    `/studios/members/${userId}`, { role }),
-  removeStudioMember:  (userId)        => req('DELETE', `/studios/members/${userId}`),
+  // Organization members (legacy studio endpoints)
+  listOrgLegacyMembers:   ()              => req('GET',    `/organizations/members`),
+  getOrgLegacyMember:     (userId)        => req('GET',    `/organizations/members/${userId}`),
+  updateOrgLegacyMember:  (userId, role)  => req('PUT',    `/organizations/members/${userId}`, { role }),
+  removeOrgLegacyMember:  (userId)        => req('DELETE', `/organizations/members/${userId}`),
+  // Backward-compat aliases
+  listStudioMembers:   ()              => req('GET',    `/organizations/members`),
+  getStudioMember:     (userId)        => req('GET',    `/organizations/members/${userId}`),
+  updateStudioMember:  (userId, role)  => req('PUT',    `/organizations/members/${userId}`, { role }),
+  removeStudioMember:  (userId)        => req('DELETE', `/organizations/members/${userId}`),
 
   // Invitations
   createInvitation: (data)            => req('POST',   `/invitations`, data),
@@ -124,8 +132,9 @@ export const api = {
   reorderOrgProjects:      (orgId, order)     => req('POST', `/organizations/${orgId}/projects/reorder`, { order }),
   setOrgCoverProject:      (orgId, projectId) => req('PUT',  `/organizations/${orgId}/cover-project`, { projectId }),
   buildAllProjectGalleries:(projectId)      => req('POST', `/projects/${projectId}/galleries/build-all`),
-  buildAllStudioGalleries: ()               => req('POST', `/studios/build-all`),
-  prerenderAll:            ()               => req('POST', `/studios/prerender`),
+  buildAllOrgGalleries:    ()               => req('POST', `/organizations/build-all`),
+  buildAllStudioGalleries: ()               => req('POST', `/organizations/build-all`),
+  prerenderAll:            ()               => req('POST', `/organizations/prerender`),
   prerenderOrg:            (orgId)          => req('POST', `/organizations/${orgId}/prerender`),
 
   // Dashboard
@@ -139,8 +148,11 @@ export const api = {
   inspectorRevokeUploadLink:(galleryId, linkId)     => req('DELETE', `/inspector/galleries/${galleryId}/upload-links/${linkId}`),
   inspectorRevokeToken:     (galleryId, tokenId)    => req('DELETE', `/inspector/galleries/${galleryId}/viewer-tokens/${tokenId}`),
   inspectorPhoto:           (id)                   => req('GET',    `/inspector/photos/${id}`),
-  inspectorStudios:         ()                     => req('GET',    `/inspector/studios`),
-  inspectorStudio:          (id)                   => req('GET',    `/inspector/studios/${id}`),
+  inspectorOrganizations:   ()                     => req('GET',    `/inspector/organizations`),
+  inspectorOrganization:    (id)                   => req('GET',    `/inspector/organizations/${id}`),
+  // Backward-compat aliases
+  inspectorStudios:         ()                     => req('GET',    `/inspector/organizations`),
+  inspectorStudio:          (id)                   => req('GET',    `/inspector/organizations/${id}`),
   inspectorProject:         (id)                   => req('GET',    `/inspector/projects/${id}`),
   inspectorUsers:           ()                     => req('GET',    `/inspector/users`),
   inspectorUser:            (id)                   => req('GET',    `/inspector/users/${id}`),
@@ -175,12 +187,20 @@ export const api = {
   removeOrgDomain:          (id, domain)  => req('DELETE', `/organizations/${id}/domains/${encodeURIComponent(domain)}`),
 
   // Platform (superadmin)
-  listPlatformStudios:  ()            => req('GET',    '/platform/studios'),
-  createPlatformStudio: (data)        => req('POST',   '/platform/studios', data),
-  updatePlatformStudio: (id, data)    => req('PATCH',  `/platform/studios/${id}`, data),
-  deletePlatformStudio: (id)          => req('DELETE', `/platform/studios/${id}`),
-  setDefaultStudio:     (id)          => req('POST',   `/platform/studios/${id}/set-default`),
-  switchStudio:         (studioId)    => req('POST',   `/platform/switch/${studioId}`),
+  listPlatformOrganizations:  ()            => req('GET',    '/platform/organizations'),
+  createPlatformOrganization: (data)        => req('POST',   '/platform/organizations', data),
+  updatePlatformOrganization: (id, data)    => req('PATCH',  `/platform/organizations/${id}`, data),
+  deletePlatformOrganization: (id)          => req('DELETE', `/platform/organizations/${id}`),
+  setDefaultOrganization:     (id)          => req('POST',   `/platform/organizations/${id}/set-default`),
+  switchOrganization:         (orgId)       => req('POST',   `/platform/switch/${orgId}`),
+  exitOrganizationSwitch:     ()            => req('DELETE', '/platform/switch'),
+  // Backward-compat aliases
+  listPlatformStudios:  ()            => req('GET',    '/platform/organizations'),
+  createPlatformStudio: (data)        => req('POST',   '/platform/organizations', data),
+  updatePlatformStudio: (id, data)    => req('PATCH',  `/platform/organizations/${id}`, data),
+  deletePlatformStudio: (id)          => req('DELETE', `/platform/organizations/${id}`),
+  setDefaultStudio:     (id)          => req('POST',   `/platform/organizations/${id}/set-default`),
+  switchStudio:         (orgId)       => req('POST',   `/platform/switch/${orgId}`),
   exitStudioSwitch:     ()            => req('DELETE', '/platform/switch'),
   listPlatformUsers:    ()            => req('GET',    '/platform/users'),
   updatePlatformUser:   (id, data)    => req('PATCH',  `/platform/users/${id}`, data),

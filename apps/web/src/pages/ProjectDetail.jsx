@@ -25,8 +25,8 @@ export default function ProjectDetail() {
   const t          = useT();
   const navigate   = useNavigate();
   const { user }   = useAuth();
-  const canAdmin   = ['admin','owner'].includes(user?.studioRole) || user?.platformRole === 'superadmin';
-  const canCreate  = ['collaborator','admin','owner'].includes(user?.studioRole) || user?.platformRole === 'superadmin';
+  const canAdmin   = ['admin','owner'].includes(user?.organizationRole) || user?.platformRole === 'superadmin';
+  const canCreate  = ['collaborator','admin','owner'].includes(user?.organizationRole) || user?.platformRole === 'superadmin';
 
   const [project,   setProject]   = useState(null);
   const [galleries, setGalleries] = useState([]);
@@ -139,7 +139,7 @@ export default function ProjectDetail() {
             <div className="col-sm-6 d-flex align-items-center" style={{ gap: '0.5rem' }}>
               <h1 className="m-0">
                 <Link to="/studio" className="text-muted me-2" style={{ fontSize: '0.875rem' }}>
-                  {user?.studioName || t('studio_back')}
+                  {user?.organizationName || t('studio_back')}
                 </Link>
                 <span className="text-muted me-1">/</span>
                 {project?.name || '…'}

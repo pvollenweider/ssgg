@@ -37,7 +37,7 @@ export default function StudiosPage() {
   const [inviteLink, setInviteLink] = useState('');
   const [license,     setLicense]     = useState(null);
 
-  // Photographers don't have studio access — redirect them to their gallery
+  // Photographers don't have organization access — redirect them to their gallery
   useEffect(() => {
     if (user?.role === 'photographer') {
       api.myGalleries().then(gs => {
@@ -52,15 +52,15 @@ export default function StudiosPage() {
     setLoading(true);
     try {
       if (isSuperadmin) {
-        const [studioList, lic] = await Promise.all([
-          api.listPlatformStudios(),
+        const [orgList, lic] = await Promise.all([
+          api.listPlatformOrganizations(),
           api.getPlatformLicense().catch(() => null),
         ]);
-        setStudios(studioList);
+        setStudios(orgList);
         setLicense(lic);
       } else {
-        if (user?.studioId) {
-          setStudios([{ id: user.studioId, name: user.studioName || user.studioId, slug: '', is_default: 1, member_count: null, gallery_count: null }]);
+        if (user?.organizationId) {
+          setStudios([{ id: user.organizationId, name: user.organizationName || user.organizationId, slug: '', is_default: 1, member_count: null, gallery_count: null }]);
         }
       }
     } catch (e) { setToast(e.message); }
@@ -74,7 +74,7 @@ export default function StudiosPage() {
   async function handleCreate(e) {
     e.preventDefault();
     try {
-      const studio = await api.createPlatformStudio(form);
+      const studio = await api.createPlatformOrganization(form);
       setStudios(ss => [...ss, studio]);
       setCreating(false);
       setForm({ name: '', slug: '', plan: 'free', ownerEmail: '' });
@@ -102,11 +102,11 @@ export default function StudiosPage() {
     return limit !== Infinity && studios.length >= limit;
   })();
 
-  async function handleEnter(studioId) {
-    setSwitching(studioId);
+  async function handleEnter(orgId) {
+    setSwitching(orgId);
     try {
       if (isSuperadmin) {
-        await api.switchStudio(studioId);
+        await api.switchOrganization(orgId);
         const me = await api.me();
         setUser(me);
       }
@@ -118,7 +118,7 @@ export default function StudiosPage() {
   async function handleDelete(id) {
     if (!confirm(t('studios_confirm_delete'))) return;
     try {
-      await api.deletePlatformStudio(id);
+      await api.deletePlatformOrganization(id);
       setStudios(ss => ss.filter(s => s.id !== id));
       setToast(t('studios_toast_deleted'));
     } catch (e) { setToast(e.message); }

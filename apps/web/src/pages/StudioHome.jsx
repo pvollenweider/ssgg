@@ -5,7 +5,7 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-// Page d'accueil d'un studio : projets + équipe
+// Page d'accueil d'une organisation : projets + équipe
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
@@ -33,7 +33,7 @@ export default function StudioHome() {
   const navigate              = useNavigate();
   const { user, setUser, logout } = useAuth();
   const isSuperadmin          = user?.platformRole === 'superadmin';
-  const canAdmin              = CAN_ADMIN.includes(user?.studioRole) || isSuperadmin;
+  const canAdmin              = CAN_ADMIN.includes(user?.organizationRole) || isSuperadmin;
 
   // Projects
   const [projects,      setProjects]      = useState([]);
@@ -70,7 +70,7 @@ export default function StudioHome() {
   const loadMembers = useCallback(async () => {
     if (!canAdmin) { setMembersLoad(false); return; }
     setMembersLoad(true);
-    try { setMembers(await api.listStudioMembers()); }
+    try { setMembers(await api.listOrgLegacyMembers()); }
     catch (e) { setToast(e.message); }
     finally { setMembersLoad(false); }
   }, [canAdmin]);
@@ -103,7 +103,7 @@ export default function StudioHome() {
 
   async function handleRoleChange(userId, role) {
     try {
-      await api.updateStudioMember(userId, role);
+      await api.updateOrgLegacyMember(userId, role);
       setMembers(ms => ms.map(m => m.user.id === userId ? { ...m, role } : m));
     } catch (e) { setToast(e.message); }
   }
@@ -111,7 +111,7 @@ export default function StudioHome() {
   async function handleRemoveMember(userId) {
     if (!confirm(t('team_confirm_remove'))) return;
     try {
-      await api.removeStudioMember(userId);
+      await api.removeOrgLegacyMember(userId);
       setMembers(ms => ms.filter(m => m.user.id !== userId));
       setToast(t('team_toast_member_removed'));
     } catch (e) { setToast(e.message); }
@@ -131,7 +131,7 @@ export default function StudioHome() {
   }
 
   async function handleExitSwitch() {
-    await api.exitStudioSwitch();
+    await api.exitOrganizationSwitch();
     const me = await api.me();
     setUser(me);
     navigate('/');
@@ -147,7 +147,7 @@ export default function StudioHome() {
           <div className="row mb-2 align-items-center">
             <div className="col-sm-6">
               <h1 className="m-0">
-                {user?.studioName || t('studio_untitled')}
+                {user?.organizationName || t('studio_untitled')}
                 <span className="text-muted ms-2" style={{ fontSize: '0.875rem' }}>
                   / {t('studio_projects_title')}
                 </span>

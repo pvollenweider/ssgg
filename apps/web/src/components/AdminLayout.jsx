@@ -18,12 +18,12 @@ export default function AdminLayout({ children }) {
   const navigate   = useNavigate();
 
   const isSuperadmin = user?.platformRole === 'superadmin';
-  const canAdmin     = ['admin', 'owner'].includes(user?.studioRole) || isSuperadmin;
+  const canAdmin     = ['admin', 'owner'].includes(user?.organizationRole) || isSuperadmin;
 
   const [collapsed, setCollapsed] = useState(false);
 
   // Org switcher
-  const [studios,   setStudios]   = useState([]);
+  const [organizations,   setOrganizations]   = useState([]);
   const [orgOpen,   setOrgOpen]   = useState(false);
   const [switching, setSwitching] = useState(false);
   const orgRef = useRef(null);
@@ -45,7 +45,7 @@ export default function AdminLayout({ children }) {
   }, [collapsed]);
 
   useEffect(() => {
-    if (isSuperadmin) api.listPlatformStudios().then(setStudios).catch(() => {});
+    if (isSuperadmin) api.listPlatformOrganizations().then(setOrganizations).catch(() => {});
   }, [isSuperadmin]);
 
   // Close org dropdown on outside click
@@ -57,11 +57,11 @@ export default function AdminLayout({ children }) {
     return () => document.removeEventListener('mousedown', onOutside);
   }, [orgOpen]);
 
-  async function handleSwitchOrg(studioId) {
-    if (studioId === user?.studioId) { setOrgOpen(false); return; }
+  async function handleSwitchOrg(orgId) {
+    if (orgId === user?.organizationId) { setOrgOpen(false); return; }
     setSwitching(true);
     try {
-      await api.switchStudio(studioId);
+      await api.switchOrganization(orgId);
       const me = await api.me();
       setUser(me);
       navigate('/studio');
@@ -72,8 +72,8 @@ export default function AdminLayout({ children }) {
   const navCls       = ({ isActive }) => `nav-link${isActive ? ' active' : ''}`;
   const onSettings   = location.pathname === '/settings';
   const settingsHash = location.hash;
-  const otherStudios = studios.filter(s => s.id !== user?.studioId);
-  const canSwitch    = isSuperadmin && otherStudios.length > 0;
+  const otherOrgs = organizations.filter(s => s.id !== user?.organizationId);
+  const canSwitch    = isSuperadmin && otherOrgs.length > 0;
 
   function settingsLinkCls(hash) {
     return `nav-link${onSettings && settingsHash === hash ? ' active' : ''}`;
@@ -134,7 +134,7 @@ export default function AdminLayout({ children }) {
                 >
                   <i className="nav-icon fas fa-building" />
                   <p className="mb-0 flex-grow-1">
-                    {switching ? '…' : (user?.studioName || t('studio_untitled'))}
+                    {switching ? '…' : (user?.organizationName || t('studio_untitled'))}
                   </p>
                   {canSwitch && (
                     <i className={`fas fa-angle-${orgOpen ? 'up' : 'down'} ms-1`}
@@ -150,7 +150,7 @@ export default function AdminLayout({ children }) {
                     borderRadius: '0 0 4px 4px', zIndex: 1050,
                     maxHeight: 220, overflowY: 'auto',
                   }}>
-                    {otherStudios.map(s => (
+                    {otherOrgs.map(s => (
                       <button
                         key={s.id}
                         type="button"

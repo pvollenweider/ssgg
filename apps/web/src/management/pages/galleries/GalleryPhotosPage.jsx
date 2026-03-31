@@ -21,7 +21,7 @@ export default function GalleryPhotosPage() {
   const t = useT();
   const { orgId, galleryId } = useParams();
   const { user } = useAuth();
-  const canEdit = CAN_EDIT_ROLES.includes(user?.studioRole) || user?.platformRole === 'superadmin';
+  const canEdit = CAN_EDIT_ROLES.includes(user?.organizationRole) || user?.platformRole === 'superadmin';
 
   const [gallery,    setGallery]    = useState(null);
   const [photos,     setPhotos]     = useState([]);

@@ -105,7 +105,7 @@ export default function AcceptInvite() {
     <LoginLayout maxWidth={420}>
       <p className="text-center fw-bold mb-1">{t('invite_title')}</p>
       <p className="text-center text-muted mb-1" style={{ fontSize: '0.875rem' }}>
-        {t('invite_subtitle', { studio: invite?.studioName || '…' })}{' '}
+        {t('invite_subtitle', { organization: invite?.organizationName || invite?.studioName || '...' })}{' '}
         <span
           className="badge"
           style={{

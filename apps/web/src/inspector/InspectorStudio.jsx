@@ -5,18 +5,18 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-// apps/web/src/inspector/InspectorStudio.jsx — studio list + detail (Sprint 19)
+// apps/web/src/inspector/InspectorStudio.jsx — organization list + detail (Sprint 19)
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../lib/api.js';
 import { useT } from '../lib/I18nContext.jsx';
 
-export function InspectorStudioList() {
+export function InspectorOrganizationList() {
   const t = useT();
-  const [studios, setStudios] = useState(null);
+  const [organizations, setOrganizations] = useState(null);
 
   useEffect(() => {
-    api.inspectorStudios().then(setStudios).catch(() => setStudios([]));
+    api.inspectorOrganizations().then(setOrganizations).catch(() => setOrganizations([]));
   }, []);
 
   return (
@@ -26,7 +26,7 @@ export function InspectorStudioList() {
           <div className="row mb-2 align-items-center">
             <div className="col-sm-6">
               <h1 className="m-0" style={s.pageTitle}>
-                {t('inspector_studios_title')} {studios && `— ${studios.length}`}
+                {t('inspector_studios_title')} {organizations && `— ${organizations.length}`}
               </h1>
             </div>
           </div>
@@ -35,7 +35,7 @@ export function InspectorStudioList() {
 
       <section className="content">
         <div className="container-fluid pt-3">
-          {!studios ? (
+          {!organizations ? (
             <p style={{ color: '#555' }}>{t('loading')}</p>
           ) : (
             <div className="card" style={s.card}>
@@ -51,16 +51,16 @@ export function InspectorStudioList() {
                     </tr>
                   </thead>
                   <tbody>
-                    {studios.map(st => (
-                      <tr key={st.id} style={{ borderColor: '#1e1e2e' }}>
+                    {organizations.map(org => (
+                      <tr key={org.id} style={{ borderColor: '#1e1e2e' }}>
                         <td style={s.td}>
-                          <Link to={`/inspector/studios/${st.id}`} style={s.link}>{st.name}</Link>
+                          <Link to={`/inspector/organizations/${org.id}`} style={s.link}>{org.name}</Link>
                         </td>
-                        <td style={s.td}><code style={s.code}>{st.slug}</code></td>
-                        <td style={{ ...s.td, textAlign: 'center', color: '#aaa' }}>{st.gallery_count}</td>
-                        <td style={{ ...s.td, textAlign: 'center', color: '#aaa' }}>{st.member_count}</td>
+                        <td style={s.td}><code style={s.code}>{org.slug}</code></td>
+                        <td style={{ ...s.td, textAlign: 'center', color: '#aaa' }}>{org.gallery_count}</td>
+                        <td style={{ ...s.td, textAlign: 'center', color: '#aaa' }}>{org.member_count}</td>
                         <td style={s.td}>
-                          {st.is_default === 1 && (
+                          {org.is_default === 1 && (
                             <span className="badge bg-secondary" style={{ fontSize: '0.65rem' }}>{t('inspector_default_badge')}</span>
                           )}
                         </td>
@@ -77,13 +77,13 @@ export function InspectorStudioList() {
   );
 }
 
-export function InspectorStudioDetail() {
+export function InspectorOrganizationDetail() {
   const t = useT();
   const { id } = useParams();
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    api.inspectorStudio(id).then(setData).catch(() => {});
+    api.inspectorOrganization(id).then(setData).catch(() => {});
   }, [id]);
 
   return (
@@ -92,7 +92,7 @@ export function InspectorStudioDetail() {
         <div className="container-fluid">
           <div className="row mb-2 align-items-center">
             <div className="col-sm-6">
-              <h1 className="m-0" style={s.pageTitle}>{data?.name || '…'}</h1>
+              <h1 className="m-0" style={s.pageTitle}>{data?.name || '...'}</h1>
               {data && <p className="m-0" style={{ color: '#555', fontSize: '0.8rem' }}>{data.slug} · {data.locale} · {data.country}</p>}
             </div>
           </div>
@@ -157,6 +157,10 @@ export function InspectorStudioDetail() {
     </>
   );
 }
+
+// Backward-compat aliases
+export const InspectorStudioList = InspectorOrganizationList;
+export const InspectorStudioDetail = InspectorOrganizationDetail;
 
 const s = {
   header:    { background: '#0f1117', borderBottom: '1px solid #1e1e2e' },

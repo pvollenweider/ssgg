@@ -7,7 +7,7 @@
 
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/auth.jsx';
-import { I18nProvider } from './lib/I18nContext.jsx';
+import { I18nProvider, useT } from './lib/I18nContext.jsx';
 import BuildStatus     from './pages/BuildStatus.jsx';
 import MemberProfile   from './pages/MemberProfile.jsx';
 import AcceptInvite    from './pages/AcceptInvite.jsx';
@@ -29,7 +29,7 @@ import { GalleryGeneralPage, GalleryJobsPage, GalleryInsightsPage, GalleryPhotos
 import InspectorLayout     from './inspector/InspectorLayout.jsx';
 import InspectorGallery    from './inspector/InspectorGallery.jsx';
 import InspectorPhoto      from './inspector/InspectorPhoto.jsx';
-import { InspectorStudioList, InspectorStudioDetail } from './inspector/InspectorStudio.jsx';
+import { InspectorOrganizationList, InspectorOrganizationDetail } from './inspector/InspectorStudio.jsx';
 import { InspectorProjectList, InspectorProjectDetail } from './inspector/InspectorProject.jsx';
 import { InspectorUserList, InspectorUserDetail } from './inspector/InspectorUser.jsx';
 import InspectorDashboard  from './inspector/InspectorDashboard.jsx';
@@ -39,9 +39,10 @@ import Login from './pages/Login.jsx';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
+  const t = useT();
   if (loading) return (
     <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'#888' }}>
-      Loading…
+      {t('loading')}
     </div>
   );
   if (!user) return <Navigate to="/login" replace />;
@@ -145,12 +146,15 @@ export default function App() {
 
       {/* Inspector (superadmin only) */}
       <Route path="/inspector" element={<RequireAuth><InspectorLayout /></RequireAuth>}>
-        <Route index                             element={<Navigate to="/inspector/studios" replace />} />
-        <Route path="studios"                    element={<InspectorStudioList />} />
-        <Route path="studios/:id"                element={<InspectorStudioDetail />} />
+        <Route index                             element={<Navigate to="/inspector/organizations" replace />} />
+        <Route path="organizations"              element={<InspectorOrganizationList />} />
+        <Route path="organizations/:id"          element={<InspectorOrganizationDetail />} />
+        {/* Backward-compat redirects */}
+        <Route path="studios"                    element={<Navigate to="/inspector/organizations" replace />} />
+        <Route path="studios/:id"                element={<Navigate to="/inspector/organizations" replace />} />
         <Route path="projects"                   element={<InspectorProjectList />} />
         <Route path="projects/:id"               element={<InspectorProjectDetail />} />
-        <Route path="galleries"                  element={<Navigate to="/inspector/studios" replace />} />
+        <Route path="galleries"                  element={<Navigate to="/inspector/organizations" replace />} />
         <Route path="galleries/:id"              element={<InspectorGallery />} />
         <Route path="photos/:id"                 element={<InspectorPhoto />} />
         <Route path="users"                      element={<InspectorUserList />} />

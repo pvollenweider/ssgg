@@ -12,7 +12,7 @@ import { useT } from '../lib/I18nContext.jsx';
 import { useAuth } from '../lib/auth.jsx';
 import { Toast } from '../components/Toast.jsx';
 
-const STUDIO_ROLES = ['photographer', 'editor', 'admin', 'owner'];
+const ORG_ROLES = ['photographer', 'editor', 'admin', 'owner'];
 const ROLE_COLORS  = { owner: '#7c3aed', admin: '#2563eb', editor: '#0891b2', photographer: '#059669' };
 const GALLERY_ROLE_COLORS = { viewer: '#888', contributor: '#059669', editor: '#0891b2' };
 
@@ -27,19 +27,19 @@ export default function MemberProfile() {
   const [removing,  setRemoving]  = useState(false);
 
   useEffect(() => {
-    api.getStudioMember(userId)
+    api.getOrgLegacyMember(userId)
       .then(setMember)
       .catch(e => setToast(e.message))
       .finally(() => setLoading(false));
   }, [userId]);
 
-  const STUDIO_ROLE_LABELS = {
+  const ORG_ROLE_LABELS = {
     photographer: t('role_photographer'),
     editor:       t('role_editor'),
     admin:        t('role_admin'),
     owner:        t('role_owner'),
   };
-  const STUDIO_ROLE_DESC = {
+  const ORG_ROLE_DESC = {
     photographer: t('role_photographer_desc'),
     editor:       t('role_editor_desc'),
     admin:        t('role_admin_desc'),
@@ -53,7 +53,7 @@ export default function MemberProfile() {
 
   async function handleRoleChange(role) {
     try {
-      await api.updateStudioMember(userId, role);
+      await api.updateOrgLegacyMember(userId, role);
       setMember(m => ({ ...m, role }));
       setToast(t('team_toast_role_updated'));
     } catch (e) { setToast(e.message); }
@@ -72,7 +72,7 @@ export default function MemberProfile() {
     if (!confirm(t('member_remove_rights_confirm', { name }))) return;
     setRemoving(true);
     try {
-      await api.removeStudioMember(userId);
+      await api.removeOrgLegacyMember(userId);
       setToast(t('member_rights_removed'));
       setTimeout(() => navigate('/team'), 800);
     } catch (e) {
@@ -95,7 +95,7 @@ export default function MemberProfile() {
             <div className="col-sm-6">
               <h1 className="m-0">
                 <Link to="/team" className="text-muted me-1" style={{ fontSize: '0.875rem' }}>
-                  {user?.studioName || t('studio_back')}
+                  {user?.organizationName || t('studio_back')}
                 </Link>
                 <span className="text-muted me-1">/</span>
                 <Link to="/team" className="text-muted me-1" style={{ fontSize: '0.875rem' }}>
@@ -152,7 +152,7 @@ export default function MemberProfile() {
               </div>
               <div className="col-md-8">
 
-                {/* Studio role */}
+                {/* Organization role */}
                 <div className="card">
                   <div className="card-header">
                     <h3 className="card-title">{t('member_studio_role')}</h3>
@@ -165,12 +165,12 @@ export default function MemberProfile() {
                         value={member.role}
                         onChange={e => handleRoleChange(e.target.value)}
                       >
-                        {STUDIO_ROLES.map(r => (
-                          <option key={r} value={r}>{STUDIO_ROLE_LABELS[r]}</option>
+                        {ORG_ROLES.map(r => (
+                          <option key={r} value={r}>{ORG_ROLE_LABELS[r]}</option>
                         ))}
                       </select>
                     </div>
-                    <small className="text-muted">{STUDIO_ROLE_DESC[member.role]}</small>
+                    <small className="text-muted">{ORG_ROLE_DESC[member.role]}</small>
                   </div>
                 </div>
 

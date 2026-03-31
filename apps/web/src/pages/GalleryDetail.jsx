@@ -25,9 +25,9 @@ export default function GalleryDetail() {
   const navigate = useNavigate();
   const t = useT();
   const { user } = useAuth();
-  const CAN_BUILD = ['collaborator', 'admin', 'owner'].includes(user?.studioRole) || user?.platformRole === 'superadmin';
-  const canManageAccess = EDITOR_ROLES.includes(user?.studioRole) || user?.platformRole === 'superadmin';
-  const canInvite = ['admin', 'owner'].includes(user?.studioRole) || user?.platformRole === 'superadmin';
+  const CAN_BUILD = ['collaborator', 'admin', 'owner'].includes(user?.organizationRole) || user?.platformRole === 'superadmin';
+  const canManageAccess = EDITOR_ROLES.includes(user?.organizationRole) || user?.platformRole === 'superadmin';
+  const canInvite = ['admin', 'owner'].includes(user?.organizationRole) || user?.platformRole === 'superadmin';
 
   const [gallery,      setGallery]      = useState(null);
   const [photos,       setPhotos]       = useState([]);
@@ -58,7 +58,7 @@ export default function GalleryDetail() {
   const [inviteRole,      setInviteRole]      = useState('photographer');
   const [sendingInvite,   setSendingInvite]   = useState(false);
   const [inviteLink,      setInviteLink]      = useState('');
-  const [studioMembers,   setStudioMembers]   = useState([]);
+  const [orgMembers,   setOrgMembers]   = useState([]);
   const [addUserId,       setAddUserId]       = useState('');
   const [addRole,         setAddRole]         = useState('contributor');
   const [addingMember,    setAddingMember]    = useState(false);
@@ -186,13 +186,13 @@ export default function GalleryDetail() {
       api.getGalleryMembers(id),
       api.getViewerTokens(id),
       api.getInvitations(),
-      api.listStudioMembers(),
+      api.listOrgLegacyMembers(),
     ]);
     if (mRes.status   === 'fulfilled') setMembers(mRes.value);
     if (vtRes.status  === 'fulfilled') setViewerTokens(vtRes.value);
     if (invRes.status === 'fulfilled') setInvitations(invRes.value);
     if (smRes.status  === 'fulfilled') {
-      setStudioMembers(smRes.value);
+      setOrgMembers(smRes.value);
       const first = smRes.value.find(s => s.role === 'photographer');
       if (first) setAddUserId(first.user.id);
     }
@@ -506,7 +506,7 @@ export default function GalleryDetail() {
             <h3 style={s.sectionTitle}>{t('upload_photos')}</h3>
             <UploadZone galleryId={id} onDone={() => { api.listPhotos(id).then(setPhotos); setNeedsRebuild(true); }} />
 
-            {user?.studioRole === 'photographer' && photos.length > 0 && (
+            {user?.organizationRole === 'photographer' && photos.length > 0 && (
               <div style={{ marginTop: '0.75rem' }}>
                 <button style={s.readyBtn} onClick={handleNotifyReady}>
                   {t('photos_ready_btn')}
@@ -728,7 +728,7 @@ export default function GalleryDetail() {
 
             {/* Ajouter un photographe du studio */}
             {(() => {
-              const available = studioMembers.filter(sm => sm.role === 'photographer' && !members.some(m => m.user?.id === sm.user.id));
+              const available = orgMembers.filter(sm => sm.role === 'photographer' && !members.some(m => m.user?.id === sm.user.id));
               if (available.length === 0) return null;
               return (
                 <form onSubmit={handleAddMember} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>

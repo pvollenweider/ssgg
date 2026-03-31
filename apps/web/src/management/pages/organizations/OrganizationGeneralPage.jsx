@@ -9,23 +9,29 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
 import SimpleMDE from 'react-simplemde-editor';
 import { api } from '../../../lib/api.js';
-import { useT } from '../../../lib/I18nContext.jsx';
+import { useT, useLocale } from '../../../lib/I18nContext.jsx';
 import { useAuth } from '../../../lib/auth.jsx';
 import { AdminPage, AdminCard, AdminInput, AdminAlert, AdminToast, AdminButton } from '../../../components/ui/index.js';
 
-const LOCALES = [
-  { value: 'en', label: 'English' }, { value: 'fr', label: 'French' },
-  { value: 'de', label: 'German' },  { value: 'es', label: 'Spanish' },
-  { value: 'it', label: 'Italian' }, { value: 'pt', label: 'Portuguese' },
-  { value: 'nl', label: 'Dutch' },   { value: 'ja', label: 'Japanese' },
-];
+const LOCALE_CODES = ['en', 'fr', 'de', 'es', 'it', 'pt', 'nl', 'ja'];
+
+function getLocaleOptions(uiLocale) {
+  try {
+    const dn = new Intl.DisplayNames([uiLocale], { type: 'language' });
+    return LOCALE_CODES.map(code => ({ value: code, label: dn.of(code) || code }));
+  } catch {
+    return LOCALE_CODES.map(code => ({ value: code, label: code }));
+  }
+}
 
 export default function OrganizationGeneralPage() {
   const t = useT();
+  const { locale } = useLocale();
   const { orgId } = useParams();
   const { user } = useAuth();
+  const LOCALES = useMemo(() => getLocaleOptions(locale), [locale]);
 
-  const canManage = ['admin', 'owner'].includes(user?.studioRole) || user?.platformRole === 'superadmin';
+  const canManage = ['admin', 'owner'].includes(user?.organizationRole) || user?.platformRole === 'superadmin';
 
   const mdeOptions = useMemo(() => ({ minHeight: '120px', maxHeight: '300px', spellChecker: false, status: false, toolbar: ['bold','italic','|','unordered-list','ordered-list','|','link','|','preview'] }), []);
 
