@@ -28,7 +28,7 @@ export default function GalleryGeneralPage() {
     title: '', slug: '', description: '', descriptionMd: '', locale: 'en', standalone: false,
     access: 'public', password: '',
     downloadMode: 'display', allowDownloadGallery: false, apacheProtection: false,
-    primaryPhotographerId: '',
+    primaryPhotographerId: '', date: '',
   });
 
   // Watermark (saved separately via configJson)
@@ -72,7 +72,7 @@ export default function GalleryGeneralPage() {
         locale: g.locale || 'en', standalone: !!g.standalone,
         access: g.access || 'public', password: '',
         downloadMode: g.downloadMode || 'display', allowDownloadGallery: !!g.allowDownloadGallery, apacheProtection: !!g.apacheProtection,
-        primaryPhotographerId: g.primaryPhotographerId || '',
+        primaryPhotographerId: g.primaryPhotographerId || '', date: g.date || '',
       });
       setWatermarkEnabled(g.watermark?.enabled ?? false);
       setWatermarkText(g.watermark?.text || (g.author ? `© ${g.author}` : g.title ? `© ${g.title}` : ''));
@@ -112,6 +112,7 @@ export default function GalleryGeneralPage() {
       access: patch.access, downloadMode: patch.downloadMode,
       allowDownloadGallery: patch.allowDownloadGallery, apacheProtection: patch.apacheProtection,
       primaryPhotographerId: patch.primaryPhotographerId || null,
+      date: patch.date || null,
     };
     if (patch.access === 'password' && patch.password?.trim()) payload.password = patch.password.trim();
     try {
@@ -245,10 +246,17 @@ export default function GalleryGeneralPage() {
                 </select>
                 <div className="form-text">{t('gal_primary_photographer_hint')}</div>
               </div>
-              <div className="mb-0">
+              <div className="mb-3">
                 <label className="form-label">{t('field_locale')}</label>
                 <input className="form-control" value={form.locale} onChange={set('locale')}
                   onBlur={() => saveGallery(form)} placeholder="en" />
+              </div>
+              <div className="mb-0">
+                <label className="form-label">{t('field_date')}</label>
+                <input className="form-control" type="date" value={form.date}
+                  onChange={set('date')} onBlur={() => saveGallery(form)}
+                  style={{ maxWidth: 220 }} />
+                <div className="form-text">{t('gal_date_hint')}</div>
               </div>
             </AdminCard>
 

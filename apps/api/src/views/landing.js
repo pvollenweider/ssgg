@@ -10,6 +10,39 @@
 const LOCK_SVG = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="10" height="8" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>`;
 const KEY_SVG  = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="8" r="3.5"/><path d="M9 8h5.5M12.5 8v2M11 8v1.5"/></svg>`;
 
+function fmtDateCard(dateRange, fallback) {
+  const src = dateRange || (fallback ? { from: fallback, to: fallback } : null);
+  if (!src?.from) return '';
+  const parse = s => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s + 'T12:00:00');
+    if (/^\d{4}-\d{2}$/.test(s))       return new Date(s + '-01T12:00:00');
+    return null;
+  };
+  const a = parse(src.from);
+  const b = parse(src.to || src.from);
+  if (!a) return '';
+  const diff      = Math.round((b - a) / 86400000);
+  const sameMonth = a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+  const sameYear  = a.getFullYear() === b.getFullYear();
+  const loc       = 'fr-CH';
+  const ord       = d => d === 1 ? '1er' : String(d);
+  const mLong     = d => d.toLocaleDateString(loc, { month: 'long' });
+  const y         = a.getFullYear();
+  if (diff === 0)
+    return `${ord(a.getDate())} ${mLong(a)} ${y}`;
+  if (diff === 1) {
+    if (sameMonth)
+      return `${ord(a.getDate())} et ${ord(b.getDate())} ${mLong(a)} ${y}`;
+    return `${ord(a.getDate())} ${mLong(a)} et ${ord(b.getDate())} ${mLong(b)} ${y}`;
+  }
+  if (sameMonth)  return `${mLong(a)} ${y}`;
+  if (sameYear)   return `${mLong(a)} et ${mLong(b)} ${y}`;
+  return `${mLong(a)} ${y} et ${mLong(b)} ${b.getFullYear()}`;
+}
+
+const ICON_CAMERA   = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`;
+const ICON_CALENDAR = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`;
+
 function fmtDateRange(dateRange, fallback) {
   const src = dateRange || (fallback ? { from: fallback, to: fallback } : null);
   if (!src?.from) return fallback || null;
@@ -122,7 +155,7 @@ export function renderProjectIndex(projects, siteTitle = 'GalleryPack', isLogged
           ? `<img src="${p.slug}/${p.coverSlug}/img/grid/${p.coverName}.webp" class="card-img" alt="" loading="lazy" onerror="this.style.display='none'">`
           : `<div class="card-img-placeholder">&#128247;</div>`;
         const galleryLabel = p.galleryCount === 1 ? '1 galerie' : `${p.galleryCount} galeries`;
-        const dateLabel = fmtDateRange(p.dateRange, null);
+        const dateStr  = fmtDateCard(p.dateRange, null);
         const descLine = p.description
           ? `<p class="card-desc">${esc(p.description)}</p>`
           : '';
@@ -130,7 +163,7 @@ export function renderProjectIndex(projects, siteTitle = 'GalleryPack', isLogged
           <div class="card-cover">${thumb}</div>
           <div class="card-body">
             <h3 class="card-title">${esc(p.name)}</h3>
-            ${dateLabel ? `<p class="card-meta">${esc(dateLabel)}</p>` : ''}
+            ${dateStr ? `<p class="card-row">${ICON_CALENDAR} ${esc(dateStr)}</p>` : ''}
             ${descLine}
             <p class="card-count">${galleryLabel}</p>
           </div>
@@ -185,7 +218,8 @@ export function renderProjectIndex(projects, siteTitle = 'GalleryPack', isLogged
       justify-content:center;font-size:2.5rem;color:#444}
     .card-body{padding:1rem 1.1rem 1.1rem;display:flex;flex-direction:column;gap:5px;flex:1}
     .card-title{font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-.01em;line-height:1.3}
-    .card-meta{font-size:11px;color:var(--muted);letter-spacing:.04em}
+    .card-row{display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+    .card-row svg{opacity:.65;flex-shrink:0}
     .card-desc{font-size:12px;color:rgba(232,228,221,.45);line-height:1.6;
       display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
     .card-count{font-size:10px;color:rgba(255,255,255,.2);letter-spacing:.06em;
@@ -221,10 +255,13 @@ export function renderProjectListing(projectSlug, projectName, galleries, siteTi
         const thumb = g.coverName
           ? `<img src="${g.slug}/img/grid/${g.coverName}.webp" class="card-img" alt="" loading="lazy" onerror="this.style.display='none'">`
           : `<div class="card-img-placeholder">&#128247;</div>`;
-        const dateLabel  = fmtDateRange(g.dateRange, g.date);
+        const dateStr    = fmtDateCard(g.dateRange, g.date);
         const photoLabel = g.photoCount === 1 ? '1 photo' : `${g.photoCount || 0} photos`;
-        const pgLine = g.photographers?.length > 0
-          ? `<p class="card-authors">Photos de ${g.photographers.map(n => esc(n)).join('<span class="sep">·</span>')}</p>`
+        const pgLine   = g.photographers?.length > 0
+          ? `<p class="card-row">${ICON_CAMERA} ${g.photographers.map(n => esc(n)).join('<span class="row-sep">·</span>')}</p>`
+          : '';
+        const dateLine = dateStr
+          ? `<p class="card-row">${ICON_CALENDAR} ${esc(dateStr)}</p>`
           : '';
         const descLine = g.description
           ? `<p class="card-desc">${esc(g.description)}</p>`
@@ -234,7 +271,7 @@ export function renderProjectListing(projectSlug, projectName, galleries, siteTi
           <div class="card-body">
             <h3 class="card-title">${esc(g.title || g.slug)}</h3>
             ${pgLine}
-            ${dateLabel ? `<p class="card-meta">${esc(dateLabel)}${g.location ? `<span class="sep">·</span>${esc(g.location)}` : ''}</p>` : (g.location ? `<p class="card-meta">${esc(g.location)}</p>` : '')}
+            ${dateLine}
             ${descLine}
             <p class="card-count">${photoLabel}</p>
           </div>
@@ -293,10 +330,9 @@ export function renderProjectListing(projectSlug, projectName, galleries, siteTi
       justify-content:center;font-size:2.5rem;color:#444}
     .card-body{padding:1rem 1.1rem 1.1rem;display:flex;flex-direction:column;gap:5px;flex:1}
     .card-title{font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-.01em;line-height:1.3}
-    .card-authors{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent)}
-    .card-authors .sep{margin:0 6px;opacity:.4}
-    .card-meta{font-size:11px;color:var(--muted);letter-spacing:.04em}
-    .card-meta .sep{margin:0 6px;opacity:.4}
+    .card-row{display:flex;align-items:center;gap:6px;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+    .card-row svg{opacity:.65;flex-shrink:0}
+    .row-sep{margin:0 5px;opacity:.4}
     .card-desc{font-size:12px;color:rgba(232,228,221,.45);line-height:1.6;
       display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
     .card-count{font-size:10px;color:rgba(255,255,255,.2);letter-spacing:.06em;

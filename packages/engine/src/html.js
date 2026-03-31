@@ -39,6 +39,50 @@ export function escHtml(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── Date phrase for hero-authors ("prises le / les / en …") ─────────────────
+
+/**
+ * Build a French date phrase for the "Photos de …" line.
+ *
+ * Rules:
+ *   same day              → "prises le 28 mars 2026"
+ *   2 days, same month    → "prises les 28 et 29 mars 2026"
+ *   2 days, diff months   → "prises les 28 mars et 1er avril 2026"
+ *   >2 days, same month   → "prises en mars 2026"
+ *   >2 days, diff months  → "prises en mars et avril 2026"
+ *
+ * @param {string|null} from  YYYY-MM-DD
+ * @param {string|null} to    YYYY-MM-DD (optional)
+ * @returns {string}
+ */
+function fmtPrisesLe(from, to) {
+  if (!from) return '';
+  const parse = s => new Date(s + 'T12:00:00');
+  const a = parse(from);
+  const b = to ? parse(to) : a;
+  const diff = Math.round((b - a) / 86400000);
+  const loc  = 'fr-CH';
+  const ord  = d => d === 1 ? '1er' : String(d);
+  const mLong = d => d.toLocaleDateString(loc, { month: 'long' });
+  const y = a.getFullYear();
+  const sameMonth = a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+  const sameYear  = a.getFullYear() === b.getFullYear();
+
+  if (diff === 0)
+    return `prises le ${ord(a.getDate())} ${mLong(a)} ${y}`;
+  if (diff === 1) {
+    if (sameMonth)
+      return `prises les ${ord(a.getDate())} et ${ord(b.getDate())} ${mLong(a)} ${y}`;
+    return `prises les ${ord(a.getDate())} ${mLong(a)} et ${ord(b.getDate())} ${mLong(b)} ${y}`;
+  }
+  // > 2 days
+  if (sameMonth)
+    return `prises en ${mLong(a)} ${y}`;
+  if (sameYear)
+    return `prises en ${mLong(a)} et ${mLong(b)} ${y}`;
+  return `prises en ${mLong(a)} ${y} et ${mLong(b)} ${b.getFullYear()}`;
+}
+
 // ── Legal token replacement ───────────────────────────────────────────────────
 
 /**
@@ -437,6 +481,18 @@ export function buildHTML(cfg, photos, fontCss = '', standalone = false, customL
   const photographers = [...photographerSet.keys()];
   if (photographers.length > 0) projectWithLegal.photographers = photographers;
   const projectJson = JSON.stringify(projectWithLegal);
+
+  // EXIF dates take priority; manual date is the fallback when photos have no EXIF
+  const exifDates = photos.map(p => p.exif?.date).filter(Boolean).sort();
+  let _dateFrom, _dateTo;
+  if (exifDates.length > 0) {
+    _dateFrom = exifDates[0].slice(0, 10);
+    _dateTo   = exifDates.length > 1 ? exifDates[exifDates.length - 1].slice(0, 10) : null;
+  } else {
+    _dateFrom = (project.date && project.date !== 'auto') ? project.date : null;
+    _dateTo   = null;
+  }
+  const prisesLe = fmtPrisesLe(_dateFrom, _dateTo);
 
   // Preload links for the first N grid thumbnails — browser fetches them
   // immediately during HTML parsing, before any JS executes (best LCP).
@@ -949,6 +1005,7 @@ body.sw-idle.glightbox-open{cursor:none}
   text-align:center;max-width:1320px;padding:0 32px;display:block;
 }
 .hero-sep{margin:0 8px;opacity:.4}
+.hero-dates{margin-left:10px;opacity:.7}
 .hero-desc{
   font-family:'Poppins',sans-serif;
   max-width:700px;margin:0 auto;
@@ -1083,7 +1140,7 @@ ${[2,3,5,8,10].map(s => {
     ${project.descriptionHtml ? `<div class="hero-desc">${project.descriptionHtml}</div>` : ''}
   </header>
   <div class="hero-divider"></div>` : ''}
-  ${photographers.length > 0 ? `<p class="hero-authors">Photos de ${photographers.map((n, i) => `${i > 0 ? '<span class="hero-sep">·</span>' : ''}${escHtml(n)}`).join('')}</p>` : ''}
+  ${photographers.length > 0 ? `<p class="hero-authors">Photos de ${photographers.map((n, i) => `${i > 0 ? '<span class="hero-sep">·</span>' : ''}${escHtml(n)}`).join('')}${prisesLe ? ` <span class="hero-dates">${escHtml(prisesLe)}</span>` : ''}</p>` : ''}
   <div class="wrap-inner">
     <div class="grid" id="grid"></div>
   </div>
