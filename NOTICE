@@ -1,0 +1,94 @@
+GalleryPack
+Copyright (c) 2026 Philippe Vollenweider
+
+This product includes software developed by third parties. The following
+is a summary of key dependencies and their licenses.
+
+
+RUNTIME DEPENDENCIES
+====================
+
+Sharp (image processing)
+  License: Apache-2.0
+  https://github.com/lovell/sharp
+
+Express (HTTP framework)
+  License: MIT
+  https://github.com/expressjs/express
+
+React, React DOM (UI framework)
+  License: MIT
+  https://github.com/facebook/react
+
+BullMQ (job queue)
+  License: MIT
+  https://github.com/taskforcesh/bullmq
+
+ioredis (Redis client)
+  License: MIT
+  https://github.com/redis/ioredis
+
+mysql2 (MariaDB/MySQL client)
+  License: MIT
+  https://github.com/sidorares/node-mysql2
+
+multer (file upload handling)
+  License: MIT
+  https://github.com/expressjs/multer
+
+cookie-parser (cookie parsing)
+  License: MIT
+  https://github.com/expressjs/cookie-parser
+
+nodemailer (email delivery)
+  License: MIT-0
+  https://github.com/nodemailer/nodemailer
+
+exifr (EXIF metadata extraction)
+  License: MIT
+  https://github.com/MikeKovarik/exifr
+
+piexifjs (EXIF read/write)
+  License: MIT
+  https://github.com/nicmr/piexifjs
+
+react-router-dom (client-side routing)
+  License: MIT
+  https://github.com/remix-run/react-router
+
+qrcode (QR code generation)
+  License: MIT
+  https://github.com/soldair/node-qrcode
+
+
+UI LIBRARIES
+============
+
+AdminLTE 4 (admin UI template)
+  License: MIT
+  https://github.com/ColorlibHQ/AdminLTE
+
+FontAwesome Free (icons)
+  Code (JS/CSS): MIT
+  Font files (.woff2/.ttf): OFL-1.1
+  Documentation: CC-BY-4.0
+  https://github.com/FortAwesome/Font-Awesome
+
+
+BUNDLED ASSETS
+==============
+
+DIN Tape (font, used for watermark overlay)
+  License: Commercial — licensed to Philippe Vollenweider
+  Not freely redistributable. See docs/licensing-audit.md for details.
+
+
+FULL LICENSE TEXTS
+==================
+
+Full license texts for the open-source licenses used in this project are
+available in the LICENSES/ directory:
+
+  LICENSES/AGPL-3.0.txt   — GNU Affero General Public License v3
+  LICENSES/MIT.txt         — MIT License
+  LICENSES/Apache-2.0.txt  — Apache License 2.0
