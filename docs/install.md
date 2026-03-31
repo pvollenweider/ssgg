@@ -1,9 +1,25 @@
 # Installation
 
-## Prerequisites
+## Prerequisites checklist
 
-- Docker + Docker Compose
-- A domain name (for production with TLS)
+Before you begin, ensure you have the following:
+
+- [ ] **Docker 20+** and **Docker Compose v2** installed (`docker compose version`)
+- [ ] A server or VM meeting the minimum system requirements (see below)
+- [ ] A domain name with DNS access (for production with TLS)
+- [ ] SMTP credentials (optional, for invitation and notification emails)
+
+## System requirements
+
+| Resource | Minimum | Recommended (production) |
+|----------|---------|--------------------------|
+| CPU | 2 cores | 4+ cores |
+| RAM | 2 GB | 4+ GB |
+| Disk | 20 GB | 50+ GB (depends on photo volume) |
+| Docker | 20.10+ | Latest stable |
+| Compose | v2.0+ | Latest stable |
+
+The worker process is CPU-intensive during gallery builds (image resizing with Sharp/libvips). More cores and RAM improve build throughput, especially for galleries with many high-resolution photos.
 
 ---
 
@@ -79,7 +95,7 @@ On first boot the API creates the bootstrap admin user from `ADMIN_EMAIL` / `ADM
 
 Set `DOMAIN=yourdomain.com` in `.env`. Caddy provisions a Let's Encrypt certificate automatically. Point your DNS A record to the server IP before starting.
 
-For multi-studio with subdomains, also set `BASE_DOMAIN=yourdomain.com` and create a wildcard DNS record `*.yourdomain.com → server IP`.
+For multi-organization with subdomains, also set `BASE_DOMAIN=yourdomain.com` and create a wildcard DNS record `*.yourdomain.com → server IP`.
 
 ---
 

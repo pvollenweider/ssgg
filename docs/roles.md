@@ -30,7 +30,7 @@ Assigned per organization (stored as `studio_role` in the database). Hierarchy f
 
 ## Project roles
 
-Assigned per project. Used to give a user access to all galleries in a project without a full studio membership.
+Assigned per project. Used to give a user access to all galleries in a project without a full organization membership.
 
 | Role | Read | Upload | Edit/build | Manage members |
 |---|---|---|---|---|
@@ -57,7 +57,7 @@ Assigned per gallery. Finest-grained access control.
 When a user requests a resource, GalleryPack checks permissions in this order and grants access if **any** check passes:
 
 1. Is the user a **superadmin**? → full access
-2. Does the user have a **studio role** ≥ required?
+2. Does the user have an **organization role** ≥ required?
 3. Does the user have a **project role** sufficient for this action?
 4. Does the user have a **gallery role** sufficient for this action?
 5. Is there a valid **viewer token** scoped to this gallery or project?

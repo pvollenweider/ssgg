@@ -1,6 +1,39 @@
 # REST API reference
 
-All API routes are under `/api`. Authentication is via HTTP-only session cookie obtained from `POST /api/auth/login`.
+All API routes are under `/api`. Authentication is via HTTP-only session cookie obtained from `POST /api/auth/login`, or via a personal upload token passed as a `Bearer` token in the `Authorization` header.
+
+### Authentication methods
+
+| Method | How to obtain | Use case |
+|--------|--------------|----------|
+| Session cookie | `POST /api/auth/login` | Browser-based admin UI |
+| Personal token | `POST /api/tokens` | CLI uploads, API integrations |
+
+### HTTP status codes
+
+| Code | Meaning |
+|------|---------|
+| `200` | Success |
+| `201` | Resource created |
+| `400` | Bad request (validation error, missing field) |
+| `401` | Not authenticated (missing or invalid session/token) |
+| `403` | Forbidden (insufficient permissions) |
+| `404` | Resource not found |
+| `409` | Conflict (duplicate slug, email already exists) |
+| `410` | Gone (expired token or revoked invitation) |
+| `500` | Internal server error |
+
+### Error response format
+
+All error responses return a JSON body:
+
+```json
+{ "error": "Human-readable error message" }
+```
+
+### Pagination
+
+List endpoints return all matching records by default. For endpoints that may return large result sets (photos, members), the response includes all items. Clients should handle the full list client-side.
 
 ---
 
@@ -16,7 +49,7 @@ Returns the authenticated user object and sets a session cookie.
 Clears the session cookie.
 
 ### `GET /api/auth/me`
-Returns the current user with studio context, roles, and locale.
+Returns the current user with organization context, roles, and locale.
 
 ### `PATCH /api/auth/me`
 Update name, locale, or password.
@@ -92,26 +125,26 @@ Remove a custom domain (admin+).
 The `/api/studios` endpoints are a legacy alias for organization management. Prefer `/api/organizations` for new integrations.
 
 ### `GET /api/studios/me`
-Returns the current studio (resolved from host or session context).
+Returns the current organization (resolved from host or session context).
 
 ### `PATCH /api/studios/me`
-Update studio name, locale, country, or slug.
+Update organization name, locale, country, or slug.
 
 ### `GET /api/studios/members`
-List studio members with their roles.
+List organization members with their roles.
 
 ### `PUT /api/studios/members/:userId`
-Update a member's studio role.
+Update a member's organization role.
 
 ### `DELETE /api/studios/members/:userId`
-Remove a member from the studio.
+Remove a member from the organization.
 
 ---
 
 ## Projects
 
 ### `GET /api/projects`
-List projects in the current studio.
+List projects in the current organization.
 
 ### `POST /api/projects`
 Create a project.
@@ -212,7 +245,7 @@ data: {"status":"done"}
 ## Invitations
 
 ### `GET /api/invitations`
-List pending invitations for the current studio.
+List pending invitations for the current organization.
 
 ### `POST /api/invitations`
 Create an invitation. An invite email is sent if SMTP is configured; the token is also returned in the response for copyable-link sharing.
@@ -234,7 +267,7 @@ Cancel a pending invitation.
 Get invitation details (public — validates token without consuming).
 
 ### `POST /api/invitations/accept/:token`
-Accept an invitation, create account, and join the studio.
+Accept an invitation, create account, and join the organization.
 ```json
 { "password": "newpassword" }
 ```
@@ -244,10 +277,10 @@ Accept an invitation, create account, and join the studio.
 ## Settings
 
 ### `GET /api/settings`
-Get studio-level settings (defaults for new galleries, SMTP config, etc.).
+Get organization-level settings (defaults for new galleries, SMTP config, etc.).
 
 ### `PUT /api/settings`
-Save studio settings.
+Save organization settings.
 
 ### `POST /api/settings/smtp/test`
 Send a test email using the current SMTP configuration.
@@ -257,7 +290,7 @@ Send a test email using the current SMTP configuration.
 ## Viewer tokens
 
 ### `GET /api/access/viewer-tokens`
-List viewer tokens for the current studio.
+List viewer tokens for the current organization.
 
 ### `POST /api/access/viewer-tokens`
 Create a viewer token.
@@ -277,32 +310,32 @@ Revoke a viewer token.
 ## Platform (superadmin only)
 
 ### `GET /api/platform/studios`
-List all studios (organizations).
+List all organizations.
 
 ### `POST /api/platform/studios`
-Create a studio with optional owner invitation.
+Create an organization with optional owner invitation.
 ```json
-{ "name": "New Studio", "slug": "new-studio", "plan": "free", "ownerEmail": "owner@example.com" }
+{ "name": "New Organization", "slug": "new-org", "plan": "free", "ownerEmail": "owner@example.com" }
 ```
 Enforces the `organization_limit` from the active license.
 
 ### `PATCH /api/platform/studios/:id`
-Update studio name, slug, or plan.
+Update organization name, slug, or plan.
 
 ### `DELETE /api/platform/studios/:id`
-Delete a studio and all its data. Cannot delete the default studio.
+Delete an organization and all its data. Cannot delete the default organization.
 
 ### `POST /api/platform/studios/:id/set-default`
-Make this studio the default (used in single-mode and as hostname fallback).
+Make this organization the default (used in single-mode and as hostname fallback).
 
 ### `POST /api/platform/switch/:studioId`
-Switch the current studio context (sets `studio_override` cookie, valid 8 hours).
+Switch the current organization context (sets `studio_override` cookie, valid 8 hours).
 
 ### `DELETE /api/platform/switch`
-Clear the studio override cookie and return to default.
+Clear the organization override cookie and return to default.
 
 ### `GET /api/platform/users`
-List all users across all studios.
+List all users across all organizations.
 
 ### `PATCH /api/platform/users/:id`
 Grant or revoke superadmin.

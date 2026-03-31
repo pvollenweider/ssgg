@@ -48,4 +48,4 @@ To obtain a commercial license or discuss pricing:
 - Open an issue at [github.com/pvollenweider/gallerypack](https://github.com/pvollenweider/gallerypack)
 - Contact the maintainer via GitHub
 
-A formal license agreement will be provided. Terms vary depending on use case (single studio, multi-tenant SaaS, OEM integration).
+A formal license agreement will be provided. Terms vary depending on use case (single organization, multi-tenant SaaS, OEM integration).

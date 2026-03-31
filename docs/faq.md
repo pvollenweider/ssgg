@@ -12,7 +12,7 @@ JPEG, PNG, TIFF, HEIC, HEIF, and AVIF. Files are validated with Sharp on upload.
 Roughly 1–3 seconds per photo. A 50-photo gallery typically builds in under a minute. The build progress bar in the admin gives real-time feedback via SSE.
 
 **Can I use my own domain for a gallery?**
-Yes. In `PLATFORM_MODE=multi`, add your domain to the studio's domain list. Caddy handles TLS automatically.
+Yes. In `PLATFORM_MODE=multi`, add your domain to the organization's domain list. Caddy handles TLS automatically.
 
 **Is internet access required during build?**
 Vendors and fonts are downloaded on first build and cached locally. Subsequent builds are fully offline.
@@ -22,7 +22,7 @@ Vendors and fonts are downloaded on first build and cached locally. Subsequent b
 ## Access control
 
 **What's the difference between `private` and `password`?**
-- `private` — only logged-in users with the right studio/project/gallery role, or users with a viewer token link.
+- `private` — only logged-in users with the right organization/project/gallery role, or users with a viewer token link.
 - `password` — anyone with the password can view it, no account required.
 
 **How do photographer invitations work?**

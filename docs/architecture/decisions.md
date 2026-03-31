@@ -25,7 +25,7 @@ workers/builder/    Background worker — polls job queue, calls engine
 
 The project started with SQLite. It was migrated to MariaDB for:
 - **Concurrent writes** — the worker and API write to the database simultaneously
-- **Multi-studio** — foreign keys with cascade delete, complex joins for role resolution
+- **Multi-organization** — foreign keys with cascade delete, complex joins for role resolution
 - **Production reliability** — connection pooling, replication options
 
 Migrations are numbered SQL files in `apps/api/src/db/migrations/mariadb/`. They run automatically on startup and are tracked in a `_migrations` table.
@@ -42,11 +42,11 @@ Both the API (for uploads) and the worker (for reading source photos and writing
 
 ---
 
-## Multi-studio / multi-organization architecture
+## Multi-organization architecture
 
-The data model is: **Platform → Organization (Studio) → Project → Gallery**.
+The data model is: **Platform → Organization → Project → Gallery**.
 
-"Organization" is the UI term for what is stored as "studio" in the database and legacy routes. The two terms are interchangeable.
+"Organization" is used in the UI and documentation. The database and some legacy API routes use "studio" for historical reasons, but they refer to the same entity.
 
 In `PLATFORM_MODE=single` (default) the hierarchy collapses — there is one organization and requests always resolve to it. This is fully backwards-compatible with earlier single-tenant deployments.
 
@@ -56,7 +56,7 @@ In `PLATFORM_MODE=multi`:
 - Subdomains of `BASE_DOMAIN` are automatically routed by slug
 - A `superadmin` can switch organization context with a `studio_override` cookie
 
-**Authorization** uses a hierarchical `can(user, action, resource)` function that checks permissions in order: platform role → studio role → project role → gallery role → viewer token → public access.
+**Authorization** uses a hierarchical `can(user, action, resource)` function that checks permissions in order: platform role → organization role → project role → gallery role → viewer token → public access.
 
 `getOrgRole` resolves membership via both `organization_id` and `studio_id` fields to support both the new and legacy membership schema.
 
@@ -98,7 +98,7 @@ Additional token types:
 
 The React admin application is mounted at the `/admin` basename. All management routes are under `/admin/organizations/...`. The app redirects legacy paths (`/manage/*`, `/studio`, `/dashboard`) to their current equivalents for backwards compatibility.
 
-The Inspector (`/inspector`) is a superadmin-only diagnostic tool that provides a cross-organization view of studios, projects, galleries, photos, users, and anomalies.
+The Inspector (`/inspector`) is a superadmin-only diagnostic tool that provides a cross-organization view of organizations, projects, galleries, photos, users, and anomalies.
 
 ---
 

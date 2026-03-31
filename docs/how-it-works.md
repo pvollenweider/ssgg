@@ -14,7 +14,7 @@ Upload → Manage → Build → Static files → Visitors
 
 ```
 Platform  (the GalleryPack installation)
-  └── Organization  (a photography business, team, or brand; also called "studio" internally)
+  └── Organization  (a photography business, team, or brand)
         └── Project  (a shoot, event, or series)
               └── Gallery  (deliverable — photos + settings + build output)
 ```
@@ -22,7 +22,7 @@ Platform  (the GalleryPack installation)
 - In `PLATFORM_MODE=single` there is exactly one organization. The hierarchy simplifies to Project → Gallery.
 - In `PLATFORM_MODE=multi` a superadmin manages multiple organizations, each isolated from the others.
 
-The terms "studio" and "organization" refer to the same entity. "Organization" is used in the admin UI; "studio" appears in internal API routes and the database for historical reasons.
+The term "organization" is used throughout the admin UI and documentation. The database and some legacy API routes use "studio" for historical reasons, but they refer to the same entity.
 
 ---
 
@@ -40,7 +40,7 @@ A gallery has:
 | Mode | Who can view |
 |---|---|
 | `public` | Anyone |
-| `private` | Only authenticated users with studio/project/gallery access, or a viewer token |
+| `private` | Only authenticated users with organization/project/gallery access, or a viewer token |
 | `password` | Anyone with the password |
 
 Private galleries use a hash-based `distName` derived from the gallery ID so the public URL is not guessable.
@@ -114,7 +114,7 @@ There are two clearly separate operations. They share no code paths.
 
 ### Flow A — Admin creates a gallery and uploads their own photos
 
-**Actor:** authenticated studio member (collaborator, admin, or owner)
+**Actor:** authenticated organization member (collaborator, admin, or owner)
 
 1. Admin creates gallery via `POST /api/galleries` — sets title, metadata
 2. Admin uploads photos via `POST /api/galleries/:id/photos` (multipart)
@@ -130,7 +130,7 @@ There are two clearly separate operations. They share no code paths.
 3. Photographer opens the link in a browser — no login needed
 4. Photographer uploads photos via `POST /upload/:token/photos` (multipart)
 5. Photos are inserted with `status = 'uploaded'` — they are **not** immediately visible
-6. Studio editors are notified by email
+6. Organization editors are notified by email
 7. Admin reviews photos in the **Inbox** tab, accepts or rejects them
 8. Accepted photos get `status = 'validated'` and become eligible for the next build
 
