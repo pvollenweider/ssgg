@@ -5,6 +5,7 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom';
 import { useAuth } from './lib/auth.jsx';
 import { I18nProvider, useT } from './lib/I18nContext.jsx';
@@ -21,9 +22,16 @@ import ManageLayout    from './management/layout/ManageLayout.jsx';
 import PlatformLayout  from './management/layout/PlatformLayout.jsx';
 import ProfilePage     from './management/pages/profile/ProfilePage.jsx';
 import { PlatformOverviewPage, SmtpPage, LicensePage, BrandingPage, PlatformTeamPage } from './management/pages/platform/index.jsx';
-import { OrganizationsListPage, OrganizationGeneralPage, OrganizationTeamPage, OrganizationProjectsPage } from './management/pages/organizations/index.jsx';
-import { ProjectGeneralPage, ProjectGalleriesPage } from './management/pages/projects/index.jsx';
-import { GalleryGeneralPage, GalleryJobsPage, GalleryInsightsPage, GalleryPhotosPage } from './management/pages/galleries/index.jsx';
+import { OrganizationsListPage, OrganizationProjectsPage } from './management/pages/organizations/index.jsx';
+import { ProjectGalleriesPage } from './management/pages/projects/index.jsx';
+import { GalleryJobsPage, GalleryPhotosPage } from './management/pages/galleries/index.jsx';
+
+// Lazy-loaded heavy pages (chart.js ~200KB, easymde ~300KB)
+const GalleryInsightsPage   = lazy(() => import('./management/pages/galleries/GalleryInsightsPage.jsx'));
+const GalleryGeneralPage    = lazy(() => import('./management/pages/galleries/GalleryGeneralPage.jsx'));
+const OrganizationGeneralPage = lazy(() => import('./management/pages/organizations/OrganizationGeneralPage.jsx'));
+const OrganizationTeamPage  = lazy(() => import('./management/pages/organizations/OrganizationTeamPage.jsx'));
+const ProjectGeneralPage    = lazy(() => import('./management/pages/projects/ProjectGeneralPage.jsx'));
 
 // Inspector
 import InspectorLayout     from './inspector/InspectorLayout.jsx';
@@ -36,6 +44,18 @@ import InspectorDashboard  from './inspector/InspectorDashboard.jsx';
 import InspectorAnomalies  from './inspector/InspectorAnomalies.jsx';
 
 import Login from './pages/Login.jsx';
+
+function LazyFallback() {
+  return (
+    <div style={{ display:'flex',alignItems:'center',justifyContent:'center',height:'40vh',color:'#888' }}>
+      <i className="fas fa-spinner fa-spin me-2" />Loading...
+    </div>
+  );
+}
+
+function SuspenseRoute({ children }) {
+  return <Suspense fallback={<LazyFallback />}>{children}</Suspense>;
+}
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -111,8 +131,8 @@ export default function App() {
 
       {/* Org home = project list */}
       <Route path="/admin/organizations/:orgId"                element={<W><OrganizationProjectsPage /></W>} />
-      <Route path="/admin/organizations/:orgId/settings"       element={<W><OrganizationGeneralPage /></W>} />
-      <Route path="/admin/organizations/:orgId/team"           element={<W><OrganizationTeamPage /></W>} />
+      <Route path="/admin/organizations/:orgId/settings"       element={<W><SuspenseRoute><OrganizationGeneralPage /></SuspenseRoute></W>} />
+      <Route path="/admin/organizations/:orgId/team"           element={<W><SuspenseRoute><OrganizationTeamPage /></SuspenseRoute></W>} />
       <Route path="/admin/organizations/:orgId/general"        element={<OrgSettingsRedirect />} />
       <Route path="/admin/organizations/:orgId/defaults"       element={<OrgSettingsRedirect />} />
       <Route path="/admin/organizations/:orgId/access"         element={<OrgSettingsRedirect />} />
@@ -121,7 +141,7 @@ export default function App() {
 
       {/* Project home = gallery list */}
       <Route path="/admin/organizations/:orgId/projects/:projectId"                element={<W><ProjectGalleriesPage /></W>} />
-      <Route path="/admin/organizations/:orgId/projects/:projectId/settings"       element={<W><ProjectGeneralPage /></W>} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/settings"       element={<W><SuspenseRoute><ProjectGeneralPage /></SuspenseRoute></W>} />
       <Route path="/admin/organizations/:orgId/projects/:projectId/general"        element={<ProjectSettingsRedirect />} />
       <Route path="/admin/organizations/:orgId/projects/:projectId/access"         element={<ProjectSettingsRedirect />} />
       <Route path="/admin/organizations/:orgId/projects/:projectId/delivery"       element={<ProjectSettingsRedirect />} />
@@ -129,9 +149,9 @@ export default function App() {
       {/* Gallery sub-pages */}
       <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId"             element={<GalleryPhotosRedirect />} />
       <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/photos"      element={<W><GalleryPhotosPage /></W>} />
-      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/settings"    element={<W><GalleryGeneralPage /></W>} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/settings"    element={<W><SuspenseRoute><GalleryGeneralPage /></SuspenseRoute></W>} />
       <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/jobs"        element={<W><GalleryJobsPage /></W>} />
-      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/statistics"  element={<W><GalleryInsightsPage /></W>} />
+      <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/statistics"  element={<W><SuspenseRoute><GalleryInsightsPage /></SuspenseRoute></W>} />
       <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/publish"     element={<GalleryPhotosRedirect />} />
       <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/general"     element={<GallerySettingsRedirect />} />
       <Route path="/admin/organizations/:orgId/projects/:projectId/galleries/:galleryId/access"      element={<GallerySettingsRedirect />} />

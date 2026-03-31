@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import SimpleMDE from 'react-simplemde-editor';
+import SimpleMDE from '../../../components/LazySimpleMDE.jsx';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
 import { AdminPage, AdminCard, AdminInput, AdminSelect, AdminAlert, AdminButton, AdminToast } from '../../../components/ui/index.js';

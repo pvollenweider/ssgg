@@ -7,8 +7,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
-import SimpleMDE from 'react-simplemde-editor';
-import 'easymde/dist/easymde.min.css';
+import SimpleMDE from '../../../components/LazySimpleMDE.jsx';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
 import { useAuth } from '../../../lib/auth.jsx';
