@@ -44,9 +44,9 @@ export function renderLanding(galleries, siteTitle = 'GalleryPack', isLoggedIn =
   const cards = galleries.length === 0
     ? '<p style="color:#666;text-align:center;padding:3rem 0;grid-column:1/-1">No galleries published yet.</p>'
     : galleries.map(g => {
-        const href = g.built ? `/${g.slug}/` : null;
+        const href = g.built ? `${g.slug}/` : null;
         const thumb = g.coverName
-          ? `<img src="/${g.slug}/img/grid/${g.coverName}.webp" style="width:100%;height:100%;object-fit:cover;display:block" alt="" onerror="this.style.display='none'">`
+          ? `<img src="${g.slug}/img/grid/${g.coverName}.webp" style="width:100%;height:100%;object-fit:cover;display:block" alt="" onerror="this.style.display='none'">`
           : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;color:#555">&#128247;</div>`;
 
         // SVG badges overlaid on the image
@@ -98,7 +98,7 @@ export function renderLanding(galleries, siteTitle = 'GalleryPack', isLoggedIn =
 </head>
 <body style="display:flex;flex-direction:column;min-height:100vh">
   <header>
-    <a class="logo" href="/">${esc(siteTitle)}</a>
+    <a class="logo" href="./">${esc(siteTitle)}</a>
   </header>
   <main style="flex:1">
     <div class="grid">${cards}</div>
@@ -117,9 +117,9 @@ export function renderProjectIndex(projects, siteTitle = 'GalleryPack', isLogged
   const cards = projects.length === 0
     ? `<p class="empty">Aucun projet publié pour l'instant.</p>`
     : projects.map(p => {
-        const href  = `/${p.slug}/`;
+        const href  = `${p.slug}/`;
         const thumb = p.coverName
-          ? `<img src="/${p.slug}/${p.coverSlug}/img/grid/${p.coverName}.webp" class="card-img" alt="" loading="lazy" onerror="this.style.display='none'">`
+          ? `<img src="${p.slug}/${p.coverSlug}/img/grid/${p.coverName}.webp" class="card-img" alt="" loading="lazy" onerror="this.style.display='none'">`
           : `<div class="card-img-placeholder">&#128247;</div>`;
         const galleryLabel = p.galleryCount === 1 ? '1 galerie' : `${p.galleryCount} galeries`;
         const dateLabel = fmtDateRange(p.dateRange, null);
@@ -215,9 +215,9 @@ export function renderProjectListing(projectSlug, projectName, galleries, siteTi
   const cards = galleries.length === 0
     ? `<p class="empty">Aucune galerie publiée pour l'instant.</p>`
     : galleries.map(g => {
-        const href  = `/${projectSlug}/${g.slug}/`;
+        const href  = `${g.slug}/`;
         const thumb = g.coverName
-          ? `<img src="${href}img/grid/${g.coverName}.webp" class="card-img" alt="" loading="lazy" onerror="this.style.display='none'">`
+          ? `<img src="${g.slug}/img/grid/${g.coverName}.webp" class="card-img" alt="" loading="lazy" onerror="this.style.display='none'">`
           : `<div class="card-img-placeholder">&#128247;</div>`;
         const dateLabel  = fmtDateRange(g.dateRange, g.date);
         const photoLabel = g.photoCount === 1 ? '1 photo' : `${g.photoCount || 0} photos`;
@@ -311,7 +311,7 @@ export function renderProjectListing(projectSlug, projectName, galleries, siteTi
 </head>
 <body>
   <nav class="bar">
-    <a class="bar-back" href="/">← ${esc(siteTitle)}</a>
+    <a class="bar-back" href="../">← ${esc(siteTitle)}</a>
     <span class="bar-title">${esc(projectName)}</span>
   </nav>
   <main>
@@ -323,7 +323,7 @@ export function renderProjectListing(projectSlug, projectName, galleries, siteTi
     <div class="grid">${cards}</div>
   </main>
   <footer class="footer">
-    <a href="/">← ${esc(siteTitle)}</a>
+    <a href="../">← ${esc(siteTitle)}</a>
   </footer>
 </body>
 </html>`;
