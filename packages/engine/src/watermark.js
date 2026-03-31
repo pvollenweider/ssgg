@@ -52,7 +52,7 @@ export async function ensureWatermarkFont() {
 export function buildWatermarkSvg(imgWidth, imgHeight, text, fontPath) {
   // Design constants
   const opacity    = 0.50;
-  const sizeRatio  = 0.015;  // 1.5% of image height
+  const sizeRatio  = 0.015;  // 1.5% of shortest side
   const hPadRatio  = 0.03;   // 3% from right
   const vPadRatio  = 0.01;   // 1% from bottom
   const shadowOpacity    = 0.80;
@@ -60,7 +60,7 @@ export function buildWatermarkSvg(imgWidth, imgHeight, text, fontPath) {
   const shadowAngle      = -90; // degrees → straight up
   const shadowRadius     = 20;
 
-  const fontSize = Math.round(imgHeight * sizeRatio);
+  const fontSize = Math.round(Math.min(imgWidth, imgHeight) * sizeRatio);
   const x        = imgWidth  - Math.round(imgWidth  * hPadRatio);
   const y        = imgHeight - Math.round(imgHeight * vPadRatio);
 
