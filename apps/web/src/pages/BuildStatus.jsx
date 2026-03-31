@@ -18,14 +18,16 @@ export default function BuildStatus() {
   const [done,    setDone]    = useState(false);
 
   useEffect(() => {
-    api.getJob(jobId).then(setJob).catch(() => navigate('/'));
+    api.getJob(jobId)
+      .then(j => { setJob(j); api.getGallery(j.galleryId).then(setGallery).catch(() => {}); })
+      .catch(() => navigate('/'));
   }, [jobId]);
 
   function handleDone(finalStatus) {
     setDone(true);
     api.getJob(jobId).then(j => {
       setJob(j);
-      if (finalStatus === 'done') api.getGallery(j.galleryId).then(setGallery).catch(() => {});
+      api.getGallery(j.galleryId).then(setGallery).catch(() => {});
     });
   }
 
@@ -52,7 +54,7 @@ export default function BuildStatus() {
                 <div className="card">
                   <div className="card-body py-2">
                     <div className="d-flex flex-wrap" style={{ gap: '1.5rem', fontSize: '0.85rem', color: '#666' }}>
-                      <span><strong>Gallery:</strong> {job.galleryId}</span>
+                      <span><strong>Gallery:</strong> {gallery ? (gallery.title || gallery.slug) : job.galleryId}</span>
                       <span><strong>Triggered:</strong> {new Date(job.createdAt).toLocaleString()}</span>
                       {job.durationMs && <span><strong>Duration:</strong> {(job.durationMs / 1000).toFixed(1)}s</span>}
                     </div>
