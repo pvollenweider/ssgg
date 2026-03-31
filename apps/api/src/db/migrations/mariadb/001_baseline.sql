@@ -6,7 +6,7 @@
 -- Represents the fully-evolved schema after all incremental migrations.
 -- Applied once on first boot; the migration runner records it and stops.
 
--- ── Studios (tenants) ─────────────────────────────────────────────────────────
+-- ── Organizations (tenants) ──────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS studios (
   id          VARCHAR(32)  NOT NULL PRIMARY KEY,
@@ -16,25 +16,29 @@ CREATE TABLE IF NOT EXISTS studios (
   is_default  TINYINT(1)   NOT NULL DEFAULT 0,
   locale      VARCHAR(8)   DEFAULT NULL,
   country     VARCHAR(8)   DEFAULT NULL,
+  storage_quota_bytes BIGINT NULL     COMMENT 'NULL = unlimited',
+  storage_used_bytes  BIGINT NOT NULL DEFAULT 0 COMMENT 'current usage in bytes',
   created_at  BIGINT       NOT NULL,
   updated_at  BIGINT       NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ── Organizations (canonical tenant model, Sprint 22) ─────────────────────────
+-- ── Organizations (canonical tenant model) ───────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS organizations (
-  id          VARCHAR(36)  NOT NULL PRIMARY KEY,
-  slug        VARCHAR(128) NOT NULL,
-  name        VARCHAR(255) NOT NULL,
-  locale      VARCHAR(10)  NULL,
-  country     VARCHAR(4)   NULL,
-  is_default  TINYINT(1)   NOT NULL DEFAULT 0,
-  created_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  id               VARCHAR(36)  NOT NULL PRIMARY KEY,
+  slug             VARCHAR(128) NOT NULL,
+  name             VARCHAR(255) NOT NULL,
+  description      TEXT         NULL,
+  locale           VARCHAR(10)  NULL,
+  country          VARCHAR(4)   NULL,
+  is_default       TINYINT(1)   NOT NULL DEFAULT 0,
+  cover_project_id VARCHAR(22)  DEFAULT NULL,
+  created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_org_slug (slug)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- ── Studio domains (multi-tenant routing) ─────────────────────────────────────
+-- ── Organization domains (multi-tenant routing) ──────────────────────────────
 
 CREATE TABLE IF NOT EXISTS studio_domains (
   id              VARCHAR(32)  NOT NULL PRIMARY KEY,
@@ -60,9 +64,11 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash     TEXT,
   role              VARCHAR(32)  NOT NULL DEFAULT 'photographer',
   name              VARCHAR(255),
+  bio               TEXT         NULL DEFAULT NULL,
   locale            VARCHAR(16),
   platform_role     VARCHAR(32)  DEFAULT NULL,
   notify_on_upload  TINYINT(1)   NOT NULL DEFAULT 1,
+  is_photographer   TINYINT(1)   NOT NULL DEFAULT 0,
   notify_on_publish TINYINT(1)   NOT NULL DEFAULT 1,
   created_at        BIGINT       NOT NULL,
   updated_at        BIGINT       NOT NULL,
@@ -70,6 +76,7 @@ CREATE TABLE IF NOT EXISTS users (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_users_studio        ON users(studio_id);
+CREATE INDEX idx_users_org           ON users(organization_id);
 CREATE INDEX idx_users_email         ON users(email);
 CREATE INDEX idx_users_platform_role ON users(platform_role);
 
@@ -89,18 +96,21 @@ CREATE INDEX idx_sessions_expires ON sessions(expires_at);
 -- ── Projects ──────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS projects (
-  id              CHAR(36)     NOT NULL PRIMARY KEY,
-  studio_id       CHAR(36)     NOT NULL,
-  organization_id VARCHAR(36)  NULL DEFAULT NULL,
-  slug            VARCHAR(100) NOT NULL,
-  name            VARCHAR(255) NOT NULL,
-  description     TEXT,
-  visibility      VARCHAR(20)  NOT NULL DEFAULT 'restricted',
-  starts_at       BIGINT,
-  ends_at         BIGINT,
-  status          VARCHAR(20)  NOT NULL DEFAULT 'active',
-  created_at      BIGINT       NOT NULL,
-  updated_at      BIGINT       NOT NULL,
+  id                CHAR(36)     NOT NULL PRIMARY KEY,
+  studio_id         CHAR(36)     NOT NULL,
+  organization_id   VARCHAR(36)  NULL DEFAULT NULL,
+  slug              VARCHAR(100) NOT NULL,
+  name              VARCHAR(255) NOT NULL,
+  description       TEXT,
+  visibility        VARCHAR(20)  NOT NULL DEFAULT 'restricted',
+  starts_at         BIGINT,
+  ends_at           BIGINT,
+  status            VARCHAR(20)  NOT NULL DEFAULT 'active',
+  standalone_default TINYINT(1)  NOT NULL DEFAULT 0,
+  sort_order        INT          NOT NULL DEFAULT 0,
+  cover_gallery_id  VARCHAR(22)  DEFAULT NULL,
+  created_at        BIGINT       NOT NULL,
+  updated_at        BIGINT       NOT NULL,
   UNIQUE KEY uq_project_slug (studio_id, slug),
   FOREIGN KEY (studio_id)       REFERENCES studios(id)       ON DELETE CASCADE,
   FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE
@@ -130,41 +140,50 @@ CREATE INDEX idx_pra_user_project  ON project_role_assignments(user_id, project_
 -- ── Galleries ─────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS galleries (
-  id                     VARCHAR(32)  NOT NULL PRIMARY KEY,
-  studio_id              VARCHAR(32)  NOT NULL,
-  organization_id        VARCHAR(36)  NULL DEFAULT NULL,
-  project_id             CHAR(36)     NOT NULL,
-  slug                   VARCHAR(255) NOT NULL,
-  title                  VARCHAR(512),
-  subtitle               VARCHAR(512),
-  author                 VARCHAR(255),
-  author_email           VARCHAR(255),
-  date                   VARCHAR(32),
-  location               VARCHAR(512),
-  locale                 VARCHAR(16)  NOT NULL DEFAULT 'en',
-  access                 VARCHAR(32)  NOT NULL DEFAULT 'public',
-  visibility             VARCHAR(20)  NOT NULL DEFAULT 'restricted',
-  password_hash          TEXT,
-  standalone             TINYINT(1)   NOT NULL DEFAULT 0,
-  allow_download_image   TINYINT(1)   NOT NULL DEFAULT 1,
-  allow_download_gallery TINYINT(1)   NOT NULL DEFAULT 1,
-  cover_photo            VARCHAR(512),
-  slideshow_interval     INT,
-  copyright              VARCHAR(512),
-  description            TEXT,
-  config_json            MEDIUMTEXT,
-  build_status           VARCHAR(32)  NOT NULL DEFAULT 'pending',
-  workflow_status        ENUM('draft','ready','published') NOT NULL DEFAULT 'draft',
-  active                 TINYINT(1)   NOT NULL DEFAULT 1,
-  needs_rebuild          TINYINT(1)   NOT NULL DEFAULT 0,
-  photo_order            MEDIUMTEXT,
-  built_at               BIGINT,
-  created_at             BIGINT       NOT NULL,
-  updated_at             BIGINT       NOT NULL,
+  id                        VARCHAR(32)  NOT NULL PRIMARY KEY,
+  studio_id                 VARCHAR(32)  NOT NULL,
+  organization_id           VARCHAR(36)  NULL DEFAULT NULL,
+  project_id                CHAR(36)     NOT NULL,
+  slug                      VARCHAR(255) NOT NULL,
+  title                     VARCHAR(512),
+  subtitle                  VARCHAR(512),
+  author                    VARCHAR(255),
+  author_email              VARCHAR(255),
+  primary_photographer_id   VARCHAR(32)  NULL DEFAULT NULL,
+  date                      VARCHAR(32),
+  location                  VARCHAR(512),
+  locale                    VARCHAR(16)  NOT NULL DEFAULT 'en',
+  access                    VARCHAR(32)  NOT NULL DEFAULT 'public',
+  visibility                VARCHAR(20)  NOT NULL DEFAULT 'restricted',
+  password_hash             TEXT,
+  standalone                TINYINT(1)   NOT NULL DEFAULT 0,
+  allow_download_image      TINYINT(1)   NOT NULL DEFAULT 1,
+  allow_download_gallery    TINYINT(1)   NOT NULL DEFAULT 1,
+  allow_download_original   TINYINT(1)   NOT NULL DEFAULT 0,
+  download_mode             ENUM('none','display','original') NOT NULL DEFAULT 'display',
+  apache_protection         TINYINT(1)   NOT NULL DEFAULT 0,
+  cover_photo               VARCHAR(512),
+  slideshow_interval        INT,
+  copyright                 VARCHAR(512),
+  description               TEXT,
+  description_md            TEXT         NULL DEFAULT NULL,
+  config_json               MEDIUMTEXT,
+  build_status              VARCHAR(32)  NOT NULL DEFAULT 'pending',
+  workflow_status            ENUM('draft','ready','published') NOT NULL DEFAULT 'draft',
+  active                    TINYINT(1)   NOT NULL DEFAULT 1,
+  needs_rebuild             TINYINT(1)   NOT NULL DEFAULT 0,
+  photo_order               MEDIUMTEXT,
+  dist_name                 VARCHAR(255) NULL DEFAULT NULL COMMENT 'Actual dist directory name used in the last successful build (hash for password galleries)',
+  sort_order                INT          NOT NULL DEFAULT 0,
+  built_at                  BIGINT,
+  created_at                BIGINT       NOT NULL,
+  updated_at                BIGINT       NOT NULL,
   UNIQUE (studio_id, slug),
-  FOREIGN KEY (studio_id)       REFERENCES studios(id)       ON DELETE CASCADE,
-  FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE,
-  FOREIGN KEY (project_id)      REFERENCES projects(id)      ON DELETE RESTRICT
+  FOREIGN KEY (studio_id)                  REFERENCES studios(id)       ON DELETE CASCADE,
+  FOREIGN KEY (organization_id)            REFERENCES organizations(id) ON DELETE CASCADE,
+  FOREIGN KEY (project_id)                 REFERENCES projects(id)      ON DELETE RESTRICT,
+  CONSTRAINT fk_galleries_primary_photographer_user
+    FOREIGN KEY (primary_photographer_id)  REFERENCES users(id)         ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_galleries_studio          ON galleries(studio_id);
@@ -274,7 +293,7 @@ CREATE TABLE IF NOT EXISTS build_events (
 
 CREATE INDEX idx_events_job ON build_events(job_id, seq);
 
--- ── App settings (per studio) ─────────────────────────────────────────────────
+-- ── App settings (per organization) ──────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS settings (
   studio_id                      VARCHAR(32)  NOT NULL PRIMARY KEY,
@@ -285,7 +304,6 @@ CREATE TABLE IF NOT EXISTS settings (
   smtp_pass                      TEXT,
   smtp_from                      VARCHAR(255),
   smtp_secure                    TINYINT(1)   NOT NULL DEFAULT 0,
-  apache_path                    TEXT,
   base_url                       TEXT,
   site_title                     VARCHAR(512),
   default_author                 VARCHAR(255),
@@ -294,10 +312,14 @@ CREATE TABLE IF NOT EXISTS settings (
   default_access                 VARCHAR(32)  NOT NULL DEFAULT 'public',
   default_allow_download_image   TINYINT(1)   NOT NULL DEFAULT 1,
   default_allow_download_gallery TINYINT(1)   NOT NULL DEFAULT 0,
+  default_allow_download_original TINYINT(1)  NOT NULL DEFAULT 0,
+  default_download_mode          ENUM('none','display','original') NOT NULL DEFAULT 'display',
   default_private                TINYINT(1)   NOT NULL DEFAULT 0,
   updated_at                     BIGINT       NOT NULL,
   FOREIGN KEY (studio_id) REFERENCES studios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE INDEX idx_settings_org ON settings(organization_id);
 
 -- ── Email log ─────────────────────────────────────────────────────────────────
 
@@ -315,8 +337,9 @@ CREATE TABLE IF NOT EXISTS email_log (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE INDEX idx_email_log_studio ON email_log(studio_id);
+CREATE INDEX idx_email_log_org    ON email_log(organization_id);
 
--- ── Studio memberships ────────────────────────────────────────────────────────
+-- ── Organization memberships ─────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS studio_memberships (
   id              VARCHAR(32) NOT NULL PRIMARY KEY,
@@ -336,13 +359,14 @@ CREATE INDEX idx_studio_memberships_user   ON studio_memberships(user_id);
 CREATE INDEX idx_memberships_org           ON studio_memberships(organization_id);
 CREATE INDEX idx_sm_user_studio            ON studio_memberships(user_id, studio_id);
 
--- ── Studio invitations ────────────────────────────────────────────────────────
+-- ── Organization invitations ─────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS invitations (
   id              VARCHAR(36)  NOT NULL PRIMARY KEY,
   studio_id       VARCHAR(32)  NOT NULL,
   organization_id VARCHAR(36)  NULL DEFAULT NULL,
   email           VARCHAR(255) NOT NULL,
+  name            VARCHAR(255) NOT NULL DEFAULT '',
   role            VARCHAR(32)  NOT NULL,
   token           VARCHAR(64)  NOT NULL,
   token_hash      VARCHAR(64)  NOT NULL UNIQUE,
@@ -359,6 +383,7 @@ CREATE TABLE IF NOT EXISTS invitations (
 
 CREATE INDEX idx_invitations_studio ON invitations(studio_id);
 CREATE INDEX idx_invitations_email  ON invitations(email);
+CREATE INDEX idx_invitations_org    ON invitations(organization_id);
 
 -- ── Gallery upload links (photographer upload access) ─────────────────────────
 
@@ -429,13 +454,16 @@ CREATE TABLE IF NOT EXISTS photos (
   status              ENUM('uploaded','validated','published') NOT NULL DEFAULT 'validated',
   uploaded_by_user_id VARCHAR(32)  NULL,
   upload_link_id      CHAR(36)     NULL,
-  photographer_id     VARCHAR(36)  NULL,
+  photographer_id     VARCHAR(32)  NULL DEFAULT NULL,
+  exif                JSON         NULL DEFAULT NULL,
   personal_token_id   CHAR(36)     NULL,
   created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_gallery_file (gallery_id, filename),
+  UNIQUE KEY uq_photos_gallery_original_name (gallery_id, original_name),
   FOREIGN KEY (gallery_id)         REFERENCES galleries(id)            ON DELETE CASCADE,
   FOREIGN KEY (upload_link_id)     REFERENCES gallery_upload_links(id) ON DELETE SET NULL,
-  FOREIGN KEY (photographer_id)    REFERENCES photographers(id)        ON DELETE SET NULL,
+  CONSTRAINT fk_photos_photographer_user
+    FOREIGN KEY (photographer_id)  REFERENCES users(id)                ON DELETE SET NULL,
   FOREIGN KEY (personal_token_id)  REFERENCES personal_tokens(id)      ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -462,14 +490,15 @@ CREATE TABLE IF NOT EXISTS inspector_audit_log (
 -- ── Audit log ─────────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS audit_log (
-  id          VARCHAR(36)  NOT NULL PRIMARY KEY,
-  studio_id   VARCHAR(32),
-  user_id     VARCHAR(32),
-  action      VARCHAR(128) NOT NULL,
-  target_type VARCHAR(64),
-  target_id   VARCHAR(36),
-  meta        TEXT,
-  created_at  BIGINT       NOT NULL,
+  id              VARCHAR(36)  NOT NULL PRIMARY KEY,
+  studio_id       VARCHAR(32),
+  organization_id VARCHAR(36)  NULL DEFAULT NULL,
+  user_id         VARCHAR(32),
+  action          VARCHAR(128) NOT NULL,
+  target_type     VARCHAR(64),
+  target_id       VARCHAR(36),
+  meta            TEXT,
+  created_at      BIGINT       NOT NULL,
   FOREIGN KEY (studio_id) REFERENCES studios(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -477,6 +506,7 @@ CREATE INDEX idx_audit_log_studio ON audit_log(studio_id, created_at);
 CREATE INDEX idx_audit_log_user   ON audit_log(user_id, created_at);
 CREATE INDEX idx_audit_target     ON audit_log(target_type, target_id);
 CREATE INDEX idx_audit_user       ON audit_log(user_id);
+CREATE INDEX idx_audit_log_org    ON audit_log(organization_id, created_at);
 
 -- ── Password reset tokens ─────────────────────────────────────────────────────
 
