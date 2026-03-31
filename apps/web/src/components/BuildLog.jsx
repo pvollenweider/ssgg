@@ -24,7 +24,7 @@ export function BuildLog({ jobId, onDone }) {
   const [lines,    setLines]    = useState([]);
   const [status,   setStatus]   = useState('running');
   const [progress, setProgress] = useState(0);
-  const bottomRef  = useRef();
+  const logRef      = useRef();
   const progressRef = useRef(0);
 
   useEffect(() => {
@@ -81,9 +81,9 @@ export function BuildLog({ jobId, onDone }) {
     return () => { es.close(); clearInterval(timer); };
   }, [jobId]);
 
-  // Auto-scroll to bottom
+  // Auto-scroll inside the log container (not the whole page)
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [lines]);
 
   const isRunning = status === 'running';
@@ -95,14 +95,13 @@ export function BuildLog({ jobId, onDone }) {
         <span style={{ ...s.dot, background: isRunning ? '#ca8a04' : status === 'done' ? '#16a34a' : '#dc2626' }} />
         <span style={s.statusText}>{status}</span>
       </div>
-      <div style={s.log}>
+      <div ref={logRef} style={s.log}>
         {lines.map((l, i) => (
           <div key={i} style={{ ...s.line, color: l.type === 'error' ? '#f87171' : l.type === 'done' ? '#86efac' : '#e5e7eb' }}>
             {l.text}
           </div>
         ))}
         {isRunning && <div style={{ ...s.line, color: '#6b7280' }}>…</div>}
-        <div ref={bottomRef} />
       </div>
       <div style={s.progressTrack}>
         <div style={{
