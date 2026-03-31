@@ -75,7 +75,7 @@ export default function GalleryGeneralPage() {
         primaryPhotographerId: g.primaryPhotographerId || '',
       });
       setWatermarkEnabled(g.watermark?.enabled ?? false);
-      setWatermarkText(g.watermark?.text ?? '');
+      setWatermarkText(g.watermark?.text || (g.author ? `© ${g.author}` : ''));
       setSlugEdited(true);
       setOrgDefault(s?.defaultAccess ?? null);
       setPhotographers(pgs);
@@ -380,7 +380,7 @@ export default function GalleryGeneralPage() {
                     value={watermarkText}
                     onChange={e => setWatermarkText(e.target.value)}
                     onBlur={() => saveWatermark(watermarkEnabled, watermarkText)}
-                    placeholder="© Studio Name"
+                    placeholder="© Nom de l'auteur"
                     style={{ maxWidth: 360 }}
                   />
                 </div>
