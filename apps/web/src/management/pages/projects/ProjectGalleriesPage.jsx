@@ -5,7 +5,7 @@
 // Use, reproduction, or distribution requires a valid commercial license.
 // Unauthorized use is strictly prohibited.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
@@ -15,10 +15,6 @@ import { AdminPage, AdminCard, AdminInput, AdminAlert, AdminButton, AdminBadge, 
 const STATUS_BADGE = { done: 'success', error: 'danger', running: 'primary', queued: 'warning', draft: 'secondary' };
 
 // Smart date formatting for gallery cards
-// 0 days → "28 mars 2026"
-// 1 day  → "Les 28 et 29 mars 2026"
-// 2–4    → "Du 28 au 30 mars 2026"
-// ≥5     → "Mars 2026"
 const MONTHS_FR = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 function formatDateRange(dateRange) {
   if (!dateRange?.from) return null;
@@ -75,13 +71,7 @@ export default function ProjectGalleriesPage() {
     Promise.all([api.getProject(projectId), api.getProjectGalleries(projectId)])
       .then(([p, g]) => {
         setProject(p);
-        // Sort by most recent photo date (dateRange.to), fallback to created_at
-        const sorted = [...g].sort((a, b) => {
-          const da = a.dateRange?.to || a.dateRange?.from || a.createdAt || '';
-          const db = b.dateRange?.to || b.dateRange?.from || b.createdAt || '';
-          return da > db ? -1 : da < db ? 1 : 0;
-        });
-        setGalleries(sorted);
+        setGalleries(g);
       })
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
@@ -127,6 +117,50 @@ export default function ProjectGalleriesPage() {
     } finally {
       setCreating(false);
     }
+  }
+
+  // ── Drag-and-drop reorder ─────────────────────────────────────────────────
+  const dragIdx = useRef(null);
+  const [draggingId, setDraggingId] = useState(null);
+  const [overIdx,    setOverIdx]    = useState(null);
+
+  function onDragStart(e, idx) {
+    dragIdx.current = idx;
+    setDraggingId(galleries[idx].id);
+    e.dataTransfer.effectAllowed = 'move';
+    // Transparent drag ghost
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;top:-9999px';
+    document.body.appendChild(el);
+    e.dataTransfer.setDragImage(el, 0, 0);
+    setTimeout(() => document.body.removeChild(el), 0);
+  }
+
+  function onDragOver(e, idx) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setOverIdx(idx);
+  }
+
+  function onDrop(e, idx) {
+    e.preventDefault();
+    const from = dragIdx.current;
+    if (from === null || from === idx) { cleanup(); return; }
+    const next = [...galleries];
+    const [moved] = next.splice(from, 1);
+    next.splice(idx, 0, moved);
+    setGalleries(next);
+    cleanup();
+    api.reorderProjectGalleries(projectId, next.map(g => g.id))
+      .catch(() => setBuildAllToast(t('build_all_error', { message: 'Reorder failed' })));
+  }
+
+  function onDragEnd() { cleanup(); }
+
+  function cleanup() {
+    dragIdx.current = null;
+    setDraggingId(null);
+    setOverIdx(null);
   }
 
   return (
@@ -228,6 +262,7 @@ export default function ProjectGalleriesPage() {
             <table className="table table-hover mb-0">
               <thead className="table-light">
                 <tr>
+                  <th style={{ width: '32px' }}></th>
                   <th>{t('proj_th_title')}</th>
                   <th>{t('proj_th_status')}</th>
                   <th className="d-none d-md-table-cell">Date</th>
@@ -236,8 +271,23 @@ export default function ProjectGalleriesPage() {
                 </tr>
               </thead>
               <tbody>
-                {galleries.map(g => (
-                  <tr key={g.id}>
+                {galleries.map((g, idx) => (
+                  <tr
+                    key={g.id}
+                    draggable
+                    onDragStart={e => onDragStart(e, idx)}
+                    onDragOver={e => onDragOver(e, idx)}
+                    onDrop={e => onDrop(e, idx)}
+                    onDragEnd={onDragEnd}
+                    style={{
+                      opacity: draggingId === g.id ? 0.4 : 1,
+                      borderTop: overIdx === idx && draggingId !== g.id ? '2px solid #0d6efd' : undefined,
+                      cursor: 'grab',
+                    }}
+                  >
+                    <td style={{ color: '#aaa', paddingLeft: '1rem' }}>
+                      <i className="fas fa-grip-vertical" style={{ cursor: 'grab' }} />
+                    </td>
                     <td>
                       <Link to={`/admin/organizations/${orgId}/projects/${projectId}/galleries/${g.id}/photos`} className="fw-semibold text-body">{g.title || g.slug}</Link>
                       <div><code className="text-muted" style={{ fontSize: '0.72rem' }}>{g.slug}</code></div>

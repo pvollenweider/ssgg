@@ -211,7 +211,7 @@ export function renderProjectIndex(projects, siteTitle = 'GalleryPack', isLogged
 </html>`;
 }
 
-export function renderProjectListing(projectSlug, projectName, galleries, siteTitle = 'GalleryPack', isLoggedIn = false, projectDescHtml = '') {
+export function renderProjectListing(projectSlug, projectName, galleries, siteTitle = 'GalleryPack', isLoggedIn = false, projectDescHtml = '', orgName = '') {
   const cards = galleries.length === 0
     ? `<p class="empty">Aucune galerie publiée pour l'instant.</p>`
     : galleries.map(g => {
@@ -311,7 +311,7 @@ export function renderProjectListing(projectSlug, projectName, galleries, siteTi
 </head>
 <body>
   <nav class="bar">
-    <a class="bar-back" href="../">← ${esc(siteTitle)}</a>
+    <a class="bar-back" href="../">← ${esc(orgName || siteTitle)}</a>
     <span class="bar-title">${esc(projectName)}</span>
   </nav>
   <main>
@@ -323,7 +323,7 @@ export function renderProjectListing(projectSlug, projectName, galleries, siteTi
     <div class="grid">${cards}</div>
   </main>
   <footer class="footer">
-    <a href="../">← ${esc(siteTitle)}</a>
+    <a href="../">← ${esc(orgName || siteTitle)}</a>
   </footer>
 </body>
 </html>`;

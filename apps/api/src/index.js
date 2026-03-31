@@ -276,11 +276,13 @@ app.get(/^\/([^/]+)\/?$/, async (req, res, next) => {
   const [studioRows] = await query('SELECT id FROM studios LIMIT 1');
   const settings = studioRows[0] ? await getSettings(studioRows[0].id) : null;
   const siteTitle = settings?.site_title || 'GalleryPack';
+  const [orgRows2] = await query('SELECT name FROM organizations WHERE is_default = 1 LIMIT 1');
+  const orgName = orgRows2[0]?.name || '';
   const token = req.cookies?.session;
   const isLoggedIn = token ? !!(await getSession(token)) : false;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(renderProjectListing(projectSlug, project.name, galleries, siteTitle, isLoggedIn, projectDescHtml));
+  res.send(renderProjectListing(projectSlug, project.name, galleries, siteTitle, isLoggedIn, projectDescHtml, orgName));
 });
 
 // ── Public project index ──────────────────────────────────────────────────────

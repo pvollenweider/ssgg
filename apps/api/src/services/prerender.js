@@ -134,7 +134,9 @@ export async function prerenderProject(projectSlug) {
   });
 
   const siteTitle = await getSiteTitle();
-  const html = renderProjectListing(projectSlug, project.name, galleries, siteTitle, false, projectDescHtml);
+  const [orgRows] = await query('SELECT name FROM organizations WHERE is_default = 1 LIMIT 1');
+  const orgName = orgRows[0]?.name || '';
+  const html = renderProjectListing(projectSlug, project.name, galleries, siteTitle, false, projectDescHtml, orgName);
   const dest = path.join(DIST_ROOT, projectSlug, 'index.html');
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, html, 'utf8');

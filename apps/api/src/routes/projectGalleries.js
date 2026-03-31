@@ -123,6 +123,7 @@ function rowToGallery(row, { dateRange = null, studio = null, project = null } =
     needsRebuild:         row.needs_rebuild === 1 || getNeedsRebuild(row),
     photoCount:           getPhotoCount(row.slug),
     diskSize:             getDiskSize(row.slug),
+    sortOrder:            row.sort_order ?? 0,
   };
   // Breadcrumb context when studio/project are provided (detail route)
   if (studio || project) {
@@ -159,7 +160,7 @@ router.use(resolveProject);
 // GET /api/projects/:projectId/galleries
 router.get('/', async (req, res) => {
   const [rows] = await query(
-    'SELECT * FROM galleries WHERE project_id = ? ORDER BY created_at DESC',
+    'SELECT * FROM galleries WHERE project_id = ? ORDER BY sort_order ASC, created_at DESC',
     [req.project.id]
   );
   const galleries = await Promise.all(rows.map(r => rowToGalleryAsync(r)));
@@ -430,6 +431,25 @@ router.delete('/:id/viewer-tokens/:tokenId', resolveGallery, async (req, res) =>
 // ── Notify ready ──────────────────────────────────────────────────────────────
 
 // ── POST /api/projects/:projectId/galleries/build-all — queue builds for all galleries ──
+// POST /api/projects/:projectId/galleries/reorder — save manual gallery order
+router.post('/reorder', async (req, res) => {
+  if (!can(req.user, 'publish', 'gallery', { studioRole: req.studioRole })) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const { order } = req.body || {};
+  if (!Array.isArray(order)) return res.status(400).json({ error: 'order must be an array of gallery IDs' });
+
+  // Verify all IDs belong to this project
+  const [rows] = await query('SELECT id FROM galleries WHERE project_id = ?', [req.project.id]);
+  const allowed = new Set(rows.map(r => r.id));
+  if (!order.every(id => allowed.has(id))) return res.status(400).json({ error: 'Invalid gallery IDs' });
+
+  for (let i = 0; i < order.length; i++) {
+    await query('UPDATE galleries SET sort_order = ? WHERE id = ?', [i, order[i]]);
+  }
+  res.json({ ok: true });
+});
+
 router.post('/build-all', requireStudioRole('admin'), async (req, res) => {
   const [rows] = await query(
     "SELECT id FROM galleries WHERE project_id = ? AND studio_id = ? AND build_status != 'archived'",
