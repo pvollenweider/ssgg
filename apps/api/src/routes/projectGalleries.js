@@ -196,7 +196,8 @@ router.post('/', async (req, res) => {
     return res.status(403).json({ error: 'Forbidden' });
   }
 
-  const st        = (await getSettings(req.organizationId)) || {};
+  const projectOrgId = req.project.organization_id;
+  const st        = (await getSettings(projectOrgId)) || {};
   const defLocale = st.default_locale                || 'fr';
   const defAccess = st.default_access                || 'public';
   const defDlImg  = st.default_allow_download_image  !== 0;
@@ -218,7 +219,7 @@ router.post('/', async (req, res) => {
 
   const [existingRows] = await query(
     'SELECT id FROM galleries WHERE organization_id = ? AND slug = ?',
-    [req.organizationId, slug]
+    [projectOrgId, slug]
   );
   if (existingRows[0]) return res.status(409).json({ error: 'A gallery with this slug already exists' });
 
@@ -234,7 +235,7 @@ router.post('/', async (req, res) => {
        slideshow_interval, copyright, build_status, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
   `, [
-    id, req.organizationId, req.project.id, slug, title ?? slug, description ?? null, subtitle ?? null,
+    id, projectOrgId, req.project.id, slug, title ?? slug, description ?? null, subtitle ?? null,
     author ?? null, authorEmail ?? null, date ?? null, location ?? null,
     locale, access, passwordHash, standalone ? 1 : 0,
     allowDownloadImage ? 1 : 0, allowDownloadGallery ? 1 : 0,
@@ -243,7 +244,7 @@ router.post('/', async (req, res) => {
   ]);
 
   const [newRows] = await query('SELECT * FROM galleries WHERE id = ?', [id]);
-  try { await audit(req.organizationId, req.userId, 'gallery.create', 'gallery', id, { slug, projectId: req.project.id }); } catch {}
+  try { await audit(projectOrgId, req.userId, 'gallery.create', 'gallery', id, { slug, projectId: req.project.id }); } catch {}
   res.status(201).json(await rowToGalleryAsync(newRows[0]));
 });
 
