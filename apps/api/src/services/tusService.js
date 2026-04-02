@@ -143,12 +143,14 @@ async function finaliseUpload({ upload, galleryId, userId, studioId, req }) {
   }
 
   // Resolve gallery slug
-  const [gRows] = await query(
-    'SELECT id, slug FROM galleries WHERE id = ? AND organization_id = ?',
-    [galleryId, studioId],
-  );
+  // studioId may be null when superadmin uploads via platform root domain;
+  // _studioId is resolved in onUploadCreate but use a safe fallback here too.
+  const [gRows] = studioId
+    ? await query('SELECT id, slug, organization_id FROM galleries WHERE id = ? AND organization_id = ?', [galleryId, studioId])
+    : await query('SELECT id, slug, organization_id FROM galleries WHERE id = ?', [galleryId]);
   const gallery = gRows[0];
   if (!gallery) return { ok: false, reason: 'Gallery not found' };
+  if (!studioId) studioId = gallery.organization_id;
 
   // Gallery quota
   const [countRows] = await query('SELECT COUNT(*) AS n FROM photos WHERE gallery_id = ?', [gallery.id]);
@@ -270,23 +272,25 @@ export function createTusServer(studioId) {
         throw { status_code: 400, body: 'Missing galleryId in Upload-Metadata' };
       }
 
-      const [rows] = await query(
-        'SELECT id FROM galleries WHERE id = ? AND organization_id = ?',
-        [galleryId, studioId],
-      );
+      // When studioId is null (superadmin via platform root domain), resolve the
+      // gallery's org directly instead of filtering by organization_id.
+      let effectiveStudioId = studioId;
+      const [rows] = studioId
+        ? await query('SELECT id, organization_id FROM galleries WHERE id = ? AND organization_id = ?', [galleryId, studioId])
+        : await query('SELECT id, organization_id FROM galleries WHERE id = ?', [galleryId]);
       if (!rows[0]) {
         throw { status_code: 404, body: 'Gallery not found' };
       }
+      if (!effectiveStudioId) effectiveStudioId = rows[0].organization_id;
 
-      // Attach to upload for use in onUploadFinish
       // Check storage quota before accepting any bytes
       if (upload.size > 0) {
-        await checkStorageQuota(studioId, upload.size);
+        await checkStorageQuota(effectiveStudioId, upload.size);
       }
 
       upload._galleryId  = galleryId;
       upload._userId     = userId;
-      upload._studioId   = studioId;
+      upload._studioId   = effectiveStudioId;
       upload._createdAt  = Date.now();
 
       tusIncompleteUploads.inc();
