@@ -26,10 +26,6 @@ jobs:
             dockerfile: Dockerfile.api
           - name: worker
             dockerfile: Dockerfile.worker
-          - name: web
-            dockerfile: Dockerfile.web
-            # web image uses scratch final stage — skip standard healthcheck
-            target: build
 
     steps:
       - name: Checkout
