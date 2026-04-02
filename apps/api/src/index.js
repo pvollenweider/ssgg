@@ -166,8 +166,13 @@ app.use('/media/thumbnails', express.static(THUMB_ROOT, {
 }));
 
 // ── Admin SPA (served before API routes) ─────────────────────────────────────
-app.use('/admin', express.static(ADMIN_DIST));
-app.get(/^\/admin(\/.*)?$/, (req, res) => res.sendFile(path.join(ADMIN_DIST, 'index.html')));
+// Hashed assets (JS/CSS) get long-term cache; index.html must never be cached
+// so browsers always fetch the latest bundle references after a deploy.
+app.use('/admin', express.static(ADMIN_DIST, { index: false }));
+app.get(/^\/admin(\/.*)?$/, (req, res) => {
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.sendFile(path.join(ADMIN_DIST, 'index.html'));
+});
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/public',              publicRoutes);
