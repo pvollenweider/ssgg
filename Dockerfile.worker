@@ -14,6 +14,9 @@ COPY apps/api/package.json          apps/api/
 COPY workers/builder/package.json   workers/builder/
 RUN npm ci --omit=dev && npm rebuild sharp
 
+ARG GIT_SHA=unknown
+RUN echo "build=$GIT_SHA" > /dev/null
+
 COPY packages/          packages/
 COPY apps/api/          apps/api/
 COPY workers/           workers/
