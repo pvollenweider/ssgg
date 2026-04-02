@@ -33,9 +33,9 @@ export default function OrganizationGeneralPage() {
 
   const canManage = ['admin', 'owner'].includes(user?.organizationRole) || user?.platformRole === 'superadmin';
 
-  const [identity,    setIdentity]    = useState({ name: '', slug: '', description: '', locale: 'en', country: '' });
+  const [identity,    setIdentity]    = useState({ name: '', slug: '', description: '', locale: 'en', country: '', hostname: '' });
   const [identityErr, setIdentityErr] = useState('');
-  const [defaults,    setDefaults]    = useState({ defaultAccess: 'public', defaultDownloadMode: 'display', hostname: '' });
+  const [defaults,    setDefaults]    = useState({ defaultAccess: 'public', defaultDownloadMode: 'display' });
   const [defaultsErr, setDefaultsErr] = useState('');
   const [toast,       setToast]       = useState('');
 
@@ -45,13 +45,12 @@ export default function OrganizationGeneralPage() {
 
   useEffect(() => {
     api.getOrganization(orgId).then(org => {
-      setIdentity({ name: org.name || '', slug: org.slug || '', description: org.description || '', locale: org.locale || 'en', country: org.country || '' });
+      setIdentity({ name: org.name || '', slug: org.slug || '', description: org.description || '', locale: org.locale || 'en', country: org.country || '', hostname: org.hostname || '' });
     }).catch(() => {});
     api.getSettings().then(s => {
       setDefaults({
         defaultAccess:       s?.defaultAccess       || 'public',
         defaultDownloadMode: s?.defaultDownloadMode || 'display',
-        hostname:            s?.hostname            || '',
       });
     }).catch(() => {});
   }, [orgId]);
@@ -153,9 +152,9 @@ export default function OrganizationGeneralPage() {
             <p className="text-muted mb-3" style={{ fontSize: '0.875rem' }}>{t('field_hostname_hint')}</p>
             <AdminInput
               label={t('field_hostname')}
-              value={defaults.hostname}
-              onChange={e => setDefaults(f => ({ ...f, hostname: e.target.value }))}
-              onBlur={() => saveDefaults({ hostname: defaults.hostname })}
+              value={identity.hostname}
+              onChange={setId('hostname')}
+              onBlur={handleBlur}
               placeholder={`${identity.slug || 'my-org'}.gallerypack.app`}
               style={{ fontFamily: 'monospace' }}
             />

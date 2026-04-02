@@ -97,7 +97,11 @@ router.get('/:id', async (req, res) => {
   const org = await loadOrg(req, res);
   if (!org) return;
   const members = await listOrgMembers(org.id);
-  res.json({ ...org, coverProjectId: org.cover_project_id ?? null, members });
+  const [domainRows] = await query(
+    'SELECT domain FROM organization_domains WHERE organization_id = ? AND is_primary = 1 LIMIT 1',
+    [org.id]
+  );
+  res.json({ ...org, hostname: domainRows[0]?.domain ?? null, coverProjectId: org.cover_project_id ?? null, members });
 });
 
 // ── Update ────────────────────────────────────────────────────────────────────
@@ -111,14 +115,30 @@ router.patch('/:id', async (req, res) => {
     return res.status(403).json({ error: 'Requires admin role or higher' });
   }
 
-  const { name, description, slug, plan, locale, country, coverProjectId } = req.body || {};
+  const { name, description, slug, plan, locale, country, coverProjectId, hostname } = req.body || {};
   const updated = await updateOrganization(org.id, { name, description, slug, plan, locale, country });
   if (coverProjectId !== undefined) {
     await query('UPDATE organizations SET cover_project_id = ? WHERE id = ?', [coverProjectId || null, org.id]);
   }
+  if (hostname !== undefined) {
+    const h = (hostname || '').trim().toLowerCase();
+    if (h) {
+      await query('DELETE FROM organization_domains WHERE organization_id = ? AND is_primary = 1', [org.id]);
+      await query(
+        'INSERT INTO organization_domains (organization_id, domain, is_primary) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE is_primary = 1',
+        [org.id, h]
+      );
+    } else {
+      await query('UPDATE organization_domains SET is_primary = 0 WHERE organization_id = ?', [org.id]);
+    }
+  }
+  const [domainRows] = await query(
+    'SELECT domain FROM organization_domains WHERE organization_id = ? AND is_primary = 1 LIMIT 1',
+    [org.id]
+  );
   try { await audit(org.id, req.userId, 'organization.update', 'organization', org.id, { name, slug }); } catch {}
   prerenderRoot().catch(() => {});
-  res.json({ ...updated, coverProjectId: coverProjectId !== undefined ? (coverProjectId || null) : (org.cover_project_id ?? null) });
+  res.json({ ...updated, hostname: domainRows[0]?.domain ?? null, coverProjectId: coverProjectId !== undefined ? (coverProjectId || null) : (org.cover_project_id ?? null) });
 });
 
 // ── Delete (superadmin only) ──────────────────────────────────────────────────
