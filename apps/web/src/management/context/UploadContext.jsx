@@ -67,9 +67,10 @@ function makeUppy() {
   const uppy = new Uppy({ autoProceed: true, allowMultipleUploadBatches: true });
 
   uppy.use(Tus, {
-    endpoint:    '/api/tus',
-    chunkSize:   CHUNK_SIZE_BYTES,
-    retryDelays: RETRY_DELAYS,
+    endpoint:      '/api/tus',
+    storagePrefix: `uppy-${import.meta.env.VITE_APP_VERSION || 'dev'}`,
+    chunkSize:     CHUNK_SIZE_BYTES,
+    retryDelays:   RETRY_DELAYS,
     withCredentials: true,
     // allowedMetaFields tells @uppy/tus which meta fields to include in Upload-Metadata
     allowedMetaFields: ['filename', 'galleryId'],

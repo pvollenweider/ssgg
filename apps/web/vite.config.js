@@ -15,6 +15,7 @@ const pkg = require('./package.json');
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify('v' + pkg.version),
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(pkg.version),
   },
   plugins: [
     react(),
