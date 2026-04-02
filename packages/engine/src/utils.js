@@ -108,13 +108,23 @@ export function galleryDistName(project, srcName) {
 // ── Access / password ─────────────────────────────────────────────────────────
 
 /**
- * Generate a cryptographically random gallery access password.
- * Returns 8 lowercase hex chars in two groups: e.g. "a3f2-b7c1"
- * Entropy: 32 bits — sufficient for shared gallery access.
+ * Generate a human-readable gallery access password in word-word-NN format.
+ * e.g. "coral-swift-42". Entropy: ~22 bits from words + 6 bits from number.
  */
+const _WORDS = [
+  'amber','azure','birch','cedar','cloud','coral','crane','dusk','ember','fern',
+  'fjord','flint','frost','glade','grove','haven','ivory','jade','kelp','lark',
+  'linen','maple','mist','moss','oak','opal','pine','reef','ridge','rose',
+  'ruby','sage','slate','snow','stone','storm','swift','teal','tide','vale',
+  'vine','wave','wren','zinc','bloom','brook','cliff','dawn','echo','flare',
+];
 export function generatePassword() {
-  const hex = crypto.randomBytes(4).toString('hex');
-  return `${hex.slice(0, 4)}-${hex.slice(4)}`;
+  const rnd = crypto.randomBytes(3);
+  const w1  = _WORDS[rnd[0] % _WORDS.length];
+  let w2    = _WORDS[rnd[1] % _WORDS.length];
+  if (w2 === w1) w2 = _WORDS[(rnd[1] + 1) % _WORDS.length];
+  const nn  = String(10 + (rnd[2] % 90)).padStart(2, '0');
+  return `${w1}-${w2}-${nn}`;
 }
 
 // ── Config schema & validation ────────────────────────────────────────────────
