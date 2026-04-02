@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gallerypack-wildcard-tls
+  namespace: gallerypack
+spec:
+  secretName: gallerypack-wildcard-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - "*.gallerypack.app"
+    - gallerypack.app
