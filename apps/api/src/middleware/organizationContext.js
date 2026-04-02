@@ -65,7 +65,9 @@ export async function resolveOrganizationContext(req, res, next) {
 
   if (!org) {
     if (PLATFORM_MODE === 'multi' && req.path.startsWith('/api/')) {
-      return res.status(404).json({ error: 'Organization not found for this domain' });
+      // Exempt health/metrics endpoints so k8s probes always reach their handlers
+      const exempt = req.path === '/api/health' || req.path === '/metrics';
+      if (!exempt) return res.status(404).json({ error: 'Organization not found for this domain' });
     }
     return next();
   }
