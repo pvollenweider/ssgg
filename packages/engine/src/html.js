@@ -1712,6 +1712,7 @@ lb.on('open', () => {
   syncOverlays(idx);
   syncThumb(idx);
   updateTitleColor(idx);
+  history.replaceState(null, '', '#' + PHOTOS[idx].name);
 });
 
 lb.on('slide_changed', ({ current }) => {
@@ -1722,6 +1723,7 @@ lb.on('slide_changed', ({ current }) => {
   updateTitleColor(idx);
   if (exifOpen) showExif(idx);
   if (swActive) swScheduleNext();  // reset countdown on every slide (swipe or auto)
+  history.replaceState(null, '', '#' + PHOTOS[idx].name);
 });
 
 lb.on('close', () => {
@@ -1731,7 +1733,16 @@ lb.on('close', () => {
   infoBtn.style.display = 'none';
   hideExif();
   swStop();
+  history.replaceState(null, '', location.pathname);
 });
+
+/* ── Deep-link: open lightbox at photo from URL hash on page load ── */
+(function () {
+  const name = location.hash.slice(1);
+  if (!name) return;
+  const idx = PHOTOS.findIndex(p => p.name === name);
+  if (idx >= 0) lb.openAt(idx);
+})();
 
 /* (i) button toggles the EXIF overlay for the currently displayed photo */
 infoBtn.addEventListener('click', () => {
