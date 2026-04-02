@@ -20,6 +20,7 @@ import { resolveOrganizationFromHostname } from '../services/contextResolver.js'
 import { getOrganization } from '../services/organization.js';
 
 const PLATFORM_MODE = process.env.PLATFORM_MODE || 'single';
+const BASE_DOMAIN   = (process.env.BASE_DOMAIN || 'gallerypack.app').toLowerCase();
 
 /**
  * Read the effective hostname, respecting the X-Forwarded-Host header set
@@ -65,8 +66,11 @@ export async function resolveOrganizationContext(req, res, next) {
 
   if (!org) {
     if (PLATFORM_MODE === 'multi' && req.path.startsWith('/api/')) {
-      // Exempt health/metrics endpoints so k8s probes always reach their handlers
-      const exempt = req.path === '/api/health' || req.path === '/metrics';
+      // Allow requests on the platform root domain (no org context needed)
+      const host = effectiveHostname(req).split(':')[0].toLowerCase();
+      const isPlatformRoot = host === BASE_DOMAIN || host === `www.${BASE_DOMAIN}`;
+      // Also exempt health/metrics so k8s probes always reach their handlers
+      const exempt = isPlatformRoot || req.path === '/api/health' || req.path === '/metrics';
       if (!exempt) return res.status(404).json({ error: 'Organization not found for this domain' });
     }
     return next();
