@@ -1,0 +1,121 @@
+# Remplacer pvollenweider par ton username GitHub
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: gallerypack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      initContainers:
+        - name: migrate
+          image: ghcr.io/pvollenweider/gallerypack-api:latest
+          command: ["node", "apps/api/src/db/migrations/run.js"]
+          env:
+            - name: DB_HOST
+              value: mariadb
+            - name: DB_NAME
+              value: gallerypack
+            - name: DB_USER
+              value: gallerypack
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: gallerypack-secrets
+                  key: DB_PASS
+      containers:
+        - name: api
+          image: ghcr.io/pvollenweider/gallerypack-api:latest
+          ports:
+            - containerPort: 4000
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "4000"
+            - name: BASE_URL
+              value: https://gallerypack.app
+            - name: PLATFORM_MODE
+              value: multi
+            - name: BASE_DOMAIN
+              value: gallerypack.app
+            - name: DB_HOST
+              value: mariadb
+            - name: DB_NAME
+              value: gallerypack
+            - name: DB_USER
+              value: gallerypack
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: gallerypack-secrets
+                  key: DB_PASS
+            - name: REDIS_URL
+              value: redis://redis:6379
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gallerypack-secrets
+                  key: SESSION_SECRET
+            - name: VIEWER_TOKEN_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: gallerypack-secrets
+                  key: VIEWER_TOKEN_SECRET
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: gallerypack-secrets
+                  key: ADMIN_EMAIL
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gallerypack-secrets
+                  key: ADMIN_PASSWORD
+            - name: STORAGE_ROOT
+              value: /srv/gallerypack
+          volumeMounts:
+            - name: storage
+              mountPath: /srv/gallerypack
+            - name: appdata
+              mountPath: /app/data
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 4000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: gallerypack-storage
+        - name: appdata
+          persistentVolumeClaim:
+            claimName: gallerypack-appdata
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: gallerypack
+spec:
+  selector:
+    app: api
+  ports:
+    - port: 4000
+      targetPort: 4000
