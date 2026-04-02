@@ -250,10 +250,10 @@ router.post('/', async (req, res) => {
 // ── Gallery-scoped middleware: resolve gallery within this project ─────────────
 
 async function resolveGallery(req, res, next) {
-  const [rows] = await query(
-    'SELECT * FROM galleries WHERE id = ? AND project_id = ? AND organization_id = ?',
-    [req.params.id, req.project.id, req.organizationId]
-  );
+  const isSuperadmin = req.platformRole === 'superadmin';
+  const [rows] = isSuperadmin
+    ? await query('SELECT * FROM galleries WHERE id = ? AND project_id = ?', [req.params.id, req.project.id])
+    : await query('SELECT * FROM galleries WHERE id = ? AND project_id = ? AND organization_id = ?', [req.params.id, req.project.id, req.organizationId]);
   if (!rows[0]) return res.status(404).json({ error: 'Gallery not found' });
   req.gallery = rows[0];
   next();

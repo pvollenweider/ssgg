@@ -43,10 +43,10 @@ function photosDir(slug) {
 }
 
 async function ensureGalleryBelongsToOrg(req, res) {
-  const [rows] = await query(
-    'SELECT * FROM galleries WHERE id = ? AND organization_id = ?',
-    [req.params.id, req.organizationId]
-  );
+  const isSuperadmin = req.platformRole === 'superadmin';
+  const [rows] = isSuperadmin
+    ? await query('SELECT * FROM galleries WHERE id = ?', [req.params.id])
+    : await query('SELECT * FROM galleries WHERE id = ? AND organization_id = ?', [req.params.id, req.organizationId]);
   if (!rows[0]) { res.status(404).json({ error: 'Gallery not found' }); return null; }
   return rows[0];
 }
@@ -55,10 +55,10 @@ async function ensureGalleryBelongsToOrg(req, res) {
 const storage = multer.diskStorage({
   async destination(req, file, cb) {
     try {
-      const [rows] = await query(
-        'SELECT slug FROM galleries WHERE id = ? AND organization_id = ?',
-        [req.params.id, req.organizationId]
-      );
+      const isSuperadmin = req.platformRole === 'superadmin';
+      const [rows] = isSuperadmin
+        ? await query('SELECT slug FROM galleries WHERE id = ?', [req.params.id])
+        : await query('SELECT slug FROM galleries WHERE id = ? AND organization_id = ?', [req.params.id, req.organizationId]);
       if (!rows[0]) return cb(new Error('Gallery not found'));
       const dir = photosDir(rows[0].slug);
       fs.mkdirSync(dir, { recursive: true });
