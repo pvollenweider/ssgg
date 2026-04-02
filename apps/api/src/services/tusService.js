@@ -251,6 +251,7 @@ export function createTusServer(studioId) {
 
   const server = new Server({
     path: '/api/tus',              // used by tus for self-referential Upload-Location URLs
+    relativeLocation: true,        // return relative URL — avoids http:// mixed-content behind HTTPS proxy
     datastore,
     maxSize: MAX_FILE_SIZE_BYTES,
     // ── onCreate: validate gallery access before accepting any bytes ──────────
@@ -338,9 +339,10 @@ export function getPublicTusServer() {
     const datastore = new FileStore({ directory: tusStoreDir() });
 
     const server = new Server({
-      path:     '/upload/tus',
+      path:             '/upload/tus',
+      relativeLocation: true,
       datastore,
-      maxSize:  MAX_FILE_SIZE_BYTES,
+      maxSize:          MAX_FILE_SIZE_BYTES,
 
       async onUploadCreate(req, upload) {
         const nodeReq = req.node?.req ?? req;
