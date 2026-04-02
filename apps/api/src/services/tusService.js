@@ -307,6 +307,7 @@ export function createTusServer(studioId) {
         const meta      = decodeMetadata(upload.metadata);
         const galleryId = meta.galleryId || upload._galleryId;
         const userId    = nodeReq._tusUserId  || upload._userId;
+        log.info({ studioId, _studioId: upload._studioId, galleryId, metaRaw: JSON.stringify(upload.metadata)?.slice(0, 200) }, 'tus: onUploadFinish debug');
 
         const outcome = await finaliseUpload({
           upload,
