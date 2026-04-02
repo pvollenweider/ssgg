@@ -38,7 +38,8 @@ export async function requireAuth(req, res, next) {
   // Resolve membership role for the resolved organization.
   if (req.organizationId) {
     const resolvedRole = (await getOrgRole(user.id, req.organizationId)) || null;
-    req.orgRole = resolvedRole;
+    req.orgRole    = resolvedRole;
+    req.studioRole = resolvedRole; // alias — some routes still use studioRole post-rename
 
     // If no role found and org wasn't explicitly chosen, fall back to user's home org.
     const hasOverride = !!(req.cookies?.organization_override);
@@ -47,12 +48,14 @@ export async function requireAuth(req, res, next) {
       if (homeOrgId && homeOrgId !== req.organizationId) {
         req.organizationId = homeOrgId;
         req.orgRole        = (await getOrgRole(user.id, homeOrgId)) || null;
+        req.studioRole     = req.orgRole;
       }
     }
 
     // Superadmin always gets owner-level access in any org
     if (!req.orgRole && req.platformRole === 'superadmin') {
-      req.orgRole = 'owner';
+      req.orgRole    = 'owner';
+      req.studioRole = 'owner';
     }
   }
 
