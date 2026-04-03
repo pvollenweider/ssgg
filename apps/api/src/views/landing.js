@@ -36,8 +36,8 @@ function fmtDateCard(dateRange, fallback) {
     return `${ord(a.getDate())} ${mLong(a)} et ${ord(b.getDate())} ${mLong(b)} ${y}`;
   }
   if (sameMonth)  return `${mLong(a)} ${y}`;
-  if (sameYear)   return `${mLong(a)} et ${mLong(b)} ${y}`;
-  return `${mLong(a)} ${y} et ${mLong(b)} ${b.getFullYear()}`;
+  if (sameYear)   return `${mLong(a)} à ${mLong(b)} ${y}`;
+  return `${mLong(a)} ${y} à ${mLong(b)} ${b.getFullYear()}`;
 }
 
 const ICON_CAMERA   = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>`;

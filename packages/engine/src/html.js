@@ -79,8 +79,8 @@ function fmtPrisesLe(from, to) {
   if (sameMonth)
     return `prises en ${mLong(a)} ${y}`;
   if (sameYear)
-    return `prises en ${mLong(a)} et ${mLong(b)} ${y}`;
-  return `prises en ${mLong(a)} ${y} et ${mLong(b)} ${b.getFullYear()}`;
+    return `prises en ${mLong(a)} à ${mLong(b)} ${y}`;
+  return `prises en ${mLong(a)} ${y} à ${mLong(b)} ${b.getFullYear()}`;
 }
 
 // ── Legal token replacement ───────────────────────────────────────────────────
