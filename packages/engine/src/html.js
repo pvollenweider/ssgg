@@ -601,6 +601,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);overscroll-behavior:
   font-family:'Poppins',sans-serif;
   font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-top:2px
 }
+@media(max-width:600px){.bar-meta{display:none}}
 .bar-right{display:flex;align-items:center;gap:16px}
 .bar-count{
   font-family:'Poppins',sans-serif;font-size:11px;color:var(--muted)
