@@ -109,12 +109,15 @@ export async function runJob(jobId) {
     // The engine's listPhotos() respects this file and treats it as the full ordered list.
     // This excludes 'uploaded' photos that are still pending review.
     const [validatedRows] = await query(
-      `SELECT ph.filename, u.name AS photographer_name, u.email AS photographer_email
+      `SELECT ph.filename,
+              COALESCE(u.name,  pu.name)  AS photographer_name,
+              COALESCE(u.email, pu.email) AS photographer_email
        FROM photos ph
-       LEFT JOIN users u ON u.id = ph.photographer_id
+       LEFT JOIN users u  ON u.id  = ph.photographer_id
+       LEFT JOIN users pu ON pu.id = ?
        WHERE ph.gallery_id = ? AND ph.status IN ('validated', 'published')
        ORDER BY ph.sort_order ASC, ph.created_at ASC`,
-      [gallery.id]
+      [gallery.primary_photographer_id ?? null, gallery.id]
     );
     if (validatedRows.length > 0) {
       const galSrcDir = path.join(SRC_ROOT, gallery.slug);
