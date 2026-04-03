@@ -316,8 +316,9 @@ app.get('/', async (req, res) => {
 });
 
 // ── Built galleries — static files (fallback when no reverse proxy in front) ──
-// index: false so the root '/' is always handled by the org-aware route above.
-app.use(express.static(DIST_DIR, { index: false }));
+// app.get('/') above intercepts the root before this middleware runs, so
+// index: 'index.html' here only fires for /{project}/{gallery}/ paths.
+app.use(express.static(DIST_DIR, { index: 'index.html' }));
 
 // ── Shared vendor/fonts fallback for project-scoped galleries ─────────────────
 // Galleries at /{project}/{gallery}/ use relative ../vendor/ and ../fonts/ paths
