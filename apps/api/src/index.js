@@ -351,6 +351,39 @@ app.get(/^\/([^/]+)\/?$/, (req, res, next) => {
   next();
 });
 
+// ── Fallback for project-scoped gallery URLs whose files are at the wrong path ─
+// Galleries built before the project-scoped dist_name feature were stored as
+// DIST_DIR/{gallery_slug}/ (flat).  After migration the engine uses
+// DIST_DIR/{project_slug}/{gallery_slug}/ but the old files remain at the flat
+// path until a rebuild.  When /{project}/{gallery}/ 404s (express.static found
+// nothing), look up the gallery in the DB: if its dist_name resolves to a file
+// that already exists on disk, do a 302 redirect so the browser lands there.
+app.get(/^\/([^/]+)\/([^/]+)\/?$/, async (req, res, next) => {
+  try {
+    const [projSlug, galSlug] = [req.params[0], req.params[1]];
+    // Only act when the project-scoped path really doesn't exist
+    const expected = path.join(DIST_DIR, projSlug, galSlug, 'index.html');
+    if (fs.existsSync(expected)) return next(); // already handled upstream
+    const [rows] = await query(
+      `SELECT g.dist_name, g.slug
+       FROM galleries g
+       JOIN projects p ON p.id = g.project_id
+       WHERE g.slug = ? AND p.slug = ?
+       LIMIT 1`,
+      [galSlug, projSlug]
+    );
+    const g = rows[0];
+    if (!g) return next();
+    const altDistName = g.dist_name || g.slug;
+    const altIndex = path.join(DIST_DIR, altDistName, 'index.html');
+    if (fs.existsSync(altIndex)) {
+      // Files are at the old flat path — redirect there until a rebuild moves them
+      return res.redirect(302, `/${altDistName}/`);
+    }
+  } catch {}
+  next();
+});
+
 // ── Project gallery listing — /:projectSlug/ ─────────────────────────────────
 // Handles the back-button target from project-scoped gallery URLs.
 app.get(/^\/([^/]+)\/?$/, async (req, res, next) => {
