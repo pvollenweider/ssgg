@@ -89,7 +89,8 @@ app.use(cors({
   },
   credentials: true,
   allowedHeaders: ['Content-Type', 'Authorization', 'Upload-Offset', 'Upload-Length',
-                   'Upload-Metadata', 'Tus-Resumable', 'X-Requested-With'],
+                   'Upload-Metadata', 'Tus-Resumable', 'X-Requested-With',
+                   'X-HTTP-Method-Override'],
   exposedHeaders: ['Upload-Offset', 'Location', 'Tus-Resumable'],
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'],
 }));

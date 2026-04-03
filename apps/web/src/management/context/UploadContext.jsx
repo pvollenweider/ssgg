@@ -78,6 +78,9 @@ function makeUppy() {
     // Remove the stored URL from localStorage after each successful upload so stale
     // fingerprints don't accumulate across sessions and trigger spurious HEAD 404s.
     removeFingerprintOnSuccess: true,
+    // Some mobile networks (e.g. cellular carriers) block the PATCH method.
+    // Send POST with X-HTTP-Method-Override: PATCH instead.
+    httpMethodOverride: true,
   });
 
   return uppy;

@@ -39,6 +39,11 @@ router.all('/', handleTus);
 router.all('/:uploadId', handleTus);
 
 function handleTus(req, res) {
+  // Some mobile networks/carriers block PATCH — Uppy sends POST with this header instead.
+  const override = req.headers['x-http-method-override'];
+  if (req.method === 'POST' && override && TUS_METHODS.includes(override.toUpperCase())) {
+    req.method = override.toUpperCase();
+  }
   if (!TUS_METHODS.includes(req.method)) {
     return res.status(405).set('Allow', TUS_METHODS.join(', ')).end();
   }
