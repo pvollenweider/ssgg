@@ -116,6 +116,14 @@ export function applyLegalTokens(tpl, project) {
     description:   project.description || '',
     photographers:     (project.photographers || []).map(n => '\u00a9\u00a0' + n).join(', '),
     photographerNames: (project.photographers || []).filter(n => n !== (project.author || '')).join(', '),
+    // photographerOnly: photographers when there is no explicit author (shown as the sole credit line)
+    photographerOnly:  !(project.author || '')
+      ? (project.photographers || []).join(', ')
+      : '',
+    // extraPhotographers: photographers other than the author (used when author is also set)
+    extraPhotographers: (project.author || '')
+      ? (project.photographers || []).filter(n => n !== project.author).join(', ')
+      : '',
     photographerContacts: (project.photographerDetails || [])
       .filter(p => p.name !== (project.author || ''))
       .map(p => p.email
@@ -124,16 +132,10 @@ export function applyLegalTokens(tpl, project) {
       .map(s => `<p>${s}</p>`)
       .join(''),
   };
-  // Process {{#if field}}...{{/if}} conditional blocks.
-  // Multi-pass so nested conditionals are resolved inside-out.
-  let out = tpl;
-  let prev;
-  do {
-    prev = out;
-    out = out.replace(/\{\{#if (\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, key, inner) => {
-      return (map[key] || '').trim() ? inner : '';
-    });
-  } while (out !== prev);
+  // Process {{#if field}}...{{/if}} conditional blocks (single-pass, no nesting).
+  let out = tpl.replace(/\{\{#if (\w+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (_, key, inner) => {
+    return (map[key] || '').trim() ? inner : '';
+  });
   // Then replace remaining {{token}} placeholders.
   return out.replace(/\{\{(\w+)\}\}/g, (_, key) => key in map ? map[key] : `{{${key}}}`);
 }
