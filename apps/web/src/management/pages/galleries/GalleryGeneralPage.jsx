@@ -27,7 +27,7 @@ export default function GalleryGeneralPage() {
     title: '', slug: '', description: '', descriptionMd: '', locale: 'en', standalone: false,
     access: 'public', password: '',
     downloadMode: 'display', allowDownloadGallery: false, apacheProtection: false,
-    primaryPhotographerId: '', date: '',
+    primaryPhotographerId: '', date: '', galleryMode: null,
   });
 
   // Watermark (saved separately via configJson)
@@ -72,6 +72,7 @@ export default function GalleryGeneralPage() {
         access: g.access || 'public', password: '',
         downloadMode: g.downloadMode || 'display', allowDownloadGallery: !!g.allowDownloadGallery, apacheProtection: !!g.apacheProtection,
         primaryPhotographerId: g.primaryPhotographerId || '', date: g.date || '',
+        galleryMode: g.mode ?? null,
       });
       setWatermarkEnabled(g.watermark?.enabled ?? false);
       setWatermarkText(g.watermark?.text || (g.author ? `© ${g.author}` : g.title ? `© ${g.title}` : ''));
@@ -112,6 +113,7 @@ export default function GalleryGeneralPage() {
       allowDownloadGallery: patch.allowDownloadGallery, apacheProtection: patch.apacheProtection,
       primaryPhotographerId: patch.primaryPhotographerId || null,
       date: patch.date || null,
+      galleryMode: patch.galleryMode ?? null,
     };
     if (patch.access === 'password' && patch.password?.trim()) payload.password = patch.password.trim();
     try {
@@ -198,6 +200,21 @@ export default function GalleryGeneralPage() {
   const canDelete = confirmTitle.trim() === form.title;
   const showApacheToggle = form.standalone && form.access === 'password';
   const downloadsDisabled = form.downloadMode === 'none';
+  const modeLockedDownloads = !!form.galleryMode;
+
+  const MODES = [
+    { value: 'portfolio',       labelKey: 'gal_mode_portfolio',       descKey: 'gal_mode_portfolio_desc' },
+    { value: 'client_preview',  labelKey: 'gal_mode_client_preview',  descKey: 'gal_mode_client_preview_desc' },
+    { value: 'client_delivery', labelKey: 'gal_mode_client_delivery', descKey: 'gal_mode_client_delivery_desc' },
+    { value: 'archive',         labelKey: 'gal_mode_archive',         descKey: 'gal_mode_archive_desc' },
+  ];
+
+  const MODE_BADGE_COLOR = {
+    portfolio:       { bg: '#e0f2fe', color: '#0369a1' },
+    client_preview:  { bg: '#fef9c3', color: '#854d0e' },
+    client_delivery: { bg: '#dcfce7', color: '#166534' },
+    archive:         { bg: '#f3e8ff', color: '#6b21a8' },
+  };
 
   return (
     <AdminPage title={form.title ? t('gal_settings_title', { title: form.title }) : t('nav_settings')}>
@@ -296,10 +313,46 @@ export default function GalleryGeneralPage() {
               )}
             </AdminCard>
 
+            {/* Gallery Mode */}
+            <AdminCard title={t('gal_mode_section')}>
+              {form.galleryMode && (() => {
+                const { bg, color } = MODE_BADGE_COLOR[form.galleryMode] || {};
+                return (
+                  <div className="mb-3 d-flex align-items-center gap-2">
+                    <span style={{ background: bg, color, borderRadius: 5, padding: '3px 10px', fontSize: '0.78rem', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                      {t(`gal_mode_${form.galleryMode}`)}
+                    </span>
+                  </div>
+                );
+              })()}
+              <select className="form-select" value={form.galleryMode ?? ''}
+                onChange={e => {
+                  const next = { ...form, galleryMode: e.target.value || null };
+                  setForm(next);
+                  saveGallery(next);
+                }}>
+                <option value="">{t('gal_mode_none')}</option>
+                {MODES.map(m => (
+                  <option key={m.value} value={m.value}>{t(m.labelKey)}</option>
+                ))}
+              </select>
+              {form.galleryMode && (
+                <div className="text-muted mt-2" style={{ fontSize: '0.8rem' }}>
+                  {t(`gal_mode_${form.galleryMode}_desc`)}
+                </div>
+              )}
+            </AdminCard>
+
             {/* Downloads */}
             <AdminCard title={t('gal_downloads_section')}>
+              {modeLockedDownloads && (
+                <div className="alert alert-info d-flex align-items-center gap-2 py-2 mb-3" role="alert" style={{ fontSize: '0.82rem' }}>
+                  <i className="fas fa-lock" />
+                  {t('gal_mode_locked_hint')}
+                </div>
+              )}
               <label className="form-label">{t('download_mode_label')}</label>
-              <select className="form-select" value={form.downloadMode}
+              <select className="form-select" value={form.downloadMode} disabled={modeLockedDownloads}
                 onChange={e => { const next = { ...form, downloadMode: e.target.value }; setForm(next); saveGallery(next); }}>
                 <option value="none">{t('download_mode_none')}</option>
                 <option value="display">{t('download_mode_display')}</option>
@@ -313,7 +366,7 @@ export default function GalleryGeneralPage() {
               {form.downloadMode !== 'none' && (
                 <div className="form-check form-switch mt-3 mb-0">
                   <input className="form-check-input" type="checkbox" id="allowDownloadGallery"
-                    checked={form.allowDownloadGallery}
+                    checked={form.allowDownloadGallery} disabled={modeLockedDownloads}
                     onChange={e => { const next = { ...form, allowDownloadGallery: e.target.checked }; setForm(next); saveGallery(next); }} />
                   <label className="form-check-label" htmlFor="allowDownloadGallery">
                     {t('gal_downloads_zip_label')}

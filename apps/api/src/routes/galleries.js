@@ -17,6 +17,7 @@ import { genId, hashPassword, getSettings, getProject,
 import { requireAdmin, requireStudioRole, requireAuth } from '../middleware/auth.js';
 import { sendPhotosReadyEmail } from '../services/email.js';
 import { can } from '../authorization/index.js';
+import { resolveGalleryPolicy, validateModeConstraints, applyModeDefaults, GALLERY_MODES } from '../services/galleryPolicy.js';
 import { SRC_ROOT, DIST_ROOT, INTERNAL_ROOT } from '../../../../packages/engine/src/fs.js';
 import { createStorage } from '../../../../packages/shared/src/storage/index.js';
 import { photoThumbnails } from '../services/thumbnailService.js';
@@ -125,6 +126,8 @@ function rowToGallery(row, { dateRange = null } = {}) {
     photoCount:           getPhotoCount(row.slug),
     diskSize:             getDiskSize(row.slug),
     watermark:            (() => { try { return JSON.parse(row.config_json || '{}').watermark ?? null; } catch { return null; } })(),
+    mode:                 row.gallery_mode ?? null,
+    policy:               resolveGalleryPolicy(row),
   };
 }
 
@@ -221,10 +224,26 @@ router.post('/', async (req, res) => {
     author      = st.default_author       || null,
     authorEmail = st.default_author_email || null,
     date, location,
-    locale = defLocale, access = defAccess, password,
-    standalone = false, allowDownloadImage = defDlImg, allowDownloadGallery = defDlGal,
+    locale = defLocale, password,
+    standalone = false,
     coverPhoto, slideshowInterval, copyright,
+    galleryMode = null,
   } = req.body || {};
+
+  if (galleryMode !== null && !GALLERY_MODES.includes(galleryMode)) {
+    return res.status(400).json({ error: `galleryMode must be one of: ${GALLERY_MODES.join(', ')}` });
+  }
+
+  // When a mode is provided, derive access + download flags from it; otherwise use org defaults
+  const modeDefaults   = galleryMode ? applyModeDefaults(galleryMode) : {};
+  const access         = modeDefaults.access         ?? (req.body?.access         ?? defAccess);
+  const allowDownloadImage   = modeDefaults.allow_download_image   !== undefined
+    ? modeDefaults.allow_download_image !== 0
+    : (req.body?.allowDownloadImage   ?? defDlImg);
+  const allowDownloadGallery = modeDefaults.allow_download_gallery !== undefined
+    ? modeDefaults.allow_download_gallery !== 0
+    : (req.body?.allowDownloadGallery ?? defDlGal);
+  const downloadMode   = modeDefaults.download_mode  ?? (req.body?.downloadMode   ?? 'display');
 
   if (!slug) return res.status(400).json({ error: 'slug is required' });
 
@@ -250,15 +269,17 @@ router.post('/', async (req, res) => {
     INSERT INTO galleries
       (id, organization_id, project_id, slug, title, description, subtitle, author, author_email, date, location,
        locale, access, password_hash, standalone,
-       allow_download_image, allow_download_gallery, cover_photo,
-       slideshow_interval, copyright, build_status, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+       download_mode, allow_download_image, allow_download_gallery, cover_photo,
+       slideshow_interval, copyright, gallery_mode, build_status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
   `, [
     id, req.organizationId, projectId ?? null, slug, title ?? slug, description ?? null, subtitle ?? null, author ?? null,
     authorEmail ?? null, date ?? null, location ?? null,
     locale, access, passwordHash, standalone ? 1 : 0,
+    downloadMode,
     allowDownloadImage ? 1 : 0, allowDownloadGallery ? 1 : 0,
     coverPhoto ?? null, slideshowInterval ?? null, copyright ?? null,
+    galleryMode ?? null,
     now, now,
   ]);
 
@@ -285,7 +306,7 @@ router.patch('/:id', async (req, res) => {
     'locale','access','password','standalone',
     'download_mode','apache_protection',
     'allow_download_image','allow_download_gallery','allow_download_original','cover_photo',
-    'slideshow_interval','copyright','primary_photographer_id','config_json',
+    'slideshow_interval','copyright','primary_photographer_id','config_json','gallery_mode',
   ];
 
   const camelToSnake = {
@@ -294,7 +315,7 @@ router.patch('/:id', async (req, res) => {
     slideshowInterval: 'slideshow_interval',
     downloadMode: 'download_mode', apacheProtection: 'apache_protection',
     descriptionMd: 'description_md', primaryPhotographerId: 'primary_photographer_id',
-    configJson: 'config_json',
+    configJson: 'config_json', galleryMode: 'gallery_mode',
   };
 
   const boolCols = new Set(['standalone','allow_download_image','allow_download_gallery','allow_download_original','apache_protection']);
@@ -304,6 +325,22 @@ router.patch('/:id', async (req, res) => {
     const col = camelToSnake[key] || key;
     if (!allowed.includes(col)) continue;
     updates[col] = boolCols.has(col) ? (val ? 1 : 0) : val;
+  }
+
+  // When a mode is being set, validate constraints and apply mode-derived defaults
+  const incomingMode = updates.gallery_mode;
+  if (incomingMode !== undefined) {
+    if (incomingMode !== null && !GALLERY_MODES.includes(incomingMode)) {
+      return res.status(400).json({ error: `gallery_mode must be one of: ${GALLERY_MODES.join(', ')}` });
+    }
+    const constraintErr = validateModeConstraints(incomingMode, updates);
+    if (constraintErr) return res.status(400).json({ error: constraintErr });
+    if (incomingMode) Object.assign(updates, applyModeDefaults(incomingMode));
+  } else {
+    // No mode change — still validate against currently-set mode
+    const currentMode = row.gallery_mode;
+    const constraintErr = validateModeConstraints(currentMode, updates);
+    if (constraintErr) return res.status(400).json({ error: constraintErr });
   }
 
   if ('password' in updates) {

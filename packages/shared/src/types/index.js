@@ -27,6 +27,24 @@
  * @typedef {'admin'|'photographer'} UserRole
  * @typedef {'public'|'private'|'password'} GalleryAccess
  * @typedef {'pending'|'queued'|'running'|'done'|'error'} BuildStatus
+ * @typedef {'portfolio'|'client_preview'|'client_delivery'|'archive'} GalleryMode
+ */
+
+/**
+ * Resolved policy returned by resolveGalleryPolicy().
+ *
+ * @typedef {object} GalleryPolicy
+ * @property {GalleryMode|null} mode
+ * @property {GalleryAccess}    access
+ * @property {boolean}          requiresToken
+ * @property {boolean}          allowDownloadImage
+ * @property {boolean}          allowDownloadGallery
+ * @property {boolean}          allowDownloadOriginal
+ * @property {'none'|'display'|'original'} downloadMode
+ * @property {boolean}          watermarkEnabled
+ * @property {boolean}          logAccess
+ * @property {boolean}          logDownload
+ * @property {boolean}          publicListed
  */
 
 /**
