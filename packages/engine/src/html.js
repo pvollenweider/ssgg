@@ -601,7 +601,7 @@ html,body{height:100%;background:var(--bg);color:var(--ink);overscroll-behavior:
   font-family:'Poppins',sans-serif;
   font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);margin-top:2px
 }
-@media(max-width:600px){.bar-meta{display:none}}
+@media(max-width:600px){.bar-meta{display:none}#bCount,#sw-interval{display:none}}
 .bar-right{display:flex;align-items:center;gap:16px}
 .bar-count{
   font-family:'Poppins',sans-serif;font-size:11px;color:var(--muted)
@@ -1528,7 +1528,7 @@ function syncThumb(idx) {
 /* ── Download permissions ────────────────────────────── */
 const DL_MODE        = PROJECT.downloadMode || (PROJECT.allowDownloadImage !== false ? 'display' : 'none');
 const CAN_DL_IMAGE   = DL_MODE !== 'none';
-const CAN_DL_GALLERY = DL_MODE !== 'none';
+const CAN_DL_GALLERY = DL_MODE !== 'none' && PROJECT.allowDownloadGallery !== false;
 
 /* ── Overlay buttons: EXIF, Download, Fullscreen ─────── */
 const exifOverlay = document.getElementById('gl-exif-overlay');
