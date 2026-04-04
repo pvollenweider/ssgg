@@ -993,6 +993,7 @@
   "gal_watermark_enable_label": "Add watermark on full-size images",
   "gal_watermark_enable_hint": "Applied at build time. Rebuild the gallery to update.",
   "gal_watermark_text_label": "Watermark text",
+  "gal_watermark_text_hint": "Leave blank to use the primary photographer's name automatically.",
   "proj_cover_gallery_hint": "Mark as cover gallery — its image will represent the project on the org page",
   "proj_cover_project_hint": "Mark as cover project — its image will represent the organization",
   "app_brand": "GalleryPack",
