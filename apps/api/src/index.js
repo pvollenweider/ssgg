@@ -27,7 +27,9 @@ import { resolveOrganizationContext } from './middleware/organizationContext.js'
 import { query, getPool } from './db/database.js';
 import { createStorage } from '../../../packages/shared/src/storage/index.js';
 import { DIST_ROOT, INTERNAL_ROOT } from '../../../packages/engine/src/fs.js';
-import { getSettings, getSession } from './db/helpers.js';
+import { getSettings, getSession,
+  createViewerToken, verifyViewerToken, getViewerToken, touchViewerToken,
+} from './db/helpers.js';
 
 import authRoutes        from './routes/auth.js';
 import galleriesRoutes   from './routes/galleries.js';
@@ -328,6 +330,86 @@ app.get('/', async (req, res) => {
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.send(renderProjectIndex(projects, siteTitle, isLoggedIn, orgName, orgDescHtml));
+});
+
+// ── Private gallery access gate ───────────────────────────────────────────────
+// Runs before express.static. For private galleries, requires either:
+//   a) a valid ?vt= viewer token in the URL (sets a 24h session cookie), or
+//   b) an existing valid session cookie from a previous ?vt= visit.
+// Only intercepts HTML/index requests (paths without a file extension).
+// Individual asset protection (photos, JS) is deferred — index gating is
+// sufficient to prevent casual access.
+app.use(async (req, res, next) => {
+  if (req.method !== 'GET') return next();
+  if (
+    req.path.startsWith('/api/') ||
+    req.path.startsWith('/admin') ||
+    req.path.startsWith('/media/') ||
+    req.path === '/metrics' ||
+    req.path === '/'
+  ) return next();
+
+  // Only act on index-like requests (no file extension in last segment)
+  const parts = req.path.split('/').filter(Boolean);
+  if (parts.length === 0 || parts.length > 2) return next();
+  const lastSeg = parts[parts.length - 1];
+  if (lastSeg.includes('.')) return next();
+
+  const distSlug = lastSeg;
+  try {
+    const [rows] = await query(
+      `SELECT id, access, project_id FROM galleries
+       WHERE (slug = ? OR dist_name = ?) AND access = 'private' LIMIT 1`,
+      [distSlug, distSlug]
+    );
+    const gallery = rows[0];
+    if (!gallery) return next(); // not private — serve normally
+
+    // Fast path: valid session cookie from a previous ?vt= visit
+    const cookieKey = `gv_${gallery.id}`;
+    try {
+      if (req.cookies?.[cookieKey] && verifyViewerToken(req.cookies[cookieKey]) === gallery.id) {
+        return next();
+      }
+    } catch {}
+
+    // Validate ?vt= viewer token
+    const rawToken = req.query.vt;
+    if (rawToken) {
+      const vt = await getViewerToken(rawToken);
+      if (vt && (
+        (vt.scope_type === 'gallery' && vt.scope_id === gallery.id) ||
+        (vt.scope_type === 'project' && gallery.project_id && vt.scope_id === gallery.project_id)
+      )) {
+        await touchViewerToken(vt.id);
+        res.cookie(cookieKey, createViewerToken(gallery.id), {
+          httpOnly: true, sameSite: 'lax',
+          maxAge: 24 * 60 * 60 * 1000,
+          secure: process.env.NODE_ENV === 'production',
+        });
+        return next();
+      }
+    }
+
+    // No valid access — return a minimal 403 page
+    return res.status(403).set('Content-Type', 'text/html; charset=utf-8').send(
+      '<!doctype html><html><head><meta charset=utf-8>' +
+      '<meta name=viewport content="width=device-width,initial-scale=1">' +
+      '<title>Accès restreint</title>' +
+      '<style>*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;' +
+      'align-items:center;justify-content:center;background:#111;color:#e8e4dd;' +
+      'font-family:system-ui,sans-serif}' +
+      '.box{text-align:center;padding:2rem}' +
+      'h1{font-size:1.1rem;font-weight:600;margin:0 0 .5rem}' +
+      'p{font-size:.875rem;color:#888;margin:0}</style></head>' +
+      '<body><div class=box>' +
+      '<h1>Accès restreint</h1>' +
+      '<p>Ce lien n&#x2019;est plus valide ou a expiré.</p>' +
+      '</div></body></html>'
+    );
+  } catch {
+    next();
+  }
 });
 
 // ── Built galleries — static files (fallback when no reverse proxy in front) ──
