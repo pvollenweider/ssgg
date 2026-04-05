@@ -368,6 +368,36 @@ router.patch('/:id', resolveGallery, async (req, res) => {
   res.json(await rowToGalleryAsync(updatedRows[0]));
 });
 
+// POST /api/projects/:projectId/galleries/:id/move — reassign gallery to a different project (same org)
+router.post('/:id/move', resolveGallery, async (req, res) => {
+  const galleryRole = await getGalleryRole(req.userId, req.gallery.id);
+  if (!can(req.user, 'write', 'gallery', { studioRole: req.studioRole, galleryRole })) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const { targetProjectId } = req.body || {};
+  if (!targetProjectId) return res.status(400).json({ error: 'targetProjectId is required' });
+  if (targetProjectId === req.gallery.project_id) {
+    return res.status(400).json({ error: 'Gallery is already in this project' });
+  }
+
+  // Verify target project exists and belongs to the same organization
+  const [targetRows] = await query(
+    'SELECT id FROM projects WHERE id = ? AND organization_id = ?',
+    [targetProjectId, req.organizationId]
+  );
+  if (!targetRows[0]) return res.status(404).json({ error: 'Target project not found' });
+
+  await query(
+    'UPDATE galleries SET project_id = ?, updated_at = ? WHERE id = ?',
+    [targetProjectId, Date.now(), req.gallery.id]
+  );
+  try { await audit(req.organizationId, req.userId, 'gallery.moved', 'gallery', req.gallery.id, { from: req.gallery.project_id, to: targetProjectId }); } catch {}
+
+  const [updatedRows] = await query('SELECT * FROM galleries WHERE id = ?', [req.gallery.id]);
+  res.json(await rowToGalleryAsync(updatedRows[0]));
+});
+
 // POST /api/projects/:projectId/galleries/:id/rename
 router.post('/:id/rename', resolveGallery, async (req, res) => {
   const galleryRole = await getGalleryRole(req.userId, req.gallery.id);

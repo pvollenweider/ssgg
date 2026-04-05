@@ -129,6 +129,7 @@ export const api = {
   getProjectGalleries:    (projectId)       => req('GET',  `/projects/${projectId}/galleries`),
   createProjectGallery:   (projectId, data) => req('POST', `/projects/${projectId}/galleries`, data),
   reorderProjectGalleries: (projectId, order) => req('POST', `/projects/${projectId}/galleries/reorder`, { order }),
+  moveGalleryToProject:    (projectId, galleryId, targetProjectId) => req('POST', `/projects/${projectId}/galleries/${galleryId}/move`, { targetProjectId }),
   reorderOrgProjects:      (orgId, order)     => req('POST', `/organizations/${orgId}/projects/reorder`, { order }),
   setOrgCoverProject:      (orgId, projectId) => req('PUT',  `/organizations/${orgId}/cover-project`, { projectId }),
   buildAllProjectGalleries:(projectId)      => req('POST', `/projects/${projectId}/galleries/build-all`),

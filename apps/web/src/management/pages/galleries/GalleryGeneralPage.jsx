@@ -28,6 +28,12 @@ export default function GalleryGeneralPage() {
   const [slugEdited, setSlugEdited] = useState(false);
   const [error,      setError]      = useState('');
   const [toast,      setToast]      = useState('');
+
+  // Move to project
+  const [projects,      setProjects]      = useState([]);
+  const [moveTargetId,  setMoveTargetId]  = useState('');
+  const [moving,        setMoving]        = useState(false);
+  const [moveError,     setMoveError]     = useState('');
   const [photoCount, setPhotoCount] = useState(null);
 
   // Flush dist
@@ -62,6 +68,7 @@ export default function GalleryGeneralPage() {
       setPhotographers(pgs);
     }).catch(() => {});
     api.listPhotos(galleryId).then(photos => setPhotoCount(photos.length)).catch(() => {});
+    api.listProjects(orgId).then(ps => setProjects(ps.filter(p => p.id !== projectId))).catch(() => {});
     loadLinks();
   }, [galleryId, orgId]);
 
@@ -149,6 +156,19 @@ export default function GalleryGeneralPage() {
       setCopied(url);
       setTimeout(() => setCopied(''), 2000);
     });
+  }
+
+  async function moveGallery(e) {
+    e.preventDefault();
+    if (!moveTargetId) return;
+    setMoving(true); setMoveError('');
+    try {
+      await api.moveGalleryToProject(projectId, galleryId, moveTargetId);
+      navigate(`/admin/organizations/${orgId}/projects/${moveTargetId}/galleries/${galleryId}/settings`);
+    } catch (err) {
+      setMoveError(err.message);
+      setMoving(false);
+    }
   }
 
   const canDelete = confirmTitle.trim() === form.title;
@@ -293,6 +313,38 @@ export default function GalleryGeneralPage() {
             </form>
             <div className="form-text mt-2">{t('gal_upload_hint')}</div>
           </AdminCard>
+
+          {/* Move to project */}
+          {projects.length > 0 && (
+            <AdminCard title={t('gal_move_title')} className="mb-4">
+              <p className="text-muted mb-3" style={{ fontSize: '0.875rem' }}>{t('gal_move_desc')}</p>
+              <form onSubmit={moveGallery} className="d-flex gap-2 align-items-end flex-wrap">
+                <div style={{ flex: '1 1 200px' }}>
+                  <label className="form-label mb-1" style={{ fontSize: '0.85rem' }}>{t('gal_move_select_label')}</label>
+                  <select
+                    className="form-select form-select-sm"
+                    value={moveTargetId}
+                    onChange={e => setMoveTargetId(e.target.value)}
+                    required
+                  >
+                    <option value="">{t('gal_move_select_placeholder')}</option>
+                    {projects.map(p => (
+                      <option key={p.id} value={p.id}>{p.name || p.slug}</option>
+                    ))}
+                  </select>
+                </div>
+                <AdminButton
+                  type="submit" size="sm" variant="outline-secondary"
+                  loading={moving} loadingLabel={t('gal_moving')}
+                  disabled={!moveTargetId}
+                  icon="fas fa-exchange-alt"
+                >
+                  {t('gal_move_btn')}
+                </AdminButton>
+              </form>
+              {moveError && <div className="text-danger small mt-2">{moveError}</div>}
+            </AdminCard>
+          )}
 
           {/* Danger zone */}
           <h6 className="text-danger fw-bold mb-2" style={{ letterSpacing: '0.04em', textTransform: 'uppercase', fontSize: '0.75rem' }}>
