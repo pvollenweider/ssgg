@@ -38,7 +38,7 @@ export function resolveGalleryPolicy(gallery) {
         allowDownloadGallery: false,
         allowDownloadOriginal: false,
         downloadMode:         'none',
-        watermarkEnabled:     false,
+        watermarkEnabled:     true,
         logAccess:            false,
         logDownload:          false,
         publicListed:         true,

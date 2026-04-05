@@ -15,7 +15,7 @@ import InheritedValue from '../../components/InheritedValue.jsx';
 const GALLERY_MODES = ['portfolio', 'client_preview', 'client_delivery', 'archive'];
 
 const MODE_WATERMARK = {
-  portfolio: false, client_preview: true, client_delivery: true, archive: false,
+  portfolio: true, client_preview: true, client_delivery: true, archive: false,
 };
 
 const MODE_BADGE_COLOR = {
