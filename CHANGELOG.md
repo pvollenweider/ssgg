@@ -6,37 +6,43 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [v1.7.0] - 2026-03
+## [v1.7.0] - 2026-04-05
 
 ### Added
-- Watermark on full-size lightbox images using DIN Tape font with Sharp SVG compositing
-- Build cancellation -- stop queued or running builds from the admin UI
-- Gallery sort order via drag-and-drop reorder within projects
-- Cover gallery per project and cover project per organization
-- Project reorder via drag-and-drop
-- Date phrases on gallery and project cards with manual gallery date field
-- Organization description Markdown editor and gallery-hero layout on org index page
-- Pre-generate static index.html for landing pages at startup
-- Manual prerender buttons in admin UI
-- "Republier tout" button to rebuild all galleries in a project or organization
-- Redesigned public project page with gallery-hero aesthetic
-- Cover photo selection via star button on photo cards
-- Photographer names, description, and smart dates on project pages
-- Markdown description editor for projects
-- Sort project galleries by most recent photo date
+- **Gallery modes** — four first-class modes (portfolio, client_preview, client_delivery, archive) each with a fixed policy (access, downloads, watermark). Central `resolveGalleryPolicy()` module is the single source of truth for all policy-derived fields across API and worker.
+- **Gallery settings split** — identity fields (`/settings`) separated from diffusion & security (`/access`), including mode selector, access controls, downloads, watermark and client sharing tokens.
+- **Move gallery between projects** — drag gallery to another project from the settings page.
+- **Viewer token gate on static files** — private gallery HTML is now blocked at the Express layer; requires a valid `?vt=` token or cookie before serving `index.html`.
+- **Comprehensive SEO** — Open Graph, Twitter Cards, JSON-LD (`ImageGallery`, `CollectionPage`, `WebSite`), canonical links and `noindex` for private galleries on every gallery and project page.
+- **`GET /sitemap.xml`** — dynamic sitemap listing all public galleries and projects with `lastmod`.
+- **`GET /robots.txt`** — auto-generated, points to sitemap.
+- **Inspector: global rebuild buttons** — "Rebuild all" and "Rebuild watermarks" buttons in the inspector dashboard for platform-wide maintenance.
+- **Inspector: unified activity log** (`/inspector/activity`) — cross-source feed aggregating builds, photo uploads, admin actions and emails for the last 30 days, with type filter and auto-refresh.
+- **UX confirmation modals** — confirmation required before switching a gallery to public or enabling original downloads.
+- **`scripts/backfill-gallery-modes.js`** — classifies existing galleries with `gallery_mode IS NULL` using a heuristic (dry-run by default, `--apply` to commit).
+- **64 unit tests** for `resolveGalleryPolicy`, `validateModeConstraints`, `applyModeDefaults` and `GALLERY_MODES`.
+- **Mode badge and public/token links** in the project gallery table.
+- **7-level date formatting** for gallery and project cards.
+- **Comprehensive mobile UX** improvements across all management interfaces.
 
 ### Changed
-- Watermark font size is 1.5% of the shortest side (height for landscape, width for portrait)
-- Watermark text defaults to copyright + author name
-- Photographer names displayed below hero divider with "Photos de" prefix
-- Use relative links in landing pages (organization-slug agnostic)
+- Watermark is **locked by gallery mode** — portfolio/client_preview/client_delivery always enable watermark; archive always disables it.
+- Watermark text auto-derived from photographer: primary user → guest photographer → per-photo attribution → gallery author. No title/slug fallback — no name means no watermark.
+- Builder `galleryToProjectConfig()` now delegates to `resolveGalleryPolicy()` instead of duplicating mode logic.
+- Gallery public URLs deduplicated — slug already includes project prefix, no double prepend.
+- **K3s worker scaled** for production: 2 replicas, limits 8 CPU / 10 Gi RAM per pod, `SHARP_CONCURRENCY=6`, `NODE_OPTIONS=--max-old-space-size=7168`.
+- Mode selector and access settings moved to dedicated `/access` page with rebuild warning banner.
 
 ### Fixed
-- Watermark missing font-family quotes in SVG, empty text fallback to title
-- Show gallery title instead of ID on job detail page
-- Build log scrolls inside container instead of full page
-- Remove all /admin links from public pages
-- Use build_status column name in build-all queries
+- Gallery mode not saving — constraint validation was running before `applyModeDefaults`, causing false 400 errors.
+- Watermark not applied for mode-based galleries — builder was only reading `config_json`, never checking `gallery_mode`.
+- Wrong JOIN for photographer name in builder — `primary_photographer_id` is FK to `users`, not `photographers`.
+- Duplicate project slug in gallery public URLs on project pages.
+- Mobile `bar-meta` overflow on gallery toolbar.
+- Project-gallery URL fallback now matches `dist_name` and preserves query string.
+
+### Security
+- Private gallery static files gated behind viewer token verification at the Express layer (not just JS-side).
 
 ---
 
