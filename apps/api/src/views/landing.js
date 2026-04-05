@@ -159,7 +159,7 @@ export function renderLanding(galleries, siteTitle = 'GalleryPack', isLoggedIn =
 </html>`;
 }
 
-export function renderProjectIndex(projects, siteTitle = 'GalleryPack', isLoggedIn = false, orgName = '', orgDescHtml = '') {
+export function renderProjectIndex(projects, siteTitle = 'GalleryPack', isLoggedIn = false, orgName = '', orgDescHtml = '', baseUrl = '') {
   const title = orgName || siteTitle;
   const cards = projects.length === 0
     ? `<p class="empty">Aucun projet publié pour l'instant.</p>`
@@ -184,12 +184,30 @@ export function renderProjectIndex(projects, siteTitle = 'GalleryPack', isLogged
         </a>`;
       }).join('');
 
+  const _canonicalRoot = baseUrl ? `${baseUrl}/` : '';
+  const _firstCover    = projects.find(p => p.coverName && p.coverSlug);
+  const _ogImage       = _firstCover && baseUrl
+    ? `${baseUrl}/${_firstCover.slug}/${_firstCover.coverSlug}/img/grid/${_firstCover.coverName}.webp`
+    : '';
+  const _seoIndex = baseUrl ? `
+<link rel="canonical" href="${_canonicalRoot}">
+<meta name="robots" content="index, follow">
+<meta property="og:type"        content="website">
+<meta property="og:url"         content="${_canonicalRoot}">
+<meta property="og:title"       content="${esc(title)}">
+${_ogImage ? `<meta property="og:image" content="${_ogImage}">` : ''}
+<meta name="twitter:card"  content="summary_large_image">
+<meta name="twitter:title" content="${esc(title)}">
+${_ogImage ? `<meta name="twitter:image" content="${_ogImage}">` : ''}
+<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'WebSite', name: title, url: _canonicalRoot }).replace(/<\//g, '<\\/')}</script>` : '';
+
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>${esc(title)}</title>
+  ${_seoIndex}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
@@ -261,7 +279,7 @@ export function renderProjectIndex(projects, siteTitle = 'GalleryPack', isLogged
 </html>`;
 }
 
-export function renderProjectListing(projectSlug, projectName, galleries, siteTitle = 'GalleryPack', isLoggedIn = false, projectDescHtml = '', orgName = '') {
+export function renderProjectListing(projectSlug, projectName, galleries, siteTitle = 'GalleryPack', isLoggedIn = false, projectDescHtml = '', orgName = '', baseUrl = '') {
   const cards = galleries.length === 0
     ? `<p class="empty">Aucune galerie publiée pour l'instant.</p>`
     : galleries.map(g => {
@@ -292,12 +310,45 @@ export function renderProjectListing(projectSlug, projectName, galleries, siteTi
         </a>`;
       }).join('');
 
+  const _projCanonical = baseUrl ? `${baseUrl}/${projectSlug}/` : '';
+  const _firstGalCover = galleries.find(g => g.coverName);
+  const _projOgImage   = _firstGalCover && baseUrl
+    ? `${baseUrl}/${projectSlug}/${_firstGalCover.slug}/img/grid/${_firstGalCover.coverName}.webp`
+    : '';
+  const _projDesc      = galleries.map(g => g.title || g.slug).slice(0, 5).join(', ');
+  const _seoProject = baseUrl ? `
+<link rel="canonical" href="${_projCanonical}">
+<meta name="robots" content="index, follow">
+<meta name="description" content="${esc(_projDesc)}">
+<meta property="og:type"        content="website">
+<meta property="og:url"         content="${_projCanonical}">
+<meta property="og:title"       content="${esc(projectName)} — ${esc(siteTitle)}">
+<meta property="og:description" content="${esc(_projDesc)}">
+${_projOgImage ? `<meta property="og:image" content="${_projOgImage}">` : ''}
+<meta name="twitter:card"        content="summary_large_image">
+<meta name="twitter:title"       content="${esc(projectName)} — ${esc(siteTitle)}">
+<meta name="twitter:description" content="${esc(_projDesc)}">
+${_projOgImage ? `<meta name="twitter:image" content="${_projOgImage}">` : ''}
+<script type="application/ld+json">${JSON.stringify({
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: projectName,
+  url: _projCanonical,
+  description: _projDesc || undefined,
+  hasPart: galleries.slice(0, 20).map(g => ({
+    '@type': 'ImageGallery',
+    name: g.title || g.slug,
+    url: `${baseUrl}/${projectSlug}/${g.slug}/`,
+  })),
+}).replace(/<\//g, '<\\/')}</script>` : '';
+
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <title>${esc(projectName)} — ${esc(siteTitle)}</title>
+  ${_seoProject}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">

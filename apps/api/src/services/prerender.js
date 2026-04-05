@@ -89,7 +89,8 @@ export async function prerenderRoot() {
     };
   }));
 
-  const html = renderProjectIndex(projects, siteTitle, false, orgName, orgDescHtml);
+  const baseUrl = process.env.BASE_URL || '';
+  const html = renderProjectIndex(projects, siteTitle, false, orgName, orgDescHtml, baseUrl);
   const dest = path.join(DIST_ROOT, 'index.html');
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, html, 'utf8');
@@ -157,7 +158,8 @@ export async function prerenderProject(projectSlug) {
   const siteTitle = await getSiteTitle();
   const [orgRows] = await query('SELECT name FROM organizations WHERE id = ? LIMIT 1', [project.organization_id]);
   const orgName = orgRows[0]?.name || '';
-  const html = renderProjectListing(projectSlug, project.name, galleries, siteTitle, false, projectDescHtml, orgName);
+  const baseUrl = process.env.BASE_URL || '';
+  const html = renderProjectListing(projectSlug, project.name, galleries, siteTitle, false, projectDescHtml, orgName, baseUrl);
   const dest = path.join(DIST_ROOT, projectSlug, 'index.html');
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, html, 'utf8');

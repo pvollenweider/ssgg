@@ -245,7 +245,7 @@ export async function buildGallery(srcName, { build, project: projectOverride, d
       ok('legal.txt  → gallery-specific template applied');
     }
 
-    const { html, dataJs, galleryJs } = buildHTML(galCfg, results, localFontCss, isStandalone, customLegal, distName, VERSION);
+    const { html, dataJs, galleryJs } = buildHTML(galCfg, results, localFontCss, isStandalone, customLegal, distName, VERSION, process.env.BASE_URL || '');
     fs.writeFileSync(path.join(paths.dist, 'index.html'), html, 'utf8');
     fs.writeFileSync(path.join(paths.dist, 'data.js'),    dataJs, 'utf8');
     fs.writeFileSync(path.join(paths.dist, 'gallery.js'), galleryJs, 'utf8');

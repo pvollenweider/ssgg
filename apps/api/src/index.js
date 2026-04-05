@@ -328,8 +328,89 @@ app.get('/', async (req, res) => {
     };
   }));
 
+  const proto   = req.get('x-forwarded-proto') || req.protocol;
+  const baseUrl = process.env.BASE_URL || `${proto}://${req.get('host')}`;
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(renderProjectIndex(projects, siteTitle, isLoggedIn, orgName, orgDescHtml));
+  res.send(renderProjectIndex(projects, siteTitle, isLoggedIn, orgName, orgDescHtml, baseUrl));
+});
+
+// ── robots.txt ────────────────────────────────────────────────────────────────
+app.get('/robots.txt', (req, res) => {
+  const proto   = req.get('x-forwarded-proto') || req.protocol;
+  const siteUrl = process.env.BASE_URL || `${proto}://${req.get('host')}`;
+  res.set('Content-Type', 'text/plain; charset=utf-8');
+  res.set('Cache-Control', 'public, max-age=3600');
+  res.send(`User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\nSitemap: ${siteUrl}/sitemap.xml\n`);
+});
+
+// ── sitemap.xml ───────────────────────────────────────────────────────────────
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    const orgId = req.organizationId ?? null;
+    const proto   = req.get('x-forwarded-proto') || req.protocol;
+    const siteUrl = process.env.BASE_URL || `${proto}://${req.get('host')}`;
+
+    // Fetch all public projects and galleries for this org
+    const [projRows] = orgId
+      ? await query(
+          `SELECT p.slug, MAX(g.built_at) AS last_built
+           FROM projects p
+           JOIN galleries g ON g.project_id = p.id AND g.access = 'public' AND g.build_status = 'done'
+           WHERE p.organization_id = ?
+           GROUP BY p.id ORDER BY p.sort_order ASC, p.created_at DESC`,
+          [orgId])
+      : await query(
+          `SELECT p.slug, MAX(g.built_at) AS last_built
+           FROM projects p
+           JOIN galleries g ON g.project_id = p.id AND g.access = 'public' AND g.build_status = 'done'
+           GROUP BY p.id ORDER BY p.sort_order ASC, p.created_at DESC`);
+
+    const projectSlugs = projRows.map(p => p.slug);
+    let galRows = [];
+    if (projectSlugs.length > 0) {
+      const [rows] = orgId
+        ? await query(
+            `SELECT g.dist_name, g.slug AS gslug, p.slug AS pslug, g.built_at
+             FROM galleries g JOIN projects p ON p.id = g.project_id
+             WHERE p.organization_id = ? AND g.access = 'public' AND g.build_status = 'done'
+             ORDER BY g.date DESC, g.created_at DESC`,
+            [orgId])
+        : await query(
+            `SELECT g.dist_name, g.slug AS gslug, p.slug AS pslug, g.built_at
+             FROM galleries g JOIN projects p ON p.id = g.project_id
+             WHERE g.access = 'public' AND g.build_status = 'done'
+             ORDER BY g.date DESC, g.created_at DESC`);
+      galRows = rows;
+    }
+
+    const fmtDate = ts => {
+      if (!ts) return '';
+      const d = new Date(typeof ts === 'number' ? ts : Date.parse(ts));
+      return isNaN(d) ? '' : d.toISOString().slice(0, 10);
+    };
+
+    const urlTag = (loc, priority, lastmod, changefreq) =>
+      `  <url>\n    <loc>${loc}</loc>\n` +
+      (lastmod    ? `    <lastmod>${lastmod}</lastmod>\n`       : '') +
+      (changefreq ? `    <changefreq>${changefreq}</changefreq>\n` : '') +
+      `    <priority>${priority}</priority>\n  </url>`;
+
+    const urls = [
+      urlTag(`${siteUrl}/`, '1.0', '', 'weekly'),
+      ...projRows.map(p =>
+        urlTag(`${siteUrl}/${p.slug}/`, '0.8', fmtDate(p.last_built), 'weekly')),
+      ...galRows.map(g => {
+        const distPath = g.dist_name || `${g.pslug}/${g.gslug}`;
+        return urlTag(`${siteUrl}/${distPath}/`, '0.6', fmtDate(g.built_at), 'monthly');
+      }),
+    ].join('\n');
+
+    res.set('Content-Type', 'application/xml; charset=utf-8');
+    res.set('Cache-Control', 'public, max-age=3600');
+    res.send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`);
+  } catch (err) {
+    res.status(500).send('<?xml version="1.0"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>');
+  }
 });
 
 // ── Private gallery access gate ───────────────────────────────────────────────
@@ -538,8 +619,10 @@ app.get(/^\/([^/]+)\/?$/, async (req, res, next) => {
   const token = req.cookies?.session;
   const isLoggedIn = token ? !!(await getSession(token)) : false;
 
+  const proto2   = req.get('x-forwarded-proto') || req.protocol;
+  const baseUrl2 = process.env.BASE_URL || `${proto2}://${req.get('host')}`;
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(renderProjectListing(projectSlug, project.name, galleries, siteTitle, isLoggedIn, projectDescHtml, orgName));
+  res.send(renderProjectListing(projectSlug, project.name, galleries, siteTitle, isLoggedIn, projectDescHtml, orgName, baseUrl2));
 });
 
 

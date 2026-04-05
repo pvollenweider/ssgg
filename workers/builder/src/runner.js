@@ -66,12 +66,17 @@ function galleryToProjectConfig(g) {
       ? (MODE_WATERMARK[g.gallery_mode] ?? cfg.watermark?.enabled ?? false)
       : (cfg.watermark?.enabled ?? false);
     if (watermarkEnabled) {
-      const photographerName = g.primary_photographer_name || g.guest_photographer_name || null;
+      const photographerName = g.primary_photographer_name
+        || g.guest_photographer_name
+        || g.photo_photographer_name
+        || null;
       const wmText = cfg.watermark?.text
         || (photographerName ? `© ${photographerName}` : null)
         || (g.author         ? `© ${g.author}`         : null)
-        || null; // do not fall back to gallery title/slug — no name means no watermark text
-      if (wmText) proj.watermark = { enabled: true, text: wmText };
+        || null;
+      if (wmText) {
+        proj.watermark = { enabled: true, text: wmText };
+      }
     }
   } catch {}
   return proj;
@@ -87,8 +92,13 @@ export async function runJob(jobId) {
 
   const [galleryRows] = await query(`
     SELECT g.*, p.slug AS project_slug, p.name AS project_name,
-           u.name AS primary_photographer_name,
-           (SELECT name FROM photographers WHERE gallery_id = g.id ORDER BY created_at ASC LIMIT 1) AS guest_photographer_name
+           u.name  AS primary_photographer_name,
+           (SELECT name FROM photographers WHERE gallery_id = g.id ORDER BY created_at ASC LIMIT 1)
+                   AS guest_photographer_name,
+           (SELECT u2.name FROM photos ph
+            JOIN users u2 ON u2.id = ph.photographer_id
+            WHERE ph.gallery_id = g.id AND ph.photographer_id IS NOT NULL
+            LIMIT 1) AS photo_photographer_name
     FROM galleries g
     LEFT JOIN projects p ON p.id = g.project_id
     LEFT JOIN users    u ON u.id = g.primary_photographer_id
@@ -114,6 +124,26 @@ export async function runJob(jobId) {
 
   try {
     await appendEvent(jobId, 'log', `Starting build for gallery: ${gallery.slug}`);
+
+    // Log watermark resolution for diagnostics
+    {
+      const MODE_WATERMARK_LOG = { portfolio: true, client_preview: true, client_delivery: true, archive: false };
+      const cfg2 = (() => { try { return JSON.parse(gallery.config_json || '{}'); } catch { return {}; } })();
+      const wmOn = gallery.gallery_mode
+        ? (MODE_WATERMARK_LOG[gallery.gallery_mode] ?? cfg2.watermark?.enabled ?? false)
+        : (cfg2.watermark?.enabled ?? false);
+      if (wmOn) {
+        const src = cfg2.watermark?.text       ? 'explicit text'
+          : gallery.primary_photographer_name  ? `primary_photographer (${gallery.primary_photographer_name})`
+          : gallery.guest_photographer_name    ? `guest_photographer (${gallery.guest_photographer_name})`
+          : gallery.photo_photographer_name    ? `photo_photographer (${gallery.photo_photographer_name})`
+          : gallery.author                     ? `author (${gallery.author})`
+          : 'NONE — watermark will be skipped';
+        await appendEvent(jobId, 'log', `[watermark] enabled, text source: ${src}`);
+      } else {
+        await appendEvent(jobId, 'log', `[watermark] disabled (mode=${gallery.gallery_mode ?? 'null'}, config_json=${cfg2.watermark?.enabled ?? false})`);
+      }
+    }
 
     // Sprint 11: write photo_order.json with only validated (or published) photos.
     // The engine's listPhotos() respects this file and treats it as the full ordered list.

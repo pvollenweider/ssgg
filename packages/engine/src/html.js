@@ -470,7 +470,7 @@ export function collectBuiltGalleries() {
  * @param {string} [VERSION]  - GalleryPack version string for footer credit.
  * @returns {{ html: string, dataJs: string, galleryJs: string }}
  */
-export function buildHTML(cfg, photos, fontCss = '', standalone = false, customLegal = {}, distName = '', VERSION = '0.0.0') {
+export function buildHTML(cfg, photos, fontCss = '', standalone = false, customLegal = {}, distName = '', VERSION = '0.0.0', baseUrl = '') {
   const { project } = cfg;
   // Asset path prefix: standalone galleries embed vendor/fonts locally;
   // shared galleries reference the common dist/vendor/ and dist/fonts/ dirs.
@@ -548,6 +548,41 @@ export function buildHTML(cfg, photos, fontCss = '', standalone = false, customL
   const isStandalone = Boolean(cfg.project.standalone);
   const backLink = isStandalone ? '' : `<a href="../" class="bar-back" title="Back to gallery list">←</a>`;
 
+  // ── SEO ──────────────────────────────────────────────────────────────────
+  const _canonicalUrl = baseUrl && distName ? `${baseUrl}/${distName}/` : '';
+  const _coverStem    = project.coverPhoto ? project.coverPhoto.replace(/\.[^.]+$/, '') : null;
+  const _ogImage      = _canonicalUrl
+    ? (_coverStem
+        ? `${baseUrl}/${distName}/img/grid/${_coverStem}.webp`
+        : photos.length > 0 ? `${baseUrl}/${distName}/img/grid/${photos[0].name}.webp` : '')
+    : '';
+  const _escJsonLd    = obj => JSON.stringify(obj).replace(/<\//g, '<\\/');
+  const _seoBlock     = _canonicalUrl ? `
+<meta name="robots" content="${project.private ? 'noindex, nofollow' : 'index, follow'}">
+<link rel="canonical" href="${_canonicalUrl}">
+<meta property="og:type"        content="website">
+<meta property="og:url"         content="${_canonicalUrl}">
+<meta property="og:title"       content="${escHtml(project.title)}">
+${project.description ? `<meta property="og:description"  content="${escHtml(project.description)}">` : ''}
+${_ogImage ? `<meta property="og:image"        content="${_ogImage}">
+<meta property="og:image:width"  content="800">
+<meta property="og:image:height" content="533">` : ''}
+<meta name="twitter:card"       content="summary_large_image">
+<meta name="twitter:title"      content="${escHtml(project.title)}">
+${project.description ? `<meta name="twitter:description" content="${escHtml(project.description)}">` : ''}
+${_ogImage ? `<meta name="twitter:image"      content="${_ogImage}">` : ''}
+${!project.private ? `<script type="application/ld+json">${_escJsonLd({
+  '@context': 'https://schema.org',
+  '@type':    'ImageGallery',
+  name:       project.title,
+  url:        _canonicalUrl,
+  ...(project.description ? { description: project.description } : {}),
+  ...(project.author      ? { author: { '@type': 'Person', name: project.author } } : {}),
+  ...(_dateFrom           ? { datePublished: _dateFrom }                             : {}),
+  ...(project.location    ? { locationCreated: { '@type': 'Place', name: project.location } } : {}),
+  ...(_ogImage            ? { primaryImageOfPage: { '@type': 'ImageObject', contentUrl: _ogImage } } : {}),
+})}</script>` : ''}` : '';
+
   const html = `<!DOCTYPE html>
 <html lang="${htmlLang}">
 <head>
@@ -558,6 +593,7 @@ export function buildHTML(cfg, photos, fontCss = '', standalone = false, customL
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>${escHtml(project.title)}</title>
 ${project.description ? `<meta name="description" content="${escHtml(project.description)}">` : ''}
+${_seoBlock}
 <script>const _p=location.pathname;const _s=_p.slice(_p.lastIndexOf('/')+1);if(!_p.endsWith('/')&&_s.indexOf('.')<0)location.replace(_p+'/'+location.search+location.hash)</script>
 ${preloadLinks}
 <link rel="preload" as="font" href="${fp}poppins-400.woff2" type="font/woff2" crossorigin>
