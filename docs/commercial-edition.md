@@ -41,11 +41,11 @@ Node.js worker process:
 
 Use of the commercial components requires a valid license agreement. The source code is available in this repository for inspection and auditing, but is not freely deployable or redistributable.
 
-## Contact
+## Pricing & licensing
 
-To obtain a commercial license or discuss pricing:
+Licenses are available at **[gallerypack.app/pricing](https://www.gallerypack.app/#pricing)** with instant delivery via Stripe.
 
-- Open an issue at [github.com/pvollenweider/gallerypack](https://github.com/pvollenweider/gallerypack)
-- Contact the maintainer via GitHub
+For custom arrangements (OEM, multi-tenant SaaS, volume):
 
-A formal license agreement will be provided. Terms vary depending on use case (single organization, multi-tenant SaaS, OEM integration).
+- Visit [gallerypack.app](https://www.gallerypack.app/)
+- Or open an issue at [github.com/pvollenweider/gallerypack](https://github.com/pvollenweider/gallerypack)

@@ -88,7 +88,7 @@ GalleryPack is dual-licensed:
 - **AGPL-3.0** -- `packages/engine/` and `packages/shared/` (open-source build engine and storage abstraction)
 - **Proprietary** -- `apps/api/`, `apps/web/`, `workers/builder/` (platform components, source-available)
 
-Use of the proprietary platform components in production requires a commercial license. See [docs/licensing.md](docs/licensing.md) for full details.
+Use of the proprietary platform components in production requires a commercial license. Licenses available at **[gallerypack.app](https://www.gallerypack.app/)** — see [docs/licensing.md](docs/licensing.md) for full details.
 
 ---
 

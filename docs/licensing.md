@@ -48,17 +48,19 @@ Use of these components requires a valid commercial license agreement.
 ## FAQ
 
 **Can I self-host GalleryPack for my photography studio?**
-Yes, but the platform components require a commercial license. Contact us to get one.
+Yes. Get a license at [gallerypack.app](https://www.gallerypack.app/).
 
 **Can I fork the engine and use it in my own project?**
 Yes, under AGPL-3.0. Your project must also be released under AGPL-3.0 (or a compatible license) if you distribute it or provide it as a network service.
 
 **Can I build a SaaS on top of GalleryPack?**
-The engine (AGPL) can be used under its copyleft terms. Using the platform components requires a commercial license. Contact us.
+The engine (AGPL) can be used under its copyleft terms. Using the platform components requires a commercial license — see [gallerypack.app](https://www.gallerypack.app/).
 
 **Can I contribute code?**
 External contributions require a CLA to preserve the dual-licensing model. See [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Commercial licensing
 
-For commercial license inquiries, open an issue or contact the maintainer via [GitHub](https://github.com/pvollenweider/gallerypack).
+Licenses are available at **[gallerypack.app](https://www.gallerypack.app/)** with instant delivery.
+
+For custom arrangements, open an issue at [github.com/pvollenweider/gallerypack](https://github.com/pvollenweider/gallerypack).
