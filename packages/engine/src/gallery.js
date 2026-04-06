@@ -114,7 +114,7 @@ export function buildDeliveryMessage(project, summary, authInfo) {
 
   lines.push('');
   lines.push('---');
-  lines.push(`*${isFr ? 'Généré' : 'Generated'} by [GalleryPack](https://github.com/pvollenweider/gallerypack) v${VERSION}*`);
+  lines.push(`*${isFr ? 'Généré' : 'Generated'} by [GalleryPack](https://www.gallerypack.app/) v${VERSION}*`);
   return lines.join('\n') + '\n';
 }
 

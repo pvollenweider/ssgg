@@ -1219,7 +1219,7 @@ ${[2,3,5,8,10].map(s => {
   <footer class="gallery-footer">
     <button id="legal-btn">Legal notice</button>
     <span class="footer-sep">·</span>
-    <a class="footer-credit" href="https://github.com/pvollenweider/gallerypack" target="_blank" rel="noopener">${generatedBy} GalleryPack v${VERSION}</a>
+    <a class="footer-credit" href="https://www.gallerypack.app/" target="_blank" rel="noopener">${generatedBy} GalleryPack v${VERSION}</a>
   </footer>
 </main>
 
@@ -2266,7 +2266,7 @@ ${cards}
   </div>
 </main>
 <footer class="footer">
-  <a href="https://github.com/pvollenweider/gallerypack" target="_blank" rel="noopener">GalleryPack v${VERSION}</a>
+  <a href="https://www.gallerypack.app/" target="_blank" rel="noopener">GalleryPack v${VERSION}</a>
 </footer>
 </body>
 </html>`;
