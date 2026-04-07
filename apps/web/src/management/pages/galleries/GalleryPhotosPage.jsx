@@ -638,9 +638,9 @@ export default function GalleryPhotosPage() {
                         {isSelected && <i className="fas fa-check" style={{ fontSize: '0.5rem', color: '#fff' }} />}
                       </div>
 
-                      {p.thumbnail?.sm ? (
+                      {(thumbSize === 'lg' ? (p.thumbnail?.md ?? p.thumbnail?.sm) : p.thumbnail?.sm) ? (
                         <img
-                          src={p.thumbnail.sm}
+                          src={thumbSize === 'lg' ? (p.thumbnail?.md ?? p.thumbnail?.sm) : p.thumbnail?.sm}
                           alt={p.file}
                           style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', display: 'block' }}
                           loading="lazy"
