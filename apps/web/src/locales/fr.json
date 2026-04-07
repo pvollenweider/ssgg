@@ -351,6 +351,8 @@
   "license_limit_storage": "Stockage (Go)",
   "license_limit_collaborators": "Collaborateurs",
   "license_install_section": "Installer une nouvelle licence",
+  "license_get_from": "Obtenez votre licence sur",
+  "license_file_label": "Fichier de licence",
   "license_json_label": "JSON de licence",
   "license_json_hint": "Collez le JSON de licence signé fourni par GalleryPack.",
   "license_installing": "Installation…",

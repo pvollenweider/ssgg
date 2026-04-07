@@ -309,6 +309,8 @@
   "license_limit_storage": "ストレージ (GB)",
   "license_limit_collaborators": "コラボレーター",
   "license_install_section": "新しいライセンスをインストール",
+  "license_get_from": "ライセンスの取得：",
+  "license_file_label": "ライセンスファイル",
   "license_json_label": "ライセンス JSON",
   "license_json_hint": "GalleryPack が提供する署名済みライセンス JSON を貼り付けてください。",
   "license_installing": "インストール中…",

@@ -309,6 +309,8 @@
   "license_limit_storage": "Almacenamiento (GB)",
   "license_limit_collaborators": "Colaboradores",
   "license_install_section": "Instalar nueva licencia",
+  "license_get_from": "Obtén tu licencia en",
+  "license_file_label": "Archivo de licencia",
   "license_json_label": "JSON de licencia",
   "license_json_hint": "Pegue el JSON de licencia firmado proporcionado por GalleryPack.",
   "license_installing": "Instalando…",

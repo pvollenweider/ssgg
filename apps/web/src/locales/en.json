@@ -823,6 +823,8 @@
   "license_limit_storage": "Storage (GB)",
   "license_limit_collaborators": "Collaborators",
   "license_install_section": "Install new license",
+  "license_get_from": "Get your license from",
+  "license_file_label": "License file",
   "license_json_label": "License JSON",
   "license_json_hint": "Paste the signed license JSON provided by GalleryPack.",
   "license_installed_for": "License installed for {name}.",

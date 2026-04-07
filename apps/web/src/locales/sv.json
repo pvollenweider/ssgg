@@ -309,6 +309,8 @@
   "license_limit_storage": "Lagring (GB)",
   "license_limit_collaborators": "Medarbetare",
   "license_install_section": "Installera ny licens",
+  "license_get_from": "Skaffa din licens på",
+  "license_file_label": "Licensfil",
   "license_json_label": "Licens-JSON",
   "license_json_hint": "Klistra in det signerade licens-JSON som tillhandahålls av GalleryPack.",
   "license_installing": "Installerar…",

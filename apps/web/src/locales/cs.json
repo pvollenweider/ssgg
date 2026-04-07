@@ -309,6 +309,8 @@
   "license_limit_storage": "Úložiště (GB)",
   "license_limit_collaborators": "Spolupracovníci",
   "license_install_section": "Nainstalovat novou licenci",
+  "license_get_from": "Získejte licenci na",
+  "license_file_label": "Soubor licence",
   "license_json_label": "JSON licence",
   "license_json_hint": "Vložte podepsaný JSON licence poskytnutý GalleryPackem.",
   "license_installing": "Instalování…",

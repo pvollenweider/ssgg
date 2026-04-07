@@ -309,6 +309,8 @@
   "license_limit_storage": "Opslag (GB)",
   "license_limit_collaborators": "Medewerkers",
   "license_install_section": "Nieuwe licentie installeren",
+  "license_get_from": "Haal uw licentie op bij",
+  "license_file_label": "Licentiebestand",
   "license_json_label": "Licentie-JSON",
   "license_json_hint": "Plak de ondertekende licentie-JSON van GalleryPack.",
   "license_installing": "Installeren…",

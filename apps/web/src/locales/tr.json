@@ -309,6 +309,8 @@
   "license_limit_storage": "Depolama (GB)",
   "license_limit_collaborators": "Ortak çalışanlar",
   "license_install_section": "Yeni lisans yükle",
+  "license_get_from": "Lisansınızı şuradan alın:",
+  "license_file_label": "Lisans dosyası",
   "license_json_label": "Lisans JSON",
   "license_json_hint": "GalleryPack tarafından sağlanan imzalı lisans JSON'ını yapıştırın.",
   "license_installing": "Yükleniyor…",

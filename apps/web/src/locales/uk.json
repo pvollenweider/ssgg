@@ -309,6 +309,8 @@
   "license_limit_storage": "Сховище (ГБ)",
   "license_limit_collaborators": "Співробітники",
   "license_install_section": "Встановити нову ліцензію",
+  "license_get_from": "Отримайте ліцензію на",
+  "license_file_label": "Файл ліцензії",
   "license_json_label": "JSON ліцензії",
   "license_json_hint": "Вставте підписаний JSON ліцензії, наданий GalleryPack.",
   "license_installing": "Встановлення…",

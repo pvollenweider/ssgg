@@ -309,6 +309,8 @@
   "license_limit_storage": "Lagerplads (GB)",
   "license_limit_collaborators": "Samarbejdspartnere",
   "license_install_section": "Installer ny licens",
+  "license_get_from": "Få din licens på",
+  "license_file_label": "Licensfil",
   "license_json_label": "Licens-JSON",
   "license_json_hint": "Indsæt den signerede licens-JSON fra GalleryPack.",
   "license_installing": "Installerer…",

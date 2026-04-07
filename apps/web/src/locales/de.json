@@ -309,6 +309,8 @@
   "license_limit_storage": "Speicher (GB)",
   "license_limit_collaborators": "Mitarbeiter",
   "license_install_section": "Neue Lizenz installieren",
+  "license_get_from": "Lizenz erhalten auf",
+  "license_file_label": "Lizenzdatei",
   "license_json_label": "Lizenz-JSON",
   "license_json_hint": "Fügen Sie das signierte Lizenz-JSON ein, das von GalleryPack bereitgestellt wurde.",
   "license_installing": "Installiere…",

@@ -174,7 +174,28 @@ export default function LicensePage() {
           </AdminCard>
 
           <AdminCard title={t('license_install_section')}>
+            <p className="text-muted small mb-3">
+              {t('license_get_from')}{' '}
+              <a href="https://www.gallerypack.app/" target="_blank" rel="noreferrer">gallerypack.app</a>
+            </p>
             <form onSubmit={install}>
+              <div className="mb-3">
+                <label className="form-label small fw-semibold">{t('license_file_label')}</label>
+                <input
+                  type="file"
+                  className="form-control form-control-sm"
+                  accept=".license,.json"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = ev => setJson(ev.target.result);
+                    reader.readAsText(file);
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+
               <AdminTextarea
                 label={t('license_json_label')}
                 rows={8}

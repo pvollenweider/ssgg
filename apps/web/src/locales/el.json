@@ -309,6 +309,8 @@
   "license_limit_storage": "Αποθηκευτικός χώρος (GB)",
   "license_limit_collaborators": "Συνεργάτες",
   "license_install_section": "Εγκατάσταση νέας άδειας",
+  "license_get_from": "Αποκτήστε την άδειά σας από",
+  "license_file_label": "Αρχείο άδειας",
   "license_json_label": "JSON άδειας χρήσης",
   "license_json_hint": "Επικολλήστε το υπογεγραμμένο JSON άδειας που παρέχεται από το GalleryPack.",
   "license_installing": "Εγκατάσταση…",
