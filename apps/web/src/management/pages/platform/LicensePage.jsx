@@ -189,24 +189,14 @@ export default function LicensePage() {
                     const file = e.target.files?.[0];
                     if (!file) return;
                     const reader = new FileReader();
-                    reader.onload = ev => setJson(ev.target.result);
+                    reader.onload = ev => setJson(ev.target.result.trim());
                     reader.readAsText(file);
                     e.target.value = '';
                   }}
                 />
               </div>
 
-              <AdminTextarea
-                label={t('license_json_label')}
-                rows={8}
-                value={json}
-                onChange={e => setJson(e.target.value)}
-                placeholder={'{\n  "id": "...",\n  "licensee": { ... },\n  ...\n}'}
-                style={{ fontSize: '0.78rem', fontFamily: 'monospace' }}
-                hint={t('license_json_hint')}
-              />
-
-              <AdminAlert variant="success" message={saved} />
+<AdminAlert variant="success" message={saved} />
               <AdminAlert message={error} />
 
               <AdminButton type="submit" loading={saving} loadingLabel={t('license_installing')} disabled={saving || !json.trim()}>
