@@ -16,9 +16,11 @@ const router = Router();
 
 /** Require a valid session; attach req.user */
 async function requireAuth(req, res, next) {
-  const session = await getSession(req);
-  if (!session) return res.status(401).json({ error: 'Unauthorized' });
-  req.user = session;
+  const token = req.cookies?.session;
+  if (!token) return res.status(401).json({ error: 'Unauthorized' });
+  const session = await getSession(token);
+  if (!session) return res.status(401).json({ error: 'Session expired' });
+  req.user = { ...session, id: session.user_id };
   next();
 }
 
