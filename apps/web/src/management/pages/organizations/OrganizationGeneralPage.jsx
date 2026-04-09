@@ -37,6 +37,7 @@ export default function OrganizationGeneralPage() {
   const [identityErr, setIdentityErr] = useState('');
   const [defaults,    setDefaults]    = useState({ defaultAccess: 'public', defaultDownloadMode: 'display', defaultPwa: false, defaultPwaThemeColor: '#000000', defaultPwaBgColor: '#000000' });
   const [defaultsErr, setDefaultsErr] = useState('');
+  const [rebuilding,  setRebuilding]  = useState(false);
   const [toast,       setToast]       = useState('');
 
   // Ref so blur handlers always read the latest state, avoiding stale-closure saves
@@ -73,6 +74,16 @@ export default function OrganizationGeneralPage() {
       await api.saveSettings(patch);
       setToast(t('changes_saved'));
     } catch (err) { setDefaultsErr(err.message); }
+  }
+
+  async function rebuildAll() {
+    if (!confirm(t('rebuild_all_confirm'))) return;
+    setRebuilding(true);
+    try {
+      const r = await api.buildAllOrgGalleries(orgId);
+      setToast(t('build_all_queued_of', { queued: r.queued, total: r.total }));
+    } catch (err) { setDefaultsErr(err.message); }
+    finally { setRebuilding(false); }
   }
 
   // Always reads from ref to avoid stale closures
@@ -235,6 +246,15 @@ export default function OrganizationGeneralPage() {
             </div>
           </AdminCard>
           <AdminAlert message={defaultsErr} />
+
+          {/* Rebuild all */}
+          <AdminCard title={t('rebuild_all_title')}>
+            <p className="text-muted mb-3" style={{ fontSize: '0.875rem' }}>{t('rebuild_all_hint')}</p>
+            <AdminButton variant="warning" onClick={rebuildAll} disabled={rebuilding}>
+              <i className="fas fa-hammer me-2" />
+              {rebuilding ? t('rebuild_all_running') : t('rebuild_all_btn')}
+            </AdminButton>
+          </AdminCard>
 
         </div>
       </div>
