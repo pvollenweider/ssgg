@@ -63,6 +63,9 @@ function galleryToProjectConfig(g) {
   proj.allowDownloadGallery = policy.allowDownloadGallery;
   try {
     const cfg = JSON.parse(g.config_json || '{}');
+    if (cfg.pwa)             proj.pwa             = true;
+    if (cfg.pwaThemeColor)   proj.pwaThemeColor   = cfg.pwaThemeColor;
+    if (cfg.pwaBgColor)      proj.pwaBgColor      = cfg.pwaBgColor;
     if (policy.watermarkEnabled) {
       // Watermark text: explicit config > primary photographer > guest photographer
       // > photo-level photographer > gallery author. No title fallback — no name = no watermark.

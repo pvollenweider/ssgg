@@ -125,7 +125,11 @@ function rowToGallery(row, { dateRange = null } = {}) {
     needsRebuild:         row.needs_rebuild === 1 || getNeedsRebuild(row),
     photoCount:           getPhotoCount(row.slug),
     diskSize:             getDiskSize(row.slug),
-    watermark:            (() => { try { return JSON.parse(row.config_json || '{}').watermark ?? null; } catch { return null; } })(),
+    watermark:            (() => { try { const c = JSON.parse(row.config_json || '{}'); return c.watermark ?? null; } catch { return null; } })(),
+    pwa:                  (() => { try { const c = JSON.parse(row.config_json || '{}'); return !!c.pwa; } catch { return false; } })(),
+    pwaThemeColor:        (() => { try { const c = JSON.parse(row.config_json || '{}'); return c.pwaThemeColor || '#000000'; } catch { return '#000000'; } })(),
+    pwaBgColor:           (() => { try { const c = JSON.parse(row.config_json || '{}'); return c.pwaBgColor  || '#000000'; } catch { return '#000000'; } })(),
+    configJson:           (() => { try { return JSON.parse(row.config_json || '{}'); } catch { return {}; } })(),
     mode:                 row.gallery_mode ?? null,
     policy:               resolveGalleryPolicy(row),
   };
