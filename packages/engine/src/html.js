@@ -470,7 +470,7 @@ export function collectBuiltGalleries() {
  * @param {string} [VERSION]  - GalleryPack version string for footer credit.
  * @returns {{ html: string, dataJs: string, galleryJs: string }}
  */
-export function buildHTML(cfg, photos, fontCss = '', standalone = false, customLegal = {}, distName = '', VERSION = '0.0.0', baseUrl = '') {
+export function buildHTML(cfg, photos, fontCss = '', standalone = false, customLegal = {}, distName = '', VERSION = '0.0.0', baseUrl = '', pwaHead = '') {
   const { project } = cfg;
   // Asset path prefix: standalone galleries embed vendor/fonts locally;
   // shared galleries reference the common dist/vendor/ and dist/fonts/ dirs.
@@ -1165,6 +1165,7 @@ body.sw-idle.glightbox-open{cursor:none}
 #legal-body a:hover{text-decoration:underline}
 #legal-body hr{border:none;border-top:1px solid rgba(255,255,255,.08);margin:22px 0}
 </style>
+${pwaHead}
 </head>
 <body>
 

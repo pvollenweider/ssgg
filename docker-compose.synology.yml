@@ -1,0 +1,134 @@
+name: gallerypack
+
+# ─────────────────────────────────────────────────────────────────────────────
+# GalleryPack — Docker Compose for Synology NAS (Container Manager)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# REQUIREMENTS
+#   - DSM 7.2+ with Container Manager installed
+#   - SSH access to the NAS
+#   - Pre-built images pushed to a registry (Docker Hub or ghcr.io)
+#     Build on your dev machine:
+#       docker build -f Dockerfile.api    -t yourname/gallerypack-api:latest .
+#       docker build -f Dockerfile.worker -t yourname/gallerypack-worker:latest .
+#       docker push yourname/gallerypack-api:latest
+#       docker push yourname/gallerypack-worker:latest
+#
+# SETUP
+#   1. Copy this file + Caddyfile + .env.example to your NAS:
+#        /volume1/docker/gallerypack/
+#   2. Rename .env.example to .env and fill in the required values
+#   3. Create data directories:
+#        mkdir -p /volume1/docker/gallerypack/data/{private,public,internal,app}
+#   4. Run: docker compose -f docker-compose.synology.yml up -d
+#
+# PORT CONFLICT WITH DSM
+#   DSM uses ports 80 and 443 by default. If that is the case, either:
+#     a) Change DSM HTTP/HTTPS ports in Control Panel > Login Portal > DSM
+#     b) Use the DSM Reverse Proxy (Control Panel > Login Portal > Advanced)
+#        to forward your domain to localhost:8880, and change the proxy
+#        service ports below to "8880:80".
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  db:
+    image: mariadb:11
+    restart: unless-stopped
+    volumes:
+      - db_data:/var/lib/mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: "${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is required}"
+      MYSQL_DATABASE:      "${DB_NAME:-gallerypack}"
+      MYSQL_USER:          "${DB_USER:-gallerypack}"
+      MYSQL_PASSWORD:      "${DB_PASS:?DB_PASS is required}"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api:
+    image: pvollenweider/gallerypack-api:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./data/private:/srv/gallerypack/private
+      - ./data/public:/srv/gallerypack/public
+      - ./data/internal:/srv/gallerypack/internal
+      - ./data/app:/app/data
+    env_file: .env
+    environment:
+      PORT:             "4000"
+      NODE_ENV:         "production"
+      DB_HOST:          "db"
+      DB_PORT:          "3306"
+      REDIS_URL:        "redis://redis:6379"
+      # Lower concurrency to suit typical NAS hardware (adjust as needed)
+      THUMB_CONCURRENCY:        "${THUMB_CONCURRENCY:-2}"
+      PRERENDER_CONCURRENCY:    "${PRERENDER_CONCURRENCY:-1}"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  worker:
+    image: pvollenweider/gallerypack-worker:latest
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    volumes:
+      - ./data/private:/srv/gallerypack/private
+      - ./data/public:/srv/gallerypack/public
+      - ./data/internal:/srv/gallerypack/internal
+    env_file: .env
+    environment:
+      NODE_ENV: "production"
+      DB_HOST:  "db"
+      DB_PORT:  "3306"
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    # Default: bind to 80/443. Change to "8880:80" / "8843:443" if DSM
+    # already occupies those ports, then configure DSM Reverse Proxy to
+    # forward your domain to localhost:8880.
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      BASE_DOMAIN: "${BASE_DOMAIN:-localhost}"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./data/public:/srv/gallerypack/public:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+volumes:
+  db_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
