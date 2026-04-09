@@ -866,5 +866,14 @@
   "build_gallery": "Gallery",
   "build_duration": "Duration",
   "build_back_to_gallery": "Back to gallery",
-  "build_view_gallery": "View gallery"
+  "build_view_gallery": "View gallery",
+  "admin_token_title": "Tokens API",
+  "admin_token_hint": "Δημιουργήστε tokens για την ενεργοποίηση ενεργειών (π.χ. ανακατασκευή) από scripts ή κινητές συντομεύσεις, χωρίς συνεδρία προγράμματος περιήγησης.",
+  "admin_token_name_placeholder": "Όνομα token (π.χ. Συντόμευση iOS)",
+  "admin_token_create": "Δημιουργία",
+  "admin_token_copy": "Αντιγραφή",
+  "admin_token_revoke": "Ανάκληση",
+  "admin_token_col_name": "Όνομα",
+  "admin_token_col_prefix": "Token",
+  "admin_token_col_last_used": "Τελευταία χρήση"
 }

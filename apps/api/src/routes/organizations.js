@@ -44,6 +44,7 @@ import { query } from '../db/database.js';
 import { prerenderRoot, prerenderOrg } from '../services/prerender.js';
 import { computeInsights } from '../services/photoInsights.js';
 import { photoThumbnails } from '../services/thumbnailService.js';
+import { validateToken, tokenCoversOrg } from '../services/personalTokenService.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -369,13 +370,25 @@ router.delete('/:id/domains/:domain', async (req, res) => {
 });
 
 // POST /api/organizations/:id/rebuild-all — queue rebuild jobs for every gallery in the org
+// Accepts session auth (cookie) OR Bearer token with org scope.
 router.post('/:id/rebuild-all', async (req, res) => {
+  // Bearer token auth path (for iOS Shortcuts and automation)
+  const authHeader = req.headers['authorization'] || '';
+  if (authHeader.startsWith('Bearer ')) {
+    const raw   = authHeader.slice(7).trim();
+    const token = await validateToken(raw);
+    if (!token) return res.status(401).json({ error: 'Invalid or expired token' });
+    if (!tokenCoversOrg(token, req.params.id)) return res.status(403).json({ error: 'Token does not cover this organization' });
+    req.userId = token.userId;
+    req.user   = { id: token.userId };
+  } else {
+    const callerRole = isSuperadmin(req) ? 'owner' : (await getOrgRole(req.userId, req.params.id));
+    if (!['admin', 'owner'].includes(callerRole)) {
+      return res.status(403).json({ error: 'Requires admin role or higher' });
+    }
+  }
   const org = await loadOrg(req, res);
   if (!org) return;
-  const callerRole = isSuperadmin(req) ? 'owner' : (await getOrgRole(req.userId, org.id));
-  if (!['admin', 'owner'].includes(callerRole)) {
-    return res.status(403).json({ error: 'Requires admin role or higher' });
-  }
 
   const [rows] = await query(
     "SELECT id FROM galleries WHERE organization_id = ?",

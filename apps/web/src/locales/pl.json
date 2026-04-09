@@ -866,5 +866,14 @@
   "build_gallery": "Gallery",
   "build_duration": "Duration",
   "build_back_to_gallery": "Back to gallery",
-  "build_view_gallery": "View gallery"
+  "build_view_gallery": "View gallery",
+  "admin_token_title": "Tokeny API",
+  "admin_token_hint": "Twórz tokeny do wyzwalania akcji (np. przebudowy) ze skryptów lub skrótów mobilnych, bez sesji przeglądarki.",
+  "admin_token_name_placeholder": "Nazwa tokena (np. Skrót iOS)",
+  "admin_token_create": "Utwórz",
+  "admin_token_copy": "Kopiuj",
+  "admin_token_revoke": "Unieważnij",
+  "admin_token_col_name": "Nazwa",
+  "admin_token_col_prefix": "Token",
+  "admin_token_col_last_used": "Ostatnie użycie"
 }

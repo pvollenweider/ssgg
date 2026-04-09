@@ -866,5 +866,14 @@
   "build_gallery": "Gallery",
   "build_duration": "Duration",
   "build_back_to_gallery": "Back to gallery",
-  "build_view_gallery": "View gallery"
+  "build_view_gallery": "View gallery",
+  "admin_token_title": "API токени",
+  "admin_token_hint": "Створюйте токени для запуску дій (наприклад, перебудови) зі скриптів або мобільних ярликів, без сесії браузера.",
+  "admin_token_name_placeholder": "Назва токена (напр. Ярлик iOS)",
+  "admin_token_create": "Створити",
+  "admin_token_copy": "Копіювати",
+  "admin_token_revoke": "Відкликати",
+  "admin_token_col_name": "Назва",
+  "admin_token_col_prefix": "Токен",
+  "admin_token_col_last_used": "Останнє використання"
 }

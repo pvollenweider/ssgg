@@ -866,5 +866,14 @@
   "build_gallery": "Gallery",
   "build_duration": "Duration",
   "build_back_to_gallery": "Back to gallery",
-  "build_view_gallery": "View gallery"
+  "build_view_gallery": "View gallery",
+  "admin_token_title": "API-tokens",
+  "admin_token_hint": "Opret tokens til at udløse handlinger (f.eks. genopbygning) fra scripts eller mobil-genveje, uden browsersession.",
+  "admin_token_name_placeholder": "Tokennavn (f.eks. iOS-genvej)",
+  "admin_token_create": "Opret",
+  "admin_token_copy": "Kopiér",
+  "admin_token_revoke": "Tilbagekald",
+  "admin_token_col_name": "Navn",
+  "admin_token_col_prefix": "Token",
+  "admin_token_col_last_used": "Sidst brugt"
 }

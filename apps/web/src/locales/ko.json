@@ -866,5 +866,14 @@
   "build_gallery": "Gallery",
   "build_duration": "Duration",
   "build_back_to_gallery": "Back to gallery",
-  "build_view_gallery": "View gallery"
+  "build_view_gallery": "View gallery",
+  "admin_token_title": "API 토큰",
+  "admin_token_hint": "브라우저 세션 없이 스크립트나 모바일 바로가기에서 작업(예: 재빌드)을 트리거하는 토큰을 만드세요.",
+  "admin_token_name_placeholder": "토큰 이름 (예: iOS 바로가기)",
+  "admin_token_create": "생성",
+  "admin_token_copy": "복사",
+  "admin_token_revoke": "취소",
+  "admin_token_col_name": "이름",
+  "admin_token_col_prefix": "토큰",
+  "admin_token_col_last_used": "마지막 사용"
 }

@@ -866,5 +866,14 @@
   "build_gallery": "Gallery",
   "build_duration": "Duration",
   "build_back_to_gallery": "Back to gallery",
-  "build_view_gallery": "View gallery"
+  "build_view_gallery": "View gallery",
+  "admin_token_title": "API-tokens",
+  "admin_token_hint": "Skapa tokens för att utlösa åtgärder (t.ex. återbygga) från skript eller mobila genvägar, utan webbläsarsession.",
+  "admin_token_name_placeholder": "Tokennamn (t.ex. iOS-genväg)",
+  "admin_token_create": "Skapa",
+  "admin_token_copy": "Kopiera",
+  "admin_token_revoke": "Återkalla",
+  "admin_token_col_name": "Namn",
+  "admin_token_col_prefix": "Token",
+  "admin_token_col_last_used": "Senast använd"
 }

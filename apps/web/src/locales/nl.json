@@ -866,5 +866,14 @@
   "build_gallery": "Gallery",
   "build_duration": "Duration",
   "build_back_to_gallery": "Back to gallery",
-  "build_view_gallery": "View gallery"
+  "build_view_gallery": "View gallery",
+  "admin_token_title": "API-tokens",
+  "admin_token_hint": "Maak tokens aan om acties te triggeren (bijv. herbouwen) vanuit scripts of mobiele snelkoppelingen, zonder browsersessie.",
+  "admin_token_name_placeholder": "Tokennaam (bijv. iOS-snelkoppeling)",
+  "admin_token_create": "Aanmaken",
+  "admin_token_copy": "Kopiëren",
+  "admin_token_revoke": "Intrekken",
+  "admin_token_col_name": "Naam",
+  "admin_token_col_prefix": "Token",
+  "admin_token_col_last_used": "Laatst gebruikt"
 }

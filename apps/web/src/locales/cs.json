@@ -866,5 +866,14 @@
   "build_gallery": "Gallery",
   "build_duration": "Duration",
   "build_back_to_gallery": "Back to gallery",
-  "build_view_gallery": "View gallery"
+  "build_view_gallery": "View gallery",
+  "admin_token_title": "API tokeny",
+  "admin_token_hint": "Vytvořte tokeny pro spouštění akcí (např. přestavba) ze skriptů nebo mobilních zkratek, bez relace prohlížeče.",
+  "admin_token_name_placeholder": "Název tokenu (např. Zkratka iOS)",
+  "admin_token_create": "Vytvořit",
+  "admin_token_copy": "Kopírovat",
+  "admin_token_revoke": "Zrušit",
+  "admin_token_col_name": "Název",
+  "admin_token_col_prefix": "Token",
+  "admin_token_col_last_used": "Naposledy použit"
 }

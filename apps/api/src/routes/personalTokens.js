@@ -39,8 +39,8 @@ router.post('/', requireAuth, async (req, res) => {
   if (!name || typeof name !== 'string' || name.trim().length < 1) {
     return res.status(400).json({ error: 'name is required' });
   }
-  if (!['gallery', 'project'].includes(scopeType)) {
-    return res.status(400).json({ error: 'scopeType must be "gallery" or "project"' });
+  if (!['gallery', 'project', 'org'].includes(scopeType)) {
+    return res.status(400).json({ error: 'scopeType must be "gallery", "project", or "org"' });
   }
   if (!scopeId || typeof scopeId !== 'string') {
     return res.status(400).json({ error: 'scopeId is required' });

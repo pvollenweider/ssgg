@@ -110,6 +110,14 @@ export async function validateToken(raw) {
 }
 
 /**
+ * Check that a validated token's scope covers the requested organization (admin actions).
+ * @returns {boolean}
+ */
+export function tokenCoversOrg(token, orgId) {
+  return token.scopeType === 'org' && token.scopeId === orgId;
+}
+
+/**
  * Check that a validated token's scope covers the requested gallery.
  * For gallery-scoped tokens: scope_id must equal galleryId.
  * For project-scoped tokens: the gallery must belong to the project.

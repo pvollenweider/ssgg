@@ -866,5 +866,14 @@
   "build_gallery": "Gallery",
   "build_duration": "Duration",
   "build_back_to_gallery": "Back to gallery",
-  "build_view_gallery": "View gallery"
+  "build_view_gallery": "View gallery",
+  "admin_token_title": "API Tokenleri",
+  "admin_token_hint": "Tarayıcı oturumu olmadan betiklerden veya mobil kısayollardan eylem tetiklemek (örn. yeniden oluşturma) için tokenler oluşturun.",
+  "admin_token_name_placeholder": "Token adı (örn. iOS Kısayolu)",
+  "admin_token_create": "Oluştur",
+  "admin_token_copy": "Kopyala",
+  "admin_token_revoke": "İptal Et",
+  "admin_token_col_name": "Ad",
+  "admin_token_col_prefix": "Token",
+  "admin_token_col_last_used": "Son Kullanım"
 }

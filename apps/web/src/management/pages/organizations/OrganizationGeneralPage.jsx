@@ -39,6 +39,10 @@ export default function OrganizationGeneralPage() {
   const [defaultsErr, setDefaultsErr] = useState('');
   const [rebuilding,  setRebuilding]  = useState(false);
   const [toast,       setToast]       = useState('');
+  const [adminTokens,    setAdminTokens]    = useState([]);
+  const [newTokenName,   setNewTokenName]   = useState('');
+  const [creatingToken,  setCreatingToken]  = useState(false);
+  const [newTokenRaw,    setNewTokenRaw]    = useState(null); // shown once after creation
 
   // Ref so blur handlers always read the latest state, avoiding stale-closure saves
   const identityRef = useRef(identity);
@@ -57,7 +61,34 @@ export default function OrganizationGeneralPage() {
         defaultPwaBgColor:    s?.defaultPwaBgColor    || '#000000',
       });
     }).catch(() => {});
+    loadAdminTokens();
   }, [orgId]);
+
+  async function loadAdminTokens() {
+    try {
+      const { tokens } = await api.listTokens();
+      setAdminTokens((tokens || []).filter(tk => tk.scopeType === 'org' && tk.scopeId === orgId && !tk.revokedAt));
+    } catch { /* ignore */ }
+  }
+
+  async function createAdminToken() {
+    if (!newTokenName.trim()) return;
+    setCreatingToken(true);
+    try {
+      const result = await api.createToken({ name: newTokenName.trim(), scopeType: 'org', scopeId: orgId });
+      setNewTokenRaw(result.raw);
+      setNewTokenName('');
+      await loadAdminTokens();
+    } catch (err) { setDefaultsErr(err.message); }
+    finally { setCreatingToken(false); }
+  }
+
+  async function revokeAdminToken(tokenId) {
+    try {
+      await api.revokeToken(tokenId);
+      setAdminTokens(ts => ts.filter(t => t.id !== tokenId));
+    } catch (err) { setDefaultsErr(err.message); }
+  }
 
   async function saveIdentity(patch) {
     if (!patch.name) return; // never save with an empty name
@@ -254,6 +285,68 @@ export default function OrganizationGeneralPage() {
               <i className="fas fa-hammer me-2" />
               {rebuilding ? t('rebuild_all_running') : t('rebuild_all_btn')}
             </AdminButton>
+          </AdminCard>
+
+          {/* Admin API tokens */}
+          <AdminCard title={t('admin_token_title')}>
+            <p className="text-muted mb-3" style={{ fontSize: '0.875rem' }}>{t('admin_token_hint')}</p>
+
+            {newTokenRaw && (
+              <div className="alert alert-success d-flex align-items-center gap-2 mb-3" role="alert">
+                <code style={{ flex: 1, wordBreak: 'break-all', fontSize: '0.82rem' }}>{newTokenRaw}</code>
+                <button type="button" className="btn btn-sm btn-outline-success text-nowrap"
+                  onClick={() => { navigator.clipboard.writeText(newTokenRaw); }}>
+                  <i className="fas fa-copy me-1" />{t('admin_token_copy')}
+                </button>
+                <button type="button" className="btn-close" aria-label="Close"
+                  onClick={() => setNewTokenRaw(null)} />
+              </div>
+            )}
+
+            <div className="d-flex gap-2 mb-3">
+              <input
+                type="text"
+                className="form-control form-control-sm"
+                placeholder={t('admin_token_name_placeholder')}
+                value={newTokenName}
+                onChange={e => setNewTokenName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') createAdminToken(); }}
+                style={{ maxWidth: 260 }}
+              />
+              <AdminButton size="sm" onClick={createAdminToken} disabled={creatingToken || !newTokenName.trim()}>
+                <i className="fas fa-plus me-1" />{t('admin_token_create')}
+              </AdminButton>
+            </div>
+
+            {adminTokens.length > 0 && (
+              <table className="table table-sm mb-0">
+                <thead>
+                  <tr>
+                    <th style={{ fontSize: '0.8rem' }}>{t('admin_token_col_name')}</th>
+                    <th style={{ fontSize: '0.8rem' }}>{t('admin_token_col_prefix')}</th>
+                    <th style={{ fontSize: '0.8rem' }}>{t('admin_token_col_last_used')}</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {adminTokens.map(tk => (
+                    <tr key={tk.id}>
+                      <td style={{ fontSize: '0.85rem' }}>{tk.name}</td>
+                      <td><code style={{ fontSize: '0.8rem' }}>gp_{tk.prefix}…</code></td>
+                      <td style={{ fontSize: '0.8rem', color: '#888' }}>
+                        {tk.lastUsedAt ? new Date(tk.lastUsedAt).toLocaleDateString() : '—'}
+                      </td>
+                      <td className="text-end">
+                        <button className="btn btn-sm btn-outline-danger"
+                          onClick={() => revokeAdminToken(tk.id)}>
+                          {t('admin_token_revoke')}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </AdminCard>
 
         </div>

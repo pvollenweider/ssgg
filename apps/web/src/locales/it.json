@@ -866,5 +866,14 @@
   "build_gallery": "Gallery",
   "build_duration": "Duration",
   "build_back_to_gallery": "Back to gallery",
-  "build_view_gallery": "View gallery"
+  "build_view_gallery": "View gallery",
+  "admin_token_title": "Token API",
+  "admin_token_hint": "Crea token per attivare azioni (es. ricostruzione) da script o scorciatoie mobile, senza sessione browser.",
+  "admin_token_name_placeholder": "Nome del token (es. Scorciatoia iOS)",
+  "admin_token_create": "Crea",
+  "admin_token_copy": "Copia",
+  "admin_token_revoke": "Revoca",
+  "admin_token_col_name": "Nome",
+  "admin_token_col_prefix": "Token",
+  "admin_token_col_last_used": "Ultimo utilizzo"
 }
