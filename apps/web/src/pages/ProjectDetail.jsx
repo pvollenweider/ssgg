@@ -40,12 +40,16 @@ export default function ProjectDetail() {
   const [slugTouched, setSlugTouched] = useState(false);
 
   // Project settings panel
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [editName,     setEditName]     = useState('');
-  const [editSlug,     setEditSlug]     = useState('');
-  const [slugConfirm,  setSlugConfirm]  = useState('');
-  const [saving,       setSaving]       = useState(false);
-  const [slugSaving,   setSlugSaving]   = useState(false);
+  const [settingsOpen,      setSettingsOpen]      = useState(false);
+  const [editName,          setEditName]          = useState('');
+  const [editSlug,          setEditSlug]          = useState('');
+  const [slugConfirm,       setSlugConfirm]       = useState('');
+  const [saving,            setSaving]            = useState(false);
+  const [slugSaving,        setSlugSaving]        = useState(false);
+  const [pwaDefault,        setPwaDefault]        = useState(false);
+  const [pwaThemeColor,     setPwaThemeColor]     = useState('#000000');
+  const [pwaBgColor,        setPwaBgColor]        = useState('#000000');
+  const [pwaSaving,         setPwaSaving]         = useState(false);
 
   useEffect(() => { load(); }, [id]);
 
@@ -60,6 +64,9 @@ export default function ProjectDetail() {
       setGalleries(g);
       setEditName(p.name || '');
       setEditSlug(p.slug || '');
+      setPwaDefault(!!p.pwaDefault);
+      setPwaThemeColor(p.pwaThemeColorDefault || '#000000');
+      setPwaBgColor(p.pwaBgColorDefault || '#000000');
     } catch (e) { setToast(e.message); }
     finally { setLoading(false); }
   }
@@ -94,6 +101,17 @@ export default function ProjectDetail() {
       await api.deleteGallery(galleryId);
       setGalleries(gs => gs.filter(g => g.id !== galleryId));
     } catch (e) { setToast(e.message); }
+  }
+
+  async function handlePwaSave(e) {
+    e.preventDefault();
+    setPwaSaving(true);
+    try {
+      const updated = await api.updateProject(id, { pwaDefault, pwaThemeColorDefault: pwaThemeColor, pwaBgColorDefault: pwaBgColor });
+      setProject(updated);
+      setToast(t('project_saved'));
+    } catch (err) { setToast(err.message); }
+    finally { setPwaSaving(false); }
   }
 
   async function handleRenameName(e) {
@@ -231,6 +249,38 @@ export default function ProjectDetail() {
                             {slugSaving ? t('saving') : t('rename')}
                           </button>
                         </div>
+                      </div>
+                    </form>
+                  </div>
+                  <div className="col-md-6">
+                    <form onSubmit={handlePwaSave}>
+                      <div className="mb-3">
+                        <label className="text-muted text-uppercase" style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em' }}>
+                          {t('field_pwa')}
+                        </label>
+                        <div className="d-flex align-items-center gap-2 mb-2">
+                          <div className="form-check form-switch mb-0">
+                            <input type="checkbox" className="form-check-input" id="projPwa"
+                              checked={pwaDefault} onChange={e => setPwaDefault(e.target.checked)} />
+                            <label className="form-check-label" htmlFor="projPwa"></label>
+                          </div>
+                          <span style={{ fontSize: '0.78rem', color: '#999' }}>{t('field_pwa_hint')}</span>
+                        </div>
+                        {pwaDefault && (
+                          <div className="d-flex gap-3 mb-2">
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.82rem', color: '#555' }}>
+                              {t('field_pwa_theme_color')}
+                              <input type="color" value={pwaThemeColor} onChange={e => setPwaThemeColor(e.target.value)} style={{ width: 48, height: 32, border: 'none', cursor: 'pointer' }} />
+                            </label>
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.82rem', color: '#555' }}>
+                              {t('field_pwa_bg_color')}
+                              <input type="color" value={pwaBgColor} onChange={e => setPwaBgColor(e.target.value)} style={{ width: 48, height: 32, border: 'none', cursor: 'pointer' }} />
+                            </label>
+                          </div>
+                        )}
+                        <button className="btn btn-primary btn-sm" type="submit" disabled={pwaSaving}>
+                          {pwaSaving ? t('saving') : t('save')}
+                        </button>
                       </div>
                     </form>
                   </div>

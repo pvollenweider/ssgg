@@ -63,9 +63,10 @@ function galleryToProjectConfig(g) {
   proj.allowDownloadGallery = policy.allowDownloadGallery;
   try {
     const cfg = JSON.parse(g.config_json || '{}');
-    if (cfg.pwa)             proj.pwa             = true;
-    if (cfg.pwaThemeColor)   proj.pwaThemeColor   = cfg.pwaThemeColor;
-    if (cfg.pwaBgColor)      proj.pwaBgColor      = cfg.pwaBgColor;
+    // PWA cascade: gallery config_json → project default → org default → off
+    proj.pwa           = cfg.pwa           ?? !!g.project_pwa_default;
+    proj.pwaThemeColor = cfg.pwaThemeColor ?? g.project_pwa_theme_color_default ?? '#000000';
+    proj.pwaBgColor    = cfg.pwaBgColor    ?? g.project_pwa_bg_color_default    ?? '#000000';
     if (policy.watermarkEnabled) {
       // Watermark text: explicit config > primary photographer > guest photographer
       // > photo-level photographer > gallery author. No title fallback — no name = no watermark.
@@ -95,6 +96,9 @@ export async function runJob(jobId) {
 
   const [galleryRows] = await query(`
     SELECT g.*, p.slug AS project_slug, p.name AS project_name,
+           p.pwa_default AS project_pwa_default,
+           p.pwa_theme_color_default AS project_pwa_theme_color_default,
+           p.pwa_bg_color_default    AS project_pwa_bg_color_default,
            u.name  AS primary_photographer_name,
            (SELECT name FROM photographers WHERE gallery_id = g.id ORDER BY created_at ASC LIMIT 1)
                    AS guest_photographer_name,
@@ -205,6 +209,12 @@ export async function runJob(jobId) {
     // For public galleries in a project, build to {project-slug}/{gallery-slug}/
     // Private galleries keep their hash-based distName for security.
     const galCfg = galleryToProjectConfig(gallery);
+    // Org-level PWA fallback (lowest priority in the cascade)
+    if (!galCfg.pwa && settings?.default_pwa) {
+      galCfg.pwa           = true;
+      galCfg.pwaThemeColor = galCfg.pwaThemeColor !== '#000000' ? galCfg.pwaThemeColor : (settings.default_pwa_theme_color || '#000000');
+      galCfg.pwaBgColor    = galCfg.pwaBgColor    !== '#000000' ? galCfg.pwaBgColor    : (settings.default_pwa_bg_color    || '#000000');
+    }
     const distNameOverride = (gallery.project_slug && gallery.access !== 'password' && galCfg.private !== true)
       ? `${gallery.project_slug}/${gallery.slug}`
       : undefined;

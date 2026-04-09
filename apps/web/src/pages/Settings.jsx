@@ -105,6 +105,7 @@ export default function Settings() {
     defaultLocale: 'fr', defaultAccess: 'public',
     defaultAllowDownloadImage: true, defaultAllowDownloadGallery: false, defaultPrivate: false,
     defaultStandalone: false,
+    defaultPwa: false, defaultPwaThemeColor: '#000000', defaultPwaBgColor: '#000000',
     smtpHost: '', smtpPort: 587, smtpUser: '', smtpPass: '', smtpFrom: '', smtpSecure: false,
   });
   const [smtpPassSet, setSmtpPassSet] = useState(false);
@@ -162,6 +163,9 @@ export default function Settings() {
         defaultAllowDownloadGallery: !!s.defaultAllowDownloadGallery,
         defaultPrivate:              !!s.defaultPrivate,
         defaultStandalone:           !!s.defaultStandalone,
+        defaultPwa:                  !!s.defaultPwa,
+        defaultPwaThemeColor:        s.defaultPwaThemeColor || '#000000',
+        defaultPwaBgColor:           s.defaultPwaBgColor    || '#000000',
         smtpHost:    s.smtpHost    || '',
         smtpPort:    s.smtpPort    || 587,
         smtpUser:    s.smtpUser    || '',
@@ -631,6 +635,26 @@ export default function Settings() {
                       </div>
                     </FormRow>
                     <p className="text-muted mb-0" style={{ fontSize: '0.8rem', marginLeft: 216 }}>{t('field_standalone_hint')}</p>
+                    <FormRow label={t('field_pwa')}>
+                      <div className="form-check form-switch">
+                        <input type="checkbox" className="form-check-input" id="defPwa"
+                          checked={form.defaultPwa} onChange={set('defaultPwa')} />
+                        <label className="form-check-label" htmlFor="defPwa"></label>
+                      </div>
+                    </FormRow>
+                    {form.defaultPwa && (
+                      <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.75rem', marginLeft: 216 }}>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.82rem', color: '#555' }}>
+                          {t('field_pwa_theme_color')}
+                          <input type="color" value={form.defaultPwaThemeColor} onChange={e => setForm(f => ({ ...f, defaultPwaThemeColor: e.target.value }))} style={{ width: 48, height: 32, border: 'none', cursor: 'pointer' }} />
+                        </label>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', fontSize: '0.82rem', color: '#555' }}>
+                          {t('field_pwa_bg_color')}
+                          <input type="color" value={form.defaultPwaBgColor} onChange={e => setForm(f => ({ ...f, defaultPwaBgColor: e.target.value }))} style={{ width: 48, height: 32, border: 'none', cursor: 'pointer' }} />
+                        </label>
+                      </div>
+                    )}
+                    <p className="text-muted mb-0" style={{ fontSize: '0.8rem', marginLeft: 216 }}>{t('field_pwa_hint')}</p>
                   </div>
                   <div className="card-footer">
                     <button className="btn btn-primary" type="submit" disabled={saving}>
