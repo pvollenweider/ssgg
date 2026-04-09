@@ -238,5 +238,21 @@ export function buildPWAHead(project) {
         .catch(err => console.warn('SW registration failed:', err));
     });
   }
+  // In standalone PWA mode, open external links in Safari so the user can navigate back
+  if (window.navigator.standalone) {
+    document.addEventListener('click', function(e) {
+      var a = e.target.closest('a');
+      if (!a) return;
+      var href = a.getAttribute('href');
+      if (!href) return;
+      // External link: different origin, or mailto/tel
+      var isExternal = /^https?:\/\//i.test(href) && !href.startsWith(window.location.origin);
+      var isScheme   = /^(mailto|tel|sms):/i.test(href);
+      if (isExternal || isScheme) {
+        e.preventDefault();
+        window.open(href, '_blank');
+      }
+    }, true);
+  }
 </script>`.trim();
 }
