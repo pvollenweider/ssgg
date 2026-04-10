@@ -558,8 +558,8 @@ app.get(/^\/([^/]+)\/?$/, async (req, res, next) => {
 
   const orgId = req.organizationId ?? null;
   const [projRows] = orgId
-    ? await query('SELECT id, name, description FROM projects WHERE slug = ? AND organization_id = ? LIMIT 1', [projectSlug, orgId])
-    : await query('SELECT id, name, description FROM projects WHERE slug = ? LIMIT 1', [projectSlug]);
+    ? await query('SELECT id, name, description, standalone_default FROM projects WHERE slug = ? AND organization_id = ? LIMIT 1', [projectSlug, orgId])
+    : await query('SELECT id, name, description, standalone_default FROM projects WHERE slug = ? LIMIT 1', [projectSlug]);
   const project = projRows[0];
   if (!project) return next();
   const projectDescHtml = project.description ? marked.parse(project.description) : '';
@@ -622,7 +622,7 @@ app.get(/^\/([^/]+)\/?$/, async (req, res, next) => {
   const proto2   = req.get('x-forwarded-proto') || req.protocol;
   const baseUrl2 = process.env.BASE_URL || `${proto2}://${req.get('host')}`;
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  res.send(renderProjectListing(projectSlug, project.name, galleries, siteTitle, isLoggedIn, projectDescHtml, orgName, baseUrl2));
+  res.send(renderProjectListing(projectSlug, project.name, galleries, siteTitle, isLoggedIn, projectDescHtml, orgName, baseUrl2, !!project.standalone_default));
 });
 
 

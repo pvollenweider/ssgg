@@ -46,6 +46,7 @@ export default function ProjectDetail() {
   const [slugConfirm,       setSlugConfirm]       = useState('');
   const [saving,            setSaving]            = useState(false);
   const [slugSaving,        setSlugSaving]        = useState(false);
+  const [standaloneDefault, setStandaloneDefault] = useState(false);
   const [pwaThemeColor,     setPwaThemeColor]     = useState('#000000');
   const [pwaBgColor,        setPwaBgColor]        = useState('#000000');
   const [pwaSaving,         setPwaSaving]         = useState(false);
@@ -63,6 +64,7 @@ export default function ProjectDetail() {
       setGalleries(g);
       setEditName(p.name || '');
       setEditSlug(p.slug || '');
+      setStandaloneDefault(!!p.standaloneDefault);
       setPwaThemeColor(p.pwaThemeColorDefault || '#000000');
       setPwaBgColor(p.pwaBgColorDefault || '#000000');
     } catch (e) { setToast(e.message); }
@@ -105,7 +107,7 @@ export default function ProjectDetail() {
     e.preventDefault();
     setPwaSaving(true);
     try {
-      const updated = await api.updateProject(id, { pwaThemeColorDefault: pwaThemeColor, pwaBgColorDefault: pwaBgColor });
+      const updated = await api.updateProject(id, { standaloneDefault, pwaThemeColorDefault: pwaThemeColor, pwaBgColorDefault: pwaBgColor });
       setProject(updated);
       setToast(t('project_saved'));
     } catch (err) { setToast(err.message); }
@@ -252,6 +254,19 @@ export default function ProjectDetail() {
                   </div>
                   <div className="col-md-6">
                     <form onSubmit={handlePwaSave}>
+                      <div className="mb-3">
+                        <label className="text-muted text-uppercase" style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em' }}>
+                          {t('field_standalone')}
+                        </label>
+                        <div className="d-flex align-items-center gap-2 mb-3">
+                          <div className="form-check form-switch mb-0">
+                            <input type="checkbox" className="form-check-input" id="projStandalone"
+                              checked={standaloneDefault} onChange={e => setStandaloneDefault(e.target.checked)} />
+                            <label className="form-check-label" htmlFor="projStandalone"></label>
+                          </div>
+                          <span style={{ fontSize: '0.78rem', color: '#999' }}>{t('field_standalone_hint')}</span>
+                        </div>
+                      </div>
                       <div className="mb-3">
                         <label className="text-muted text-uppercase" style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em' }}>
                           {t('field_pwa')}

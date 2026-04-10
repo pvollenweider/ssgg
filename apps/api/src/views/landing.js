@@ -279,7 +279,7 @@ ${_ogImage ? `<meta name="twitter:image" content="${_ogImage}">` : ''}
 </html>`;
 }
 
-export function renderProjectListing(projectSlug, projectName, galleries, siteTitle = 'GalleryPack', isLoggedIn = false, projectDescHtml = '', orgName = '', baseUrl = '') {
+export function renderProjectListing(projectSlug, projectName, galleries, siteTitle = 'GalleryPack', isLoggedIn = false, projectDescHtml = '', orgName = '', baseUrl = '', standalone = false) {
   const cards = galleries.length === 0
     ? `<p class="empty">Aucune galerie publiée pour l'instant.</p>`
     : galleries.map(g => {
@@ -414,7 +414,7 @@ ${_projOgImage ? `<meta name="twitter:image" content="${_projOgImage}">` : ''}
 </head>
 <body>
   <nav class="bar">
-    <a class="bar-back" href="../">← ${esc(orgName || siteTitle)}</a>
+    ${standalone ? '' : `<a class="bar-back" href="../">← ${esc(orgName || siteTitle)}</a>`}
     <span class="bar-title">${esc(projectName)}</span>
   </nav>
   <main>
@@ -425,9 +425,9 @@ ${_projOgImage ? `<meta name="twitter:image" content="${_projOgImage}">` : ''}
     <div class="hero-divider"></div>
     <div class="grid">${cards}</div>
   </main>
-  <footer class="footer">
+  ${standalone ? '' : `<footer class="footer">
     <a href="../">← ${esc(orgName || siteTitle)}</a>
-  </footer>
+  </footer>`}
 </body>
 </html>`;
 }

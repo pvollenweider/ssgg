@@ -56,7 +56,7 @@ function galleryToProjectConfig(g) {
   // This handles both mode-based galleries and legacy flag-based galleries transparently.
   const policy          = resolveGalleryPolicy(g);
   proj.private          = policy.access !== 'public';
-  proj.standalone       = !!g.standalone;
+  proj.standalone       = !!g.standalone || !!g.project_standalone_default;
   proj.downloadMode     = policy.downloadMode;
   proj.apacheProtection = !!g.apache_protection;
   proj.allowDownloadImage   = policy.allowDownloadImage;
@@ -94,6 +94,7 @@ export async function runJob(jobId) {
 
   const [galleryRows] = await query(`
     SELECT g.*, p.slug AS project_slug, p.name AS project_name,
+           p.standalone_default      AS project_standalone_default,
            p.pwa_theme_color_default AS project_pwa_theme_color_default,
            p.pwa_bg_color_default    AS project_pwa_bg_color_default,
            u.name  AS primary_photographer_name,
