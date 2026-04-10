@@ -722,7 +722,7 @@ export async function createProject(orgId, { slug, name, description = null, vis
 }
 
 export async function updateProject(id, fields) {
-  const allowed = ['slug', 'name', 'description', 'visibility', 'starts_at', 'ends_at', 'status', 'sort_order', 'cover_gallery_id'];
+  const allowed = ['slug', 'name', 'description', 'visibility', 'starts_at', 'ends_at', 'status', 'sort_order', 'cover_gallery_id', 'standalone_default', 'pwa_theme_color_default', 'pwa_bg_color_default'];
   const cols    = Object.keys(fields).filter(k => allowed.includes(k));
   if (!cols.length) return getProject(id);
   const sets = [...cols.map(c => `${c} = ?`), 'updated_at = ?'].join(', ');
