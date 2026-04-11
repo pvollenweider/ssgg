@@ -731,6 +731,7 @@ export default function GalleryPhotosPage() {
                           {/* Cover photo toggle */}
                           <button
                             onClick={e => { e.stopPropagation(); if (gallery?.coverPhoto !== p.file) setCover(p.file); }}
+                            onTouchStart={e => e.stopPropagation()}
                             disabled={settingCover === p.file}
                             title={gallery?.coverPhoto === p.file ? 'Image clé' : 'Définir comme image clé'}
                             style={{
@@ -747,6 +748,7 @@ export default function GalleryPhotosPage() {
                           {/* Delete */}
                           <button
                             onClick={e => { e.stopPropagation(); handleDelete(p.file); }}
+                            onTouchStart={e => e.stopPropagation()}
                             disabled={deleting === p.file}
                             title={t('delete')}
                             style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff', borderRadius: 4, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}
