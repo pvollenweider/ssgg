@@ -13,9 +13,156 @@ import { useAuth } from '../../../lib/auth.jsx';
 import { UploadZone } from '../../../components/UploadZone.jsx';
 import { BuildLog } from '../../../components/BuildLog.jsx';
 import { AdminPage, AdminCard, AdminButton, AdminAlert, AdminToast, AdminBadge } from '../../../components/ui/index.js';
+import {
+  DndContext,
+  closestCenter,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  rectSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const CAN_EDIT_ROLES = ['collaborator', 'admin', 'owner'];
 const STATUS_BADGE   = { done: 'success', error: 'danger', running: 'primary', queued: 'warning' };
+
+// ── Sortable photo card ──────────────────────────────────────────────────────
+
+function SortablePhotoCard({
+  photo,
+  disabled,
+  isSelected,
+  isCover,
+  isDraggedInGroup,
+  photographers,
+  thumbSize,
+  canEdit,
+  deleting,
+  settingCover,
+  t,
+  onToggleSelect,
+  onDelete,
+  onSetCover,
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: photo.file, disabled });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onClick={e => {
+        if (e.target.closest('button')) return;
+        onToggleSelect(e);
+      }}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        position: 'relative',
+        border: `2px solid ${isSelected ? '#3b82f6' : isCover ? '#eab308' : '#dee2e6'}`,
+        borderRadius: 6,
+        overflow: 'hidden',
+        cursor: disabled ? 'default' : 'grab',
+        opacity: isDragging || isDraggedInGroup ? 0.45 : 1,
+        userSelect: 'none',
+        touchAction: disabled ? 'auto' : 'none',
+      }}
+    >
+      {/* Selection indicator */}
+      <div style={{
+        position: 'absolute', top: 4, left: 4, zIndex: 2,
+        width: 18, height: 18, borderRadius: '50%',
+        background: isSelected ? '#3b82f6' : 'rgba(255,255,255,0.8)',
+        border: `2px solid ${isSelected ? '#3b82f6' : '#9ca3af'}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        pointerEvents: 'none',
+      }}>
+        {isSelected && <i className="fas fa-check" style={{ fontSize: '0.5rem', color: '#fff' }} />}
+      </div>
+
+      {(thumbSize === 'lg' ? (photo.thumbnail?.md ?? photo.thumbnail?.sm) : photo.thumbnail?.sm) ? (
+        <img
+          src={thumbSize === 'lg' ? (photo.thumbnail?.md ?? photo.thumbnail?.sm) : photo.thumbnail?.sm}
+          alt={photo.file}
+          style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', display: 'block' }}
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+        />
+      ) : (
+        <div style={{ width: '100%', aspectRatio: '1/1', background: 'linear-gradient(135deg,#e5e7eb,#d1d5db)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <i className="fas fa-image" style={{ fontSize: '1.5rem', color: '#9ca3af' }} />
+        </div>
+      )}
+      <div
+        style={{ padding: '0.25rem 0.4rem 0 0.4rem', fontSize: '0.7rem', color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        title={photo.original_name || photo.file}
+      >
+        {photo.original_name || photo.file}
+      </div>
+      {photo.photographer_id && (
+        <div style={{ padding: '0 0.4rem 0.2rem', fontSize: '0.65rem', color: '#2563eb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <i className="fas fa-camera me-1" style={{ fontSize: '0.6rem' }} />
+          {photographers.find(pg => pg.id === photo.photographer_id)?.name ?? '?'}
+        </div>
+      )}
+      {canEdit && (
+        <>
+          {/* Cover photo toggle */}
+          <button
+            onClick={e => { e.stopPropagation(); onSetCover(); }}
+            onPointerDown={e => e.stopPropagation()}
+            disabled={settingCover === photo.file}
+            title={isCover ? 'Image clé' : 'Définir comme image clé'}
+            style={{
+              position: 'absolute', top: 4, left: 28,
+              background: isCover ? 'rgba(234,179,8,0.9)' : 'rgba(0,0,0,0.55)',
+              border: 'none', color: '#fff', borderRadius: 4, width: 24, height: 24,
+              cursor: isCover ? 'default' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem',
+              touchAction: 'auto',
+            }}
+          >
+            {settingCover === photo.file
+              ? <i className="fas fa-spinner fa-spin" />
+              : <i className="fas fa-star" />}
+          </button>
+          {/* Delete */}
+          <button
+            onClick={e => { e.stopPropagation(); onDelete(); }}
+            onPointerDown={e => e.stopPropagation()}
+            disabled={deleting === photo.file}
+            title={t('delete')}
+            style={{
+              position: 'absolute', top: 4, right: 4,
+              background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff',
+              borderRadius: 4, width: 24, height: 24, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem',
+              touchAction: 'auto',
+            }}
+          >
+            <i className="fas fa-times" />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function GalleryPhotosPage() {
   const t = useT();
@@ -50,22 +197,22 @@ export default function GalleryPhotosPage() {
   // Photographers (for attribution toolbar + card badge)
   const [photographers, setPhotographers] = useState([]);
   const [assigning,     setAssigning]     = useState(false);
-  const [filterPhotographerId, setFilterPhotographerId] = useState(null); // null=all, '__unassigned__', or pg.id
+  const [filterPhotographerId, setFilterPhotographerId] = useState(null);
 
   // Thumbnail size toggle
-  const [thumbSize,     setThumbSize]     = useState('sm'); // 'sm' | 'lg'
+  const [thumbSize, setThumbSize] = useState('sm'); // 'sm' | 'lg'
 
   // Multi-select + drag state
-  const [selected,      setSelected]      = useState(new Set()); // Set<photo.id>
-  const [dragIdx,       setDragIdx]       = useState(null);      // index of dragged card
-  const [dropTargetIdx, setDropTargetIdx] = useState(null);      // index of current drop target (group drag)
-  const isGroupDrag = useRef(false); // true when dragging a selected photo (group move)
-  const touchDragActive  = useRef(false);
-  const photosRef        = useRef([]);
-  const dragIdxRef       = useRef(null);
-  const dropTargetIdxRef = useRef(null);
+  const [selected,     setSelected]     = useState(new Set()); // Set<photo.id>
+  const [activeDragId, setActiveDragId] = useState(null);      // file of card being dragged
 
   const pollRef = useRef(null);
+
+  // dnd-kit sensors — distance constraint lets taps pass through on touch devices
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { distance: 8 } }),
+  );
 
   // Photographers who have at least one photo in this gallery's current list
   const activePhotographers = photographers.filter(pg => photos.some(p => p.photographer_id === pg.id));
@@ -111,42 +258,6 @@ export default function GalleryPhotosPage() {
       .finally(() => setLoading(false));
     return () => { clearInterval(pollRef.current); pollRef.current = null; };
   }, [galleryId]); // eslint-disable-line
-
-  // Keep photosRef in sync for touch drag handlers
-  useEffect(() => { photosRef.current = photos; }, [photos]);
-
-  // Non-passive touchmove to enable drag-reorder on iOS / iPadOS
-  useEffect(() => {
-    function handleTouchMove(e) {
-      if (!touchDragActive.current || dragIdxRef.current === null) return;
-      e.preventDefault();
-      const touch = e.touches[0];
-      const el = document.elementFromPoint(touch.clientX, touch.clientY);
-      if (!el) return;
-      const card = el.closest('[data-photo-idx]');
-      if (!card) return;
-      const targetIdx = parseInt(card.getAttribute('data-photo-idx'), 10);
-      if (isNaN(targetIdx)) return;
-      const currentDragIdx = dragIdxRef.current;
-      if (isGroupDrag.current) {
-        if (targetIdx !== dropTargetIdxRef.current) {
-          setDropTargetIdx(targetIdx);
-          dropTargetIdxRef.current = targetIdx;
-        }
-      } else {
-        if (currentDragIdx === targetIdx) return;
-        const next = [...photosRef.current];
-        const [moved] = next.splice(currentDragIdx, 1);
-        next.splice(targetIdx, 0, moved);
-        setPhotos(next);
-        photosRef.current = next;
-        setDragIdx(targetIdx);
-        dragIdxRef.current = targetIdx;
-      }
-    }
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
-    return () => document.removeEventListener('touchmove', handleTouchMove);
-  }, []); // eslint-disable-line
 
   async function saveOrder(ordered) {
     setReordering(true);
@@ -241,21 +352,18 @@ export default function GalleryPhotosPage() {
 
   function toggleSelect(id, e) {
     if (e?.shiftKey && selected.size > 0) {
-      // Shift+click → range select
       const ids = photos.map(p => p.id);
       const lastSelected = ids.findLast(i => selected.has(i));
       const start = Math.min(ids.indexOf(lastSelected), ids.indexOf(id));
       const end   = Math.max(ids.indexOf(lastSelected), ids.indexOf(id));
       setSelected(new Set([...selected, ...ids.slice(start, end + 1)]));
     } else if (e?.metaKey || e?.ctrlKey) {
-      // Cmd/Ctrl+click → toggle without clearing others
       setSelected(prev => {
         const s = new Set(prev);
         s.has(id) ? s.delete(id) : s.add(id);
         return s;
       });
     } else {
-      // Plain click → select only this one (or deselect if already the only one selected)
       setSelected(prev =>
         prev.size === 1 && prev.has(id) ? new Set() : new Set([id])
       );
@@ -294,76 +402,36 @@ export default function GalleryPhotosPage() {
     await saveOrder(next);
   }
 
-  // ── Drag handlers ───────────────────────────────────────────────────────────
+  // ── dnd-kit drag handlers ───────────────────────────────────────────────────
 
-  function onDragStart(i) {
-    const photo = photos[i];
-    isGroupDrag.current = selected.has(photo.id);
-    setDragIdx(i);
-    setDropTargetIdx(i);
+  function handleDragStart({ active }) {
+    setActiveDragId(active.id);
   }
 
-  function onDragOver(e, i) {
-    e.preventDefault();
-    if (dragIdx === null) return;
+  function handleDragEnd({ active, over }) {
+    setActiveDragId(null);
+    if (!over || active.id === over.id) return;
 
-    if (isGroupDrag.current) {
-      // Group drag: just track drop target, don't live-swap
-      if (i !== dropTargetIdx) setDropTargetIdx(i);
-    } else {
-      // Single drag: live swap (existing behaviour)
-      if (dragIdx === i) return;
-      const next = [...photos];
-      const [moved] = next.splice(dragIdx, 1);
-      next.splice(i, 0, moved);
-      setPhotos(next);
-      setDragIdx(i);
-    }
-  }
+    const activePhoto = photos.find(p => p.file === active.id);
+    if (!activePhoto) return;
 
-  async function onDragEnd() {
-    if (isGroupDrag.current && dropTargetIdx !== null) {
-      // Insert all selected photos at the drop target position
-      const target = dropTargetIdx;
-      const sel    = photos.filter(p => selected.has(p.id));
-      const rest   = photos.filter(p => !selected.has(p.id));
-
-      // Find where the drop target photo ends up in the rest array
-      const targetPhoto = photos[target];
-      let insertAt = rest.findIndex(p => p.id === targetPhoto?.id);
+    let next;
+    if (selected.has(activePhoto.id) && selected.size > 1) {
+      // Group drag: move all selected photos to the drop position
+      const overPhoto = photos.find(p => p.file === over.id);
+      const sel  = photos.filter(p => selected.has(p.id));
+      const rest = photos.filter(p => !selected.has(p.id));
+      let insertAt = rest.findIndex(p => p.id === overPhoto?.id);
       if (insertAt === -1) insertAt = rest.length;
-
-      const next = [...rest.slice(0, insertAt), ...sel, ...rest.slice(insertAt)];
-      setPhotos(next);
-      setDragIdx(null);
-      setDropTargetIdx(null);
-      isGroupDrag.current = false;
-      await saveOrder(next);
+      next = [...rest.slice(0, insertAt), ...sel, ...rest.slice(insertAt)];
     } else {
-      setDragIdx(null);
-      setDropTargetIdx(null);
-      isGroupDrag.current = false;
-      await saveOrder(photos);
+      const oldIndex = photos.findIndex(p => p.file === active.id);
+      const newIndex = photos.findIndex(p => p.file === over.id);
+      next = arrayMove(photos, oldIndex, newIndex);
     }
-  }
 
-  // ── Touch handlers (iOS / iPadOS) ───────────────────────────────────────────
-
-  function onTouchStart(i) {
-    const photo = photosRef.current[i];
-    if (!photo) return;
-    isGroupDrag.current = selected.has(photo.id);
-    dragIdxRef.current = i;
-    dropTargetIdxRef.current = i;
-    setDragIdx(i);
-    setDropTargetIdx(i);
-    touchDragActive.current = true;
-  }
-
-  async function onTouchEnd() {
-    if (!touchDragActive.current) return;
-    touchDragActive.current = false;
-    await onDragEnd();
+    setPhotos(next);
+    saveOrder(next);
   }
 
   // ── Public gallery URL ──────────────────────────────────────────────────────
@@ -396,7 +464,7 @@ export default function GalleryPhotosPage() {
           <AdminButton
             variant="outline-secondary"
             size="sm"
-            icon={`fas fa-calendar-alt`}
+            icon="fas fa-calendar-alt"
             onClick={() => { const next = !dateSortAsc; setDateSortAsc(next); sortPhotosByDate(next ? 'asc' : 'desc'); }}
           >
             {dateSortAsc ? t('gal_photos_sort_date_asc') : t('gal_photos_sort_date_desc')}
@@ -551,13 +619,13 @@ export default function GalleryPhotosPage() {
 
           {/* Upload zone — sticky so it stays visible while scrolling the photo grid */}
           <div style={{ position: 'sticky', top: '0.5rem', zIndex: 20, marginBottom: '1.5rem' }}>
-          <AdminCard title={t('upload_photos')}>
-            <UploadZone
-              galleryId={galleryId}
-              existingPhotos={photos}
-              onDone={() => refreshPhotos().then(p => { if (p.some(x => !x.thumbnail?.sm)) startPolling(); })}
-            />
-          </AdminCard>
+            <AdminCard title={t('upload_photos')}>
+              <UploadZone
+                galleryId={galleryId}
+                existingPhotos={photos}
+                onDone={() => refreshPhotos().then(p => { if (p.some(x => !x.thumbnail?.sm)) startPolling(); })}
+              />
+            </AdminCard>
           </div>
 
           {/* Photo grid */}
@@ -653,114 +721,47 @@ export default function GalleryPhotosPage() {
                     )}
                   </div>
                 )}
-              <div className="photo-grid-auto" style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${thumbSize === 'lg' ? '240px' : '130px'}, 1fr))`, gap: '0.5rem', padding: '1rem' }}>
-                {filteredPhotos.map((p, i) => {
-                  const isSelected    = selected.has(p.id);
-                  const isBeingDragged = filterPhotographerId === null && dragIdx === i && !isGroupDrag.current;
-                  const isDropTarget  = filterPhotographerId === null && isGroupDrag.current && dropTargetIdx === i;
-                  // Use original index for drag when no filter active
-                  const origIdx = filterPhotographerId === null ? i : photos.indexOf(p);
-
-                  return (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={filteredPhotos.map(p => p.file)}
+                    strategy={rectSortingStrategy}
+                  >
                     <div
-                      key={p.file}
-                      data-photo-idx={origIdx}
-                      draggable={filterPhotographerId === null}
-                      onDragStart={() => filterPhotographerId === null && onDragStart(origIdx)}
-                      onDragOver={e => filterPhotographerId === null && onDragOver(e, origIdx)}
-                      onDragEnd={onDragEnd}
-                      onTouchStart={() => filterPhotographerId === null && onTouchStart(origIdx)}
-                      onTouchEnd={filterPhotographerId === null ? onTouchEnd : undefined}
-                      onTouchCancel={filterPhotographerId === null ? onTouchEnd : undefined}
-                      onClick={e => {
-                        // Don't select when clicking the delete button
-                        if (e.target.closest('button')) return;
-                        toggleSelect(p.id, e);
-                      }}
-                      style={{
-                        position: 'relative',
-                        border: `2px solid ${isSelected ? '#3b82f6' : isDropTarget ? '#f59e0b' : gallery?.coverPhoto === p.file ? '#eab308' : '#dee2e6'}`,
-                        borderRadius: 6,
-                        overflow: 'hidden',
-                        cursor: 'grab',
-                        opacity: isBeingDragged || (isGroupDrag.current && isSelected && dragIdx !== null) ? 0.45 : 1,
-                        outline: isDropTarget ? '2px solid #f59e0b' : 'none',
-                        outlineOffset: 1,
-                        userSelect: 'none',
-                        touchAction: filterPhotographerId === null ? 'none' : 'auto',
-                      }}
+                      className="photo-grid-auto"
+                      style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${thumbSize === 'lg' ? '240px' : '130px'}, 1fr))`, gap: '0.5rem', padding: '1rem' }}
                     >
-                      {/* Selection indicator */}
-                      <div style={{
-                        position: 'absolute', top: 4, left: 4, zIndex: 2,
-                        width: 18, height: 18, borderRadius: '50%',
-                        background: isSelected ? '#3b82f6' : 'rgba(255,255,255,0.8)',
-                        border: `2px solid ${isSelected ? '#3b82f6' : '#9ca3af'}`,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        pointerEvents: 'none',
-                      }}>
-                        {isSelected && <i className="fas fa-check" style={{ fontSize: '0.5rem', color: '#fff' }} />}
-                      </div>
-
-                      {(thumbSize === 'lg' ? (p.thumbnail?.md ?? p.thumbnail?.sm) : p.thumbnail?.sm) ? (
-                        <img
-                          src={thumbSize === 'lg' ? (p.thumbnail?.md ?? p.thumbnail?.sm) : p.thumbnail?.sm}
-                          alt={p.file}
-                          style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', display: 'block' }}
-                          loading="lazy"
-                          decoding="async"
-                          draggable={false}
+                      {filteredPhotos.map(p => (
+                        <SortablePhotoCard
+                          key={p.file}
+                          photo={p}
+                          disabled={filterPhotographerId !== null}
+                          isSelected={selected.has(p.id)}
+                          isCover={gallery?.coverPhoto === p.file}
+                          isDraggedInGroup={
+                            activeDragId !== null &&
+                            activeDragId !== p.file &&
+                            selected.has(p.id) &&
+                            selected.size > 1
+                          }
+                          photographers={photographers}
+                          thumbSize={thumbSize}
+                          canEdit={canEdit}
+                          deleting={deleting}
+                          settingCover={settingCover}
+                          t={t}
+                          onToggleSelect={e => toggleSelect(p.id, e)}
+                          onDelete={() => handleDelete(p.file)}
+                          onSetCover={() => { if (gallery?.coverPhoto !== p.file) setCover(p.file); }}
                         />
-                      ) : (
-                        <div style={{ width: '100%', aspectRatio: '1/1', background: 'linear-gradient(135deg,#e5e7eb,#d1d5db)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <i className="fas fa-image" style={{ fontSize: '1.5rem', color: '#9ca3af' }} />
-                        </div>
-                      )}
-                      <div style={{ padding: '0.25rem 0.4rem 0 0.4rem', fontSize: '0.7rem', color: '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                        title={p.original_name || p.file}>
-                        {p.original_name || p.file}
-                      </div>
-                      {p.photographer_id && (
-                        <div style={{ padding: '0 0.4rem 0.2rem', fontSize: '0.65rem', color: '#2563eb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <i className="fas fa-camera me-1" style={{ fontSize: '0.6rem' }} />
-                          {photographers.find(pg => pg.id === p.photographer_id)?.name ?? '?'}
-                        </div>
-                      )}
-                      {canEdit && (
-                        <>
-                          {/* Cover photo toggle */}
-                          <button
-                            onClick={e => { e.stopPropagation(); if (gallery?.coverPhoto !== p.file) setCover(p.file); }}
-                            onTouchStart={e => e.stopPropagation()}
-                            disabled={settingCover === p.file}
-                            title={gallery?.coverPhoto === p.file ? 'Image clé' : 'Définir comme image clé'}
-                            style={{
-                              position: 'absolute', top: 4, left: 28, background: gallery?.coverPhoto === p.file ? 'rgba(234,179,8,0.9)' : 'rgba(0,0,0,0.55)',
-                              border: 'none', color: '#fff', borderRadius: 4, width: 24, height: 24,
-                              cursor: gallery?.coverPhoto === p.file ? 'default' : 'pointer',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem',
-                            }}
-                          >
-                            {settingCover === p.file
-                              ? <i className="fas fa-spinner fa-spin" />
-                              : <i className={`fas fa-star`} />}
-                          </button>
-                          {/* Delete */}
-                          <button
-                            onClick={e => { e.stopPropagation(); handleDelete(p.file); }}
-                            onTouchStart={e => e.stopPropagation()}
-                            disabled={deleting === p.file}
-                            title={t('delete')}
-                            style={{ position: 'absolute', top: 4, right: 4, background: 'rgba(0,0,0,0.55)', border: 'none', color: '#fff', borderRadius: 4, width: 24, height: 24, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}
-                          >
-                            <i className="fas fa-times" />
-                          </button>
-                        </>
-                      )}
+                      ))}
                     </div>
-                  );
-                })}
-              </div>
+                  </SortableContext>
+                </DndContext>
               </>
             )}
           </AdminCard>
