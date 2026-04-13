@@ -1089,5 +1089,7 @@
   "admin_token_revoke": "Revoke",
   "admin_token_col_name": "Name",
   "admin_token_col_prefix": "Token",
-  "admin_token_col_last_used": "Last used"
+  "admin_token_col_last_used": "Last used",
+  "gal_photos_delete_selected": "Delete {n} photo(s)",
+  "gal_photos_delete_selected_confirm": "Permanently delete {n} selected photo(s)? This cannot be undone."
 }

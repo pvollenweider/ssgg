@@ -875,5 +875,7 @@
   "admin_token_revoke": "İptal Et",
   "admin_token_col_name": "Ad",
   "admin_token_col_prefix": "Token",
-  "admin_token_col_last_used": "Son Kullanım"
+  "admin_token_col_last_used": "Son Kullanım",
+  "gal_photos_delete_selected": "{n} fotoğrafı sil",
+  "gal_photos_delete_selected_confirm": "Seçili {n} fotoğrafı kalıcı olarak silinsin mi? Bu işlem geri alınamaz."
 }

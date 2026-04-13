@@ -875,5 +875,7 @@
   "admin_token_revoke": "Revoca",
   "admin_token_col_name": "Nome",
   "admin_token_col_prefix": "Token",
-  "admin_token_col_last_used": "Ultimo utilizzo"
+  "admin_token_col_last_used": "Ultimo utilizzo",
+  "gal_photos_delete_selected": "Elimina {n} foto",
+  "gal_photos_delete_selected_confirm": "Eliminare definitivamente {n} foto selezionata/e? Questa azione non può essere annullata."
 }

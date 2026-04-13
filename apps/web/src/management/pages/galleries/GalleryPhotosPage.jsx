@@ -177,8 +177,9 @@ export default function GalleryPhotosPage() {
   const [reordering,   setReordering]   = useState(false);
   const [sortAsc,      setSortAsc]      = useState(true);
   const [dateSortAsc,  setDateSortAsc]  = useState(true);
-  const [deleting,     setDeleting]     = useState(null);
-  const [settingCover, setSettingCover] = useState(null);
+  const [deleting,          setDeleting]          = useState(null);
+  const [deletingSelected,  setDeletingSelected]  = useState(false);
+  const [settingCover,      setSettingCover]      = useState(null);
 
   // Publish state
   const [building,    setBuilding]    = useState(false);
@@ -315,6 +316,25 @@ export default function GalleryPhotosPage() {
       setSelected(prev => { const s = new Set(prev); s.delete(filename); return s; });
     } catch (e) { setToast(`${t('error')}: ${e.message}`); }
     finally { setDeleting(null); }
+  }
+
+  async function handleDeleteSelected() {
+    if (selected.size === 0) return;
+    if (!confirm(t('gal_photos_delete_selected_confirm', { n: selected.size }))) return;
+    setDeletingSelected(true);
+    const filesToDelete = photos.filter(p => selected.has(p.id)).map(p => p.file);
+    let errorCount = 0;
+    for (const filename of filesToDelete) {
+      try {
+        await api.deletePhoto(galleryId, filename);
+        setPhotos(prev => prev.filter(p => p.file !== filename));
+      } catch {
+        errorCount++;
+      }
+    }
+    setSelected(new Set());
+    setDeletingSelected(false);
+    if (errorCount > 0) setToast(`${t('error')}: ${errorCount} photo(s) could not be deleted`);
   }
 
   async function setCover(filename) {
@@ -669,6 +689,18 @@ export default function GalleryPhotosPage() {
                           ))}
                           <option value="__unassign__">{t('pg_unassign')}</option>
                         </select>
+                      )}
+                      {canEdit && (
+                        <button
+                          className="btn btn-sm btn-danger"
+                          style={{ fontSize: '0.75rem', padding: '2px 8px' }}
+                          disabled={deletingSelected}
+                          onClick={handleDeleteSelected}
+                        >
+                          {deletingSelected
+                            ? <i className="fas fa-spinner fa-spin" />
+                            : t('gal_photos_delete_selected', { n: selected.size })}
+                        </button>
                       )}
                       <button
                         className="btn btn-sm btn-outline-secondary"

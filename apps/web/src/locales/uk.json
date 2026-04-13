@@ -875,5 +875,7 @@
   "admin_token_revoke": "Відкликати",
   "admin_token_col_name": "Назва",
   "admin_token_col_prefix": "Токен",
-  "admin_token_col_last_used": "Останнє використання"
+  "admin_token_col_last_used": "Останнє використання",
+  "gal_photos_delete_selected": "Видалити {n} фото",
+  "gal_photos_delete_selected_confirm": "Назавжди видалити {n} вибране(их) фото? Цю дію не можна скасувати."
 }

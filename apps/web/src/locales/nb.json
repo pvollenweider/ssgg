@@ -875,5 +875,7 @@
   "admin_token_revoke": "Tilbakekall",
   "admin_token_col_name": "Navn",
   "admin_token_col_prefix": "Token",
-  "admin_token_col_last_used": "Sist brukt"
+  "admin_token_col_last_used": "Sist brukt",
+  "gal_photos_delete_selected": "Slett {n} bilde(r)",
+  "gal_photos_delete_selected_confirm": "Slette {n} valgte bilde(r) permanent? Dette kan ikke angres."
 }

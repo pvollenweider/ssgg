@@ -1089,5 +1089,7 @@
   "admin_token_revoke": "Révoquer",
   "admin_token_col_name": "Nom",
   "admin_token_col_prefix": "Token",
-  "admin_token_col_last_used": "Dernière utilisation"
+  "admin_token_col_last_used": "Dernière utilisation",
+  "gal_photos_delete_selected": "Supprimer {n} photo(s)",
+  "gal_photos_delete_selected_confirm": "Supprimer définitivement {n} photo(s) sélectionnée(s) ? Cette action est irréversible."
 }

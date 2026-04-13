@@ -875,5 +875,7 @@
   "admin_token_revoke": "Unieważnij",
   "admin_token_col_name": "Nazwa",
   "admin_token_col_prefix": "Token",
-  "admin_token_col_last_used": "Ostatnie użycie"
+  "admin_token_col_last_used": "Ostatnie użycie",
+  "gal_photos_delete_selected": "Usuń {n} zdjęcie/a",
+  "gal_photos_delete_selected_confirm": "Trwale usunąć {n} zaznaczone zdjęcie/a? Tej operacji nie można cofnąć."
 }

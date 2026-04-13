@@ -875,5 +875,7 @@
   "admin_token_revoke": "Ανάκληση",
   "admin_token_col_name": "Όνομα",
   "admin_token_col_prefix": "Token",
-  "admin_token_col_last_used": "Τελευταία χρήση"
+  "admin_token_col_last_used": "Τελευταία χρήση",
+  "gal_photos_delete_selected": "Διαγραφή {n} φωτογραφία(ών)",
+  "gal_photos_delete_selected_confirm": "Οριστική διαγραφή {n} επιλεγμένων φωτογραφιών; Δεν μπορεί να αναιρεθεί."
 }

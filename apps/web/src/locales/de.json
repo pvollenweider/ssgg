@@ -875,5 +875,7 @@
   "admin_token_revoke": "Widerrufen",
   "admin_token_col_name": "Name",
   "admin_token_col_prefix": "Token",
-  "admin_token_col_last_used": "Zuletzt verwendet"
+  "admin_token_col_last_used": "Zuletzt verwendet",
+  "gal_photos_delete_selected": "{n} Foto(s) löschen",
+  "gal_photos_delete_selected_confirm": "{n} ausgewählte(s) Foto(s) endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden."
 }
