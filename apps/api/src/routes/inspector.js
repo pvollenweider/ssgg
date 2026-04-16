@@ -9,10 +9,35 @@
 // All routes require platformRole = superadmin.
 import { Router }     from 'express';
 import { randomUUID } from 'crypto';
+import { readFile, writeFile, stat, readdir } from 'fs/promises';
+import { execFile }   from 'child_process';
+import { promisify }  from 'util';
+import path           from 'path';
 import { query }      from '../db/database.js';
 import { requireAuth } from '../middleware/auth.js';
 import { photoThumbnails } from '../services/thumbnailService.js';
 import { createJob } from '../db/helpers.js';
+
+const execFileAsync = promisify(execFile);
+
+// ── Backup helpers ────────────────────────────────────────────────────────────
+
+const INTERNAL_ROOT     = path.join(process.env.STORAGE_ROOT ?? process.cwd(), 'internal');
+const SYNC_STATUS_FILE  = path.join(INTERNAL_ROOT, '.sync-status.json');
+const SYNC_TRIGGER_FILE = path.join(INTERNAL_ROOT, '.sync-trigger');
+const SYNC_LOG_FILE     = path.join(INTERNAL_ROOT, '.sync-log');
+const DB_DUMP_DIR       = path.join(INTERNAL_ROOT, 'db-dumps');
+
+/** Return total bytes in a directory tree via `du -sb` (Linux/BusyBox). */
+async function getDirSize(dirPath) {
+  try {
+    const { stdout } = await execFileAsync('du', ['-sb', dirPath], { timeout: 15_000 });
+    const bytes = parseInt(stdout.split('\t')[0], 10);
+    return isNaN(bytes) ? null : bytes;
+  } catch {
+    return null;
+  }
+}
 
 const router = Router();
 
@@ -728,6 +753,78 @@ router.post('/rebuild-watermarks', async (req, res) => {
     } catch {}
   }
   res.json({ queued, total: rows.length });
+});
+
+// ── Backup / Dropbox sync ─────────────────────────────────────────────────────
+
+// GET /api/inspector/backup/status
+router.get('/backup/status', async (req, res, next) => {
+  try {
+    // Last sync status (written by sync-dropbox.sh)
+    let lastSync = null;
+    try { lastSync = JSON.parse(await readFile(SYNC_STATUS_FILE, 'utf8')); } catch {}
+
+    // Trigger file indicates a manual sync has been requested but not yet picked up
+    let triggerPending = false;
+    let triggerAt = null;
+    try {
+      const s = await stat(SYNC_TRIGGER_FILE);
+      triggerPending = true;
+      triggerAt = s.mtime;
+    } catch {}
+
+    // Disk usage per directory (parallel)
+    const STORAGE_ROOT = process.env.STORAGE_ROOT ?? process.cwd();
+    const [privateBytes, publicBytes, internalBytes] = await Promise.all([
+      getDirSize(path.join(STORAGE_ROOT, 'private')),
+      getDirSize(path.join(STORAGE_ROOT, 'public')),
+      getDirSize(path.join(STORAGE_ROOT, 'internal')),
+    ]);
+    const diskUsage = { private: privateBytes, public: publicBytes, internal: internalBytes };
+
+    // List DB dump files
+    let dbDumps = [];
+    try {
+      const files = (await readdir(DB_DUMP_DIR)).filter(f => f.endsWith('.sql.gz')).sort().reverse();
+      dbDumps = await Promise.all(files.slice(0, 10).map(async f => {
+        try {
+          const s = await stat(path.join(DB_DUMP_DIR, f));
+          return { name: f, size: s.size, mtime: s.mtime };
+        } catch { return null; }
+      }));
+      dbDumps = dbDumps.filter(Boolean);
+    } catch {}
+
+    res.json({ lastSync, triggerPending, triggerAt, diskUsage, dbDumps });
+  } catch (err) { next(err); }
+});
+
+// POST /api/inspector/backup/sync — write trigger file; picked up by sync-dropbox.sh
+router.post('/backup/sync', async (req, res, next) => {
+  try {
+    let currentStatus = null;
+    try { currentStatus = JSON.parse(await readFile(SYNC_STATUS_FILE, 'utf8')); } catch {}
+    if (currentStatus?.state === 'running') {
+      return res.status(409).json({ error: 'Sync already running' });
+    }
+    await writeFile(SYNC_TRIGGER_FILE, new Date().toISOString(), 'utf8');
+    await auditLog(req.userId, 'backup_sync_triggered', 'system', 'backup');
+    res.json({ requested: true });
+  } catch (err) { next(err); }
+});
+
+// GET /api/inspector/backup/logs?lines=150
+router.get('/backup/logs', async (req, res, next) => {
+  try {
+    const lines = Math.min(parseInt(req.query.lines, 10) || 150, 500);
+    let log = '(no log yet — run a first sync)';
+    try {
+      const content = await readFile(SYNC_LOG_FILE, 'utf8');
+      const all = content.split('\n');
+      log = all.slice(-lines).join('\n');
+    } catch {}
+    res.json({ log });
+  } catch (err) { next(err); }
 });
 
 export default router;

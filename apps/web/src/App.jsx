@@ -45,6 +45,7 @@ import { InspectorUserList, InspectorUserDetail } from './inspector/InspectorUse
 import InspectorDashboard     from './inspector/InspectorDashboard.jsx';
 import InspectorAnomalies     from './inspector/InspectorAnomalies.jsx';
 import InspectorActivityLog   from './inspector/InspectorActivityLog.jsx';
+import InspectorBackup        from './inspector/InspectorBackup.jsx';
 
 import Login from './pages/Login.jsx';
 
@@ -191,6 +192,7 @@ export default function App() {
         <Route path="anomalies"                  element={<InspectorAnomalies />} />
         <Route path="dashboard"                  element={<InspectorDashboard />} />
         <Route path="activity"                   element={<InspectorActivityLog />} />
+        <Route path="backup"                     element={<InspectorBackup />} />
       </Route>
 
       <Route path="*"                            element={<Navigate to="/admin/organizations" replace />} />

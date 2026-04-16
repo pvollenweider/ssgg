@@ -9,20 +9,22 @@
 # GalleryPack — Dropbox sync via rclone
 #
 # Usage:
-#   ./sync-dropbox.sh                # full sync (all directories)
+#   ./sync-dropbox.sh                # full sync (scheduled or manual)
+#   ./sync-dropbox.sh --check-trigger  # run only if a UI trigger file exists (for frequent cron)
 #   ./sync-dropbox.sh --db-only      # DB dump + sync only
 #   ./sync-dropbox.sh --dry-run      # show what would be transferred, nothing sent
 #
-# Prerequisites:
-#   1. Create rclone.conf in the same directory as this script (see README).
-#   2. Schedule via Synology Task Scheduler or cron.
+# Synology Task Scheduler — recommended setup:
+#   Job A  (daily,   03:00): /volume1/docker/gallerypack/sync-dropbox.sh
+#   Job B  (every 5 min):    /volume1/docker/gallerypack/sync-dropbox.sh --check-trigger
 #
-# Dropbox layout created:
-#   <DROPBOX_ROOT>/
-#     db/               ← timestamped .sql.gz, 7-day rotation
-#     private/          ← mirror of data/private
-#     public/           ← mirror of data/public
-#     internal/         ← mirror of data/internal (tus/ excluded)
+# The admin UI writes data/internal/.sync-trigger to request an on-demand sync.
+# Job B picks it up within 5 minutes. Job A runs the nightly scheduled sync.
+#
+# State files (in data/internal/, readable by the API container via shared volume):
+#   .sync-status.json   ← last run state (running/success/error + timestamps)
+#   .sync-trigger       ← created by the UI; consumed and deleted on pickup
+#   .sync-log           ← full run log, appended each run
 
 set -euo pipefail
 
@@ -30,43 +32,63 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
-
-# Load .env (DB credentials, compose file name, etc.)
 set -a; source "$ENV_FILE"; set +a
 
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.synology.yml}"
-DATA_ROOT="${STORAGE_ROOT:-$SCRIPT_DIR/data}"
 
-DROPBOX_REMOTE="${DROPBOX_REMOTE:-dropbox}"   # rclone remote name
-DROPBOX_ROOT="${DROPBOX_PATH:-gallerypack}"   # root folder in Dropbox
+# Host-side path to the data directory (private/ public/ internal/).
+# Use DATA_DIR in .env to override (e.g. /volume1/docker/gallerypack/data).
+# Do NOT use STORAGE_ROOT here — that variable holds the in-container path.
+DATA_ROOT="${DATA_DIR:-$SCRIPT_DIR/data}"
+
+DROPBOX_REMOTE="${DROPBOX_REMOTE:-dropbox}"
+DROPBOX_ROOT="${DROPBOX_PATH:-gallerypack}"
 
 RCLONE_CONF="$SCRIPT_DIR/rclone.conf"
 RCLONE_IMAGE="rclone/rclone:latest"
 
-DB_DUMP_DIR="$SCRIPT_DIR/db-dumps"
-DB_RETENTION_DAYS=7
+DB_DUMP_DIR="$DATA_ROOT/internal/db-dumps"
+DB_RETENTION_DAYS="${DB_RETENTION_DAYS:-7}"
 
-LOG_DIR="$SCRIPT_DIR/logs"
-LOG_FILE="$LOG_DIR/sync-dropbox.log"
-MAX_LOG_LINES=5000   # truncate log if it grows too large
+# State files shared with the API container via the internal/ volume
+STATUS_FILE="$DATA_ROOT/internal/.sync-status.json"
+TRIGGER_FILE="$DATA_ROOT/internal/.sync-trigger"
+LOG_FILE="$DATA_ROOT/internal/.sync-log"
+MAX_LOG_LINES=2000
 
-# rclone transfer tuning — adjust to taste
-TRANSFERS=4
-CHECKERS=8
-BWLIMIT="${RCLONE_BWLIMIT:-0}"   # 0 = unlimited; set e.g. "5M" in .env to throttle
+TRANSFERS="${RCLONE_TRANSFERS:-4}"
+CHECKERS="${RCLONE_CHECKERS:-8}"
+BWLIMIT="${RCLONE_BWLIMIT:-0}"
 
 # ── Parse args ────────────────────────────────────────────────────────────────
 
+CHECK_TRIGGER=false
 DB_ONLY=false
 DRY_RUN=false
 for arg in "$@"; do
   case $arg in
-    --db-only)  DB_ONLY=true ;;
-    --dry-run)  DRY_RUN=true ;;
+    --check-trigger) CHECK_TRIGGER=true ;;
+    --db-only)       DB_ONLY=true ;;
+    --dry-run)       DRY_RUN=true ;;
   esac
 done
 
+# ── Trigger check (early exit for frequent cron) ──────────────────────────────
+
+if $CHECK_TRIGGER; then
+  if [[ ! -f "$TRIGGER_FILE" ]]; then
+    exit 0   # no trigger → nothing to do
+  fi
+  # Consume trigger before proceeding so concurrent cron runs are harmless
+  rm -f "$TRIGGER_FILE"
+  TRIGGER_SOURCE="ui"
+else
+  TRIGGER_SOURCE="scheduled"
+fi
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+mkdir -p "$DB_DUMP_DIR" "$(dirname "$LOG_FILE")"
 
 log() {
   local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
@@ -74,25 +96,34 @@ log() {
   echo "$msg" >> "$LOG_FILE"
 }
 
-die() { log "ERROR: $*"; exit 1; }
-
-# Rotate log: keep last MAX_LOG_LINES lines
 trim_log() {
   if [[ -f "$LOG_FILE" ]]; then
-    local lines; lines=$(wc -l < "$LOG_FILE")
-    if (( lines > MAX_LOG_LINES )); then
+    local n; n=$(wc -l < "$LOG_FILE")
+    if (( n > MAX_LOG_LINES )); then
       tail -n "$MAX_LOG_LINES" "$LOG_FILE" > "$LOG_FILE.tmp" && mv "$LOG_FILE.tmp" "$LOG_FILE"
     fi
   fi
 }
 
-# Run rclone via Docker (no host install required)
+write_status() {
+  local state="$1" error="${2:-null}"
+  local now; now=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+  if [[ "$state" == "running" ]]; then
+    cat > "$STATUS_FILE" <<EOF
+{"state":"running","started_at":"$now","finished_at":null,"error":null,"trigger":"$TRIGGER_SOURCE"}
+EOF
+  else
+    cat > "$STATUS_FILE" <<EOF
+{"state":"$state","started_at":"$START_TIME","finished_at":"$now","error":$error,"trigger":"$TRIGGER_SOURCE"}
+EOF
+  fi
+}
+
 rclone_run() {
   local dry_flag=""
   $DRY_RUN && dry_flag="--dry-run"
-
   docker run --rm \
-    --network none \
+    --network host \
     -v "$RCLONE_CONF:/config/rclone/rclone.conf:ro" \
     -v "$DATA_ROOT:/data:ro" \
     -v "$DB_DUMP_DIR:/db-dumps:ro" \
@@ -107,15 +138,26 @@ rclone_run() {
 
 # ── Sanity checks ─────────────────────────────────────────────────────────────
 
-[[ -f "$RCLONE_CONF" ]] || die "rclone.conf not found at $RCLONE_CONF — see setup instructions."
-[[ -d "$DATA_ROOT"   ]] || die "DATA_ROOT not found: $DATA_ROOT"
+[[ -f "$RCLONE_CONF" ]] || { log "ERROR: rclone.conf not found at $RCLONE_CONF"; exit 1; }
+[[ -d "$DATA_ROOT"   ]] || { log "ERROR: DATA_ROOT not found: $DATA_ROOT"; exit 1; }
 
-mkdir -p "$DB_DUMP_DIR" "$LOG_DIR"
 trim_log
 
 $DRY_RUN && log "=== DRY RUN — nothing will be transferred ==="
 
-log "=== GalleryPack → Dropbox sync started ==="
+log "=== GalleryPack → Dropbox sync started (trigger: $TRIGGER_SOURCE) ==="
+
+START_TIME=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+write_status "running"
+
+# Trap errors → write error status
+on_error() {
+  local msg="Sync failed at line $1"
+  log "ERROR: $msg"
+  write_status "error" "\"$msg\""
+  exit 1
+}
+trap 'on_error $LINENO' ERR
 
 # ── 1. DB dump ────────────────────────────────────────────────────────────────
 
@@ -123,53 +165,46 @@ TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 DUMP_FILE="$DB_DUMP_DIR/${TIMESTAMP}.sql.gz"
 
 log "→ Dumping database (${DB_NAME:-gallerypack})..."
-
 if ! $DRY_RUN; then
   docker compose -f "$SCRIPT_DIR/$COMPOSE_FILE" exec -T db \
     mariadb-dump -u"${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" \
     | gzip > "$DUMP_FILE"
-  log "  ✓ $(du -sh "$DUMP_FILE" | cut -f1) → $DUMP_FILE"
+  log "  ✓ $(du -sh "$DUMP_FILE" | cut -f1)"
+  # Prune old dumps
+  find "$DB_DUMP_DIR" -name "*.sql.gz" -mtime +"$DB_RETENTION_DAYS" -delete
+  log "  ✓ DB dumps retained: $(find "$DB_DUMP_DIR" -name '*.sql.gz' | wc -l | tr -d ' ') file(s)"
 else
   log "  (dry-run) skipping DB dump"
 fi
 
-# Prune local dumps older than DB_RETENTION_DAYS
-if ! $DRY_RUN; then
-  find "$DB_DUMP_DIR" -name "*.sql.gz" -mtime +$DB_RETENTION_DAYS -delete
-  local_count=$(find "$DB_DUMP_DIR" -name "*.sql.gz" | wc -l | tr -d ' ')
-  log "  ✓ Local DB dump retention: $local_count file(s) kept (≤ ${DB_RETENTION_DAYS} days)"
-fi
-
-# Sync dump folder to Dropbox (mirrors local retention window)
 log "→ Syncing DB dumps to Dropbox..."
-rclone_run sync /db-dumps "${DROPBOX_REMOTE}:${DROPBOX_ROOT}/db" 2>>"$LOG_FILE" \
-  && log "  ✓ DB dumps synced" \
-  || die "DB dump sync failed"
+rclone_run sync /db-dumps "${DROPBOX_REMOTE}:${DROPBOX_ROOT}/db" 2>>"$LOG_FILE"
+log "  ✓ DB synced"
 
-$DB_ONLY && { log "=== --db-only done ==="; exit 0; }
+$DB_ONLY && { write_status "success"; log "=== --db-only complete ==="; exit 0; }
 
-# ── 2. private/ ───────────────────────────────────────────────────────────────
+# ── 2. private/ — originals ───────────────────────────────────────────────────
 
 log "→ Syncing private/ (originals)..."
-rclone_run sync /data/private "${DROPBOX_REMOTE}:${DROPBOX_ROOT}/private" 2>>"$LOG_FILE" \
-  && log "  ✓ private/ synced" \
-  || die "private/ sync failed"
+rclone_run sync /data/private "${DROPBOX_REMOTE}:${DROPBOX_ROOT}/private" 2>>"$LOG_FILE"
+log "  ✓ private/ synced"
 
-# ── 3. public/ ────────────────────────────────────────────────────────────────
+# ── 3. public/ — built galleries ─────────────────────────────────────────────
 
 log "→ Syncing public/ (built galleries)..."
-rclone_run sync /data/public "${DROPBOX_REMOTE}:${DROPBOX_ROOT}/public" 2>>"$LOG_FILE" \
-  && log "  ✓ public/ synced" \
-  || die "public/ sync failed"
+rclone_run sync /data/public "${DROPBOX_REMOTE}:${DROPBOX_ROOT}/public" 2>>"$LOG_FILE"
+log "  ✓ public/ synced"
 
-# ── 4. internal/ (thumbnails + prerender cache, skip tus upload sessions) ─────
+# ── 4. internal/ — thumbnails + cache (skip tus upload sessions) ─────────────
 
-log "→ Syncing internal/ (thumbnails + cache, excluding tus/)..."
+log "→ Syncing internal/ (thumbnails + cache, excluding tus/ and state files)..."
 rclone_run sync /data/internal "${DROPBOX_REMOTE}:${DROPBOX_ROOT}/internal" \
-  --exclude "tus/**" 2>>"$LOG_FILE" \
-  && log "  ✓ internal/ synced" \
-  || die "internal/ sync failed"
+  --exclude "tus/**" \
+  --exclude ".sync-*" \
+  2>>"$LOG_FILE"
+log "  ✓ internal/ synced"
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 
+write_status "success"
 log "=== Sync complete ==="

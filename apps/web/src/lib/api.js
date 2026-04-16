@@ -164,6 +164,9 @@ export const api = {
   inspectorRebuildWatermarks: ()                   => req('POST',   `/inspector/rebuild-watermarks`),
   inspectorAnomalies:       (params = {})          => req('GET',    `/inspector/anomalies?${new URLSearchParams(params)}`),
   inspectorActivityLog:     (params = {})          => req('GET',    `/inspector/activity-log?${new URLSearchParams(params)}`),
+  inspectorBackupStatus:    ()                     => req('GET',    `/inspector/backup/status`),
+  inspectorBackupSync:      (dbOnly = false)       => req('POST',   `/inspector/backup/sync`, { dbOnly }),
+  inspectorBackupLogs:      (lines = 150)          => req('GET',    `/inspector/backup/logs?lines=${lines}`),
 
   // Photographers (issue #133)
   listPhotographers:        (galleryId)               => req('GET',    `/galleries/${galleryId}/photographers`),
