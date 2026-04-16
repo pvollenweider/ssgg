@@ -268,16 +268,19 @@ export default function BackupPage() {
             <div className="col-md-6">
               <p className="text-muted mb-2" style={{ fontSize: '0.82rem' }}>{t('backup_config_dirs')}</p>
               <AdminSwitch
+                id="cfg-sync-private"
                 label={<><code>private/</code> <span className="text-muted ms-1" style={{ fontSize: '0.78rem' }}>{t('backup_config_dir_private')}</span></>}
                 checked={cfg.syncPrivate}
                 onChange={setCfgField('syncPrivate')}
               />
               <AdminSwitch
+                id="cfg-sync-public"
                 label={<><code>public/</code> <span className="text-muted ms-1" style={{ fontSize: '0.78rem' }}>{t('backup_config_dir_public')}</span></>}
                 checked={cfg.syncPublic}
                 onChange={setCfgField('syncPublic')}
               />
               <AdminSwitch
+                id="cfg-sync-internal"
                 label={<><code>internal/</code> <span className="text-muted ms-1" style={{ fontSize: '0.78rem' }}>{t('backup_config_dir_internal')}</span></>}
                 checked={cfg.syncInternal}
                 onChange={setCfgField('syncInternal')}
