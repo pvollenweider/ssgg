@@ -34,25 +34,15 @@ function timeAgo(iso) {
   return `il y a ${Math.floor(diff / 86400)} j`;
 }
 
-const STATE_VARIANT = {
-  success: 'success',
-  running: 'primary',
-  error:   'danger',
-  pending: 'warning',
-};
+const STATE_VARIANT = { success: 'success', running: 'primary', error: 'danger', pending: 'warning' };
+const STATE_ICON    = { success: 'fas fa-check-circle', running: 'fas fa-spinner fa-spin', error: 'fas fa-times-circle', pending: 'fas fa-clock' };
+const STATE_COLOR   = { success: 'var(--bs-success)', running: 'var(--bs-primary)', error: 'var(--bs-danger)', pending: 'var(--bs-warning)' };
 
-const STATE_ICON = {
-  success: 'fas fa-check-circle',
-  running: 'fas fa-spinner fa-spin',
-  error:   'fas fa-times-circle',
-  pending: 'fas fa-clock',
-};
-
-const STATE_COLOR = {
-  success: 'var(--bs-success)',
-  running: 'var(--bs-primary)',
-  error:   'var(--bs-danger)',
-  pending: 'var(--bs-warning)',
+const CFG_DEFAULTS = {
+  remote: 'dropbox', remotePath: 'gallerypack',
+  syncPrivate: true, syncPublic: true, syncInternal: true,
+  dbRetentionDays: 7, bwlimit: '0',
+  clientId: '', clientSecretSet: false,
 };
 
 // ── Disk usage bar ────────────────────────────────────────────────────────────
@@ -66,16 +56,11 @@ function DiskBar({ label, bytes, total, colorClass }) {
         <span className="text-muted">{fmtBytes(bytes)} ({pct}%)</span>
       </div>
       <div className="progress" style={{ height: 6 }}>
-        <div
-          className={`progress-bar bg-${colorClass}`}
-          style={{ width: `${pct}%`, transition: 'width 0.4s' }}
-        />
+        <div className={`progress-bar bg-${colorClass}`} style={{ width: `${pct}%`, transition: 'width 0.4s' }} />
       </div>
     </div>
   );
 }
-
-// ── Row helper ────────────────────────────────────────────────────────────────
 
 function Row({ label, value }) {
   return (
@@ -85,16 +70,6 @@ function Row({ label, value }) {
     </div>
   );
 }
-
-const CFG_DEFAULTS = {
-  remote: 'dropbox',
-  remotePath: 'gallerypack',
-  syncPrivate: true,
-  syncPublic: true,
-  syncInternal: true,
-  dbRetentionDays: 7,
-  bwlimit: '0',
-};
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
@@ -107,50 +82,86 @@ export default function BackupPage() {
   const [error, setError]     = useState('');
   const logRef = useRef(null);
 
-  // Config form
-  const [cfg, setCfg]               = useState(CFG_DEFAULTS);
-  const [cfgSaving, setCfgSaving]   = useState(false);
-  const [cfgSaved, setCfgSaved]     = useState('');
-  const [cfgError, setCfgError]     = useState('');
+  // Sync config form
+  const [cfg, setCfg]             = useState(CFG_DEFAULTS);
+  const [cfgSaving, setCfgSaving] = useState(false);
+  const [cfgSaved, setCfgSaved]   = useState('');
+  const [cfgError, setCfgError]   = useState('');
 
-  // rclone.conf setup
-  const [rcloneToken, setRcloneToken]       = useState('');
-  const [rcloneSaving, setRcloneSaving]     = useState(false);
-  const [rcloneSaved, setRcloneSaved]       = useState('');
-  const [rcloneError, setRcloneError]       = useState('');
+  // Dropbox OAuth
+  const [clientSecret, setClientSecret]       = useState('');
   const [rcloneConfigured, setRcloneConfigured] = useState(false);
+  const [oauthConnecting, setOauthConnecting]   = useState(false);
+  const [oauthMsg, setOauthMsg]                 = useState('');
+  const [oauthError, setOauthError]             = useState('');
 
-  const syncState = status?.triggerPending
-    ? 'pending'
-    : status?.lastSync?.state ?? null;
-
-  const isActive = syncState === 'running' || syncState === 'pending';
+  const syncState = status?.triggerPending ? 'pending' : status?.lastSync?.state ?? null;
+  const isActive  = syncState === 'running' || syncState === 'pending';
 
   const loadAll = useCallback(async () => {
     try {
-      const [s, l] = await Promise.all([
-        api.inspectorBackupStatus(),
-        api.inspectorBackupLogs(150),
-      ]);
+      const [s, l] = await Promise.all([api.inspectorBackupStatus(), api.inspectorBackupLogs(150)]);
       setStatus(s);
       setLogs(l.log);
     } catch {}
   }, []);
 
-  // Load config once on mount
-  useEffect(() => {
+  const loadConfig = useCallback(() => {
     api.inspectorBackupConfig().then(c => {
       setCfg({ ...CFG_DEFAULTS, ...c });
       setRcloneConfigured(!!c.rcloneConfigured);
     }).catch(() => {});
   }, []);
 
+  useEffect(() => { loadConfig(); }, [loadConfig]);
+
+  // Poll status
+  useEffect(() => {
+    loadAll();
+    const ms = isActive ? 5000 : 30000;
+    const timer = setInterval(loadAll, ms);
+    return () => clearInterval(timer);
+  }, [loadAll, isActive]);
+
+  // Auto-scroll log when active
+  useEffect(() => {
+    if (isActive && logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [logs, isActive]);
+
+  // Listen for OAuth popup result
+  useEffect(() => {
+    function onMessage(ev) {
+      if (ev.data?.type !== 'dropbox-oauth') return;
+      setOauthConnecting(false);
+      if (ev.data.ok) {
+        setOauthMsg(t('backup_rclone_saved'));
+        loadConfig();
+      } else {
+        setOauthError(t('backup_oauth_failed'));
+      }
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [t, loadConfig]);
+
+  // Check ?oauth=success on mount (when not using popup)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('oauth') === 'success') {
+      setOauthMsg(t('backup_rclone_saved'));
+      window.history.replaceState({}, '', window.location.pathname);
+      loadConfig();
+    }
+  }, [t, loadConfig]);
+
   async function saveConfig(e) {
     e.preventDefault();
     setCfgSaving(true); setCfgSaved(''); setCfgError('');
     try {
-      const saved = await api.inspectorBackupSaveConfig(cfg);
-      setCfg({ ...CFG_DEFAULTS, ...saved });
+      const payload = { ...cfg };
+      if (clientSecret.trim()) payload.clientSecret = clientSecret.trim();
+      const saved = await api.inspectorBackupSaveConfig(payload);
+      setCfg(c => ({ ...c, ...saved }));
+      if (clientSecret.trim()) setClientSecret('');
       setCfgSaved(t('settings_saved'));
     } catch (err) {
       setCfgError(err.message || 'Save failed');
@@ -163,41 +174,34 @@ export default function BackupPage() {
     return e => setCfg(c => ({ ...c, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   }
 
-  async function saveRclone(e) {
-    e.preventDefault();
-    setRcloneSaving(true); setRcloneSaved(''); setRcloneError('');
+  async function connectDropbox() {
+    if (!cfg.clientId.trim()) { setOauthError(t('backup_oauth_need_appkey')); return; }
+    setOauthConnecting(true); setOauthMsg(''); setOauthError('');
     try {
-      await api.inspectorBackupSaveRclone(cfg.remote, rcloneToken.trim());
-      setRcloneConfigured(true);
-      setRcloneToken('');
-      setRcloneSaved(t('backup_rclone_saved'));
+      const redirectUri = `${window.location.origin}/api/inspector/backup/oauth/callback`;
+      const { authUrl } = await api.inspectorBackupOauthStart(redirectUri);
+      const popup = window.open(authUrl, 'dropbox-oauth',
+        'width=700,height=600,left=200,top=100,resizable,scrollbars');
+      if (!popup) {
+        // Fallback: redirect the current tab
+        window.location.href = authUrl;
+      } else {
+        // Poll for popup closure in case postMessage is blocked
+        const poll = setInterval(() => {
+          if (popup.closed) { clearInterval(poll); setOauthConnecting(false); loadConfig(); }
+        }, 1000);
+      }
     } catch (err) {
-      setRcloneError(err.message || 'Save failed');
-    } finally {
-      setRcloneSaving(false);
+      setOauthConnecting(false);
+      setOauthError(err.message || 'Failed to start authorization');
     }
   }
-
-  // Poll fast when active, slow when idle
-  useEffect(() => {
-    loadAll();
-    const ms = isActive ? 5000 : 30000;
-    const timer = setInterval(loadAll, ms);
-    return () => clearInterval(timer);
-  }, [loadAll, isActive]);
-
-  // Auto-scroll log when active
-  useEffect(() => {
-    if (isActive && logRef.current) {
-      logRef.current.scrollTop = logRef.current.scrollHeight;
-    }
-  }, [logs, isActive]);
 
   async function triggerSync(dbOnly = false) {
     setSyncing(true); setError(''); setSyncMsg('');
     try {
       await api.inspectorBackupSync(dbOnly);
-      setSyncMsg('Sync demandé — démarrage dans les 5 prochaines minutes.');
+      setSyncMsg(t('backup_sync_requested'));
       await loadAll();
     } catch (e) {
       setError(e.message || 'Erreur lors du déclenchement');
@@ -209,6 +213,7 @@ export default function BackupPage() {
   const du = status?.diskUsage ?? {};
   const totalBytes = (du.private ?? 0) + (du.public ?? 0) + (du.internal ?? 0);
   const lastSync = status?.lastSync;
+  const redirectUri = `${window.location.origin}/api/inspector/backup/oauth/callback`;
 
   return (
     <AdminPage
@@ -216,23 +221,13 @@ export default function BackupPage() {
       maxWidth="1200px"
       actions={
         <>
-          <AdminButton
-            variant="outline-secondary"
-            size="sm"
-            icon="fas fa-database"
-            onClick={() => triggerSync(true)}
-            disabled={syncing || isActive}
-          >
+          <AdminButton variant="outline-secondary" size="sm" icon="fas fa-database"
+            onClick={() => triggerSync(true)} disabled={syncing || isActive}>
             {t('inspector_backup_db_only')}
           </AdminButton>
-          <AdminButton
-            size="sm"
-            icon={syncing ? 'fas fa-spinner fa-spin' : 'fas fa-sync-alt'}
-            onClick={() => triggerSync(false)}
-            disabled={syncing || isActive}
-            loading={syncing}
-            loadingLabel={t('inspector_backup_syncing')}
-          >
+          <AdminButton size="sm" onClick={() => triggerSync(false)} disabled={syncing || isActive}
+            loading={syncing} loadingLabel={t('inspector_backup_syncing')}
+            icon={syncing ? 'fas fa-spinner fa-spin' : 'fas fa-sync-alt'}>
             {t('inspector_backup_sync_now')}
           </AdminButton>
         </>
@@ -241,79 +236,49 @@ export default function BackupPage() {
       <AdminAlert variant="success" message={syncMsg} />
       <AdminAlert message={error} />
 
-      {/* ── Configuration ── */}
+      {/* ── Card 1: Sync Configuration ── */}
       <form onSubmit={saveConfig}>
         <AdminCard title={t('backup_config_title')} className="mb-3">
           <div className="row">
+            {/* Left: destination + performance */}
             <div className="col-md-6">
-              <p className="text-muted mb-3" style={{ fontSize: '0.82rem' }}>
-                {t('backup_config_hint')}
-              </p>
               <div className="row">
                 <div className="col-sm-5">
-                  <AdminInput
-                    label={t('backup_config_remote')}
-                    value={cfg.remote}
-                    onChange={setCfgField('remote')}
-                    placeholder="dropbox"
-                    hint={t('backup_config_remote_hint')}
-                  />
+                  <AdminInput label={t('backup_config_remote')} value={cfg.remote}
+                    onChange={setCfgField('remote')} placeholder="dropbox"
+                    hint={t('backup_config_remote_hint')} />
                 </div>
                 <div className="col-sm-7">
-                  <AdminInput
-                    label={t('backup_config_remote_path')}
-                    value={cfg.remotePath}
-                    onChange={setCfgField('remotePath')}
-                    placeholder="gallerypack"
-                    hint={t('backup_config_remote_path_hint')}
-                  />
+                  <AdminInput label={t('backup_config_remote_path')} value={cfg.remotePath}
+                    onChange={setCfgField('remotePath')} placeholder="gallerypack"
+                    hint={t('backup_config_remote_path_hint')} />
                 </div>
               </div>
               <div className="row">
                 <div className="col-sm-5">
-                  <AdminInput
-                    label={t('backup_config_bwlimit')}
-                    value={cfg.bwlimit}
-                    onChange={setCfgField('bwlimit')}
-                    placeholder="0"
-                    hint={t('backup_config_bwlimit_hint')}
-                  />
+                  <AdminInput label={t('backup_config_bwlimit')} value={cfg.bwlimit}
+                    onChange={setCfgField('bwlimit')} placeholder="0"
+                    hint={t('backup_config_bwlimit_hint')} />
                 </div>
                 <div className="col-sm-7">
-                  <AdminInput
-                    label={t('backup_config_db_retention')}
-                    type="number"
-                    value={cfg.dbRetentionDays}
-                    onChange={setCfgField('dbRetentionDays')}
-                    hint={t('backup_config_db_retention_hint')}
-                  />
+                  <AdminInput label={t('backup_config_db_retention')} type="number"
+                    value={cfg.dbRetentionDays} onChange={setCfgField('dbRetentionDays')}
+                    hint={t('backup_config_db_retention_hint')} />
                 </div>
               </div>
             </div>
+            {/* Right: directory toggles */}
             <div className="col-md-6">
               <p className="text-muted mb-2" style={{ fontSize: '0.82rem' }}>{t('backup_config_dirs')}</p>
-              <AdminSwitch
-                id="cfg-sync-private"
+              <AdminSwitch id="cfg-sync-private"
                 label={<><code>private/</code> <span className="text-muted ms-1" style={{ fontSize: '0.78rem' }}>{t('backup_config_dir_private')}</span></>}
-                checked={cfg.syncPrivate}
-                onChange={setCfgField('syncPrivate')}
-              />
-              <AdminSwitch
-                id="cfg-sync-public"
+                checked={cfg.syncPrivate} onChange={setCfgField('syncPrivate')} />
+              <AdminSwitch id="cfg-sync-public"
                 label={<><code>public/</code> <span className="text-muted ms-1" style={{ fontSize: '0.78rem' }}>{t('backup_config_dir_public')}</span></>}
-                checked={cfg.syncPublic}
-                onChange={setCfgField('syncPublic')}
-              />
-              <AdminSwitch
-                id="cfg-sync-internal"
+                checked={cfg.syncPublic} onChange={setCfgField('syncPublic')} />
+              <AdminSwitch id="cfg-sync-internal"
                 label={<><code>internal/</code> <span className="text-muted ms-1" style={{ fontSize: '0.78rem' }}>{t('backup_config_dir_internal')}</span></>}
-                checked={cfg.syncInternal}
-                onChange={setCfgField('syncInternal')}
-              />
-              <div className="mt-3 p-2 rounded" style={{ background: 'var(--bs-light)', fontSize: '0.78rem' }}>
-                <i className="fas fa-info-circle me-1 text-muted" />
-                {t('backup_config_rclone_hint')}
-              </div>
+                checked={cfg.syncInternal} onChange={setCfgField('syncInternal')} />
             </div>
           </div>
           <AdminAlert variant="success" message={cfgSaved} />
@@ -324,74 +289,103 @@ export default function BackupPage() {
         </AdminCard>
       </form>
 
-      {/* ── Dropbox authentication ── */}
-      <form onSubmit={saveRclone}>
-        <AdminCard
-          title={t('backup_rclone_title')}
-          headerRight={
-            rcloneConfigured
-              ? <span className="badge bg-success"><i className="fas fa-check me-1" />{t('backup_rclone_ok')}</span>
-              : <span className="badge bg-warning text-dark"><i className="fas fa-exclamation-triangle me-1" />{t('backup_rclone_missing')}</span>
-          }
-          className="mb-3"
-        >
-          <div className="row">
-            <div className="col-md-6">
-              <p className="text-muted mb-2" style={{ fontSize: '0.82rem' }}>{t('backup_rclone_hint')}</p>
-              <ol className="ps-3 mb-3" style={{ fontSize: '0.82rem' }}>
-                <li>{t('backup_rclone_step1')}<br /><code style={{ fontSize: '0.8rem' }}>rclone authorize &quot;dropbox&quot;</code></li>
-                <li className="mt-1">{t('backup_rclone_step2')}</li>
-                <li className="mt-1">{t('backup_rclone_step3')}</li>
-              </ol>
-              <div className="mb-3">
-                <label className="form-label" style={{ fontSize: '0.82rem', fontWeight: 500 }}>{t('backup_rclone_token_label')}</label>
-                <textarea
-                  className="form-control form-control-sm"
-                  rows={4}
-                  style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.75rem', resize: 'vertical' }}
-                  placeholder={'{"access_token":"...","token_type":"bearer","refresh_token":"...","expiry":"..."}'}
-                  value={rcloneToken}
-                  onChange={e => setRcloneToken(e.target.value)}
-                  spellCheck={false}
-                />
-                <div className="form-text">{t('backup_rclone_token_hint', { remote: cfg.remote })}</div>
+      {/* ── Card 2: Dropbox Authentication ── */}
+      <AdminCard
+        title={t('backup_rclone_title')}
+        headerRight={
+          rcloneConfigured
+            ? <span className="badge bg-success"><i className="fas fa-check me-1" />{t('backup_rclone_ok')}</span>
+            : <span className="badge bg-warning text-dark"><i className="fas fa-exclamation-triangle me-1" />{t('backup_rclone_missing')}</span>
+        }
+        className="mb-3"
+      >
+        <div className="row">
+          {/* Left: setup steps + connect button */}
+          <div className="col-md-7">
+            <ol className="ps-3 mb-3" style={{ fontSize: '0.85rem', lineHeight: 1.8 }}>
+              <li>
+                {t('backup_oauth_step1')}{' '}
+                <a href="https://www.dropbox.com/developers/apps/create" target="_blank" rel="noreferrer">
+                  dropbox.com/developers/apps
+                </a>
+                {' '}— <em>{t('backup_oauth_step1_detail')}</em>
+              </li>
+              <li>
+                {t('backup_oauth_step2')}{' '}
+                <strong>{t('backup_oauth_step2_uri')}</strong>
+                <br />
+                <code style={{ fontSize: '0.75rem', userSelect: 'all' }}>{redirectUri}</code>
+              </li>
+              <li>{t('backup_oauth_step3')}</li>
+            </ol>
+
+            <form onSubmit={e => { e.preventDefault(); saveConfig(e); }}>
+              <div className="row">
+                <div className="col-sm-6">
+                  <AdminInput
+                    label={t('backup_oauth_app_key')}
+                    value={cfg.clientId}
+                    onChange={setCfgField('clientId')}
+                    placeholder="xxxxxxxxxxxx"
+                    hint={t('backup_oauth_app_key_hint')}
+                    autoComplete="off"
+                  />
+                </div>
+                <div className="col-sm-6">
+                  <AdminInput
+                    label={t('backup_oauth_app_secret')}
+                    labelRight={cfg.clientSecretSet
+                      ? <span className="badge bg-secondary" style={{ fontSize: '0.7rem' }}>{t('backup_oauth_secret_set')}</span>
+                      : null}
+                    type="password"
+                    value={clientSecret}
+                    onChange={e => setClientSecret(e.target.value)}
+                    placeholder={cfg.clientSecretSet ? '••••••••' : 'xxxxxxxxxxxx'}
+                    hint={t('backup_oauth_app_secret_hint')}
+                    autoComplete="new-password"
+                  />
+                </div>
               </div>
-              <AdminAlert variant="success" message={rcloneSaved} />
-              <AdminAlert message={rcloneError} />
-              <AdminButton
-                type="submit"
-                loading={rcloneSaving}
-                loadingLabel={t('saving')}
-                icon="fas fa-key"
-                disabled={!rcloneToken.trim()}
-              >
-                {t('backup_rclone_save')}
-              </AdminButton>
-            </div>
-            <div className="col-md-6">
-              <div className="p-3 rounded" style={{ background: 'var(--bs-light)', fontSize: '0.8rem' }}>
-                <p className="fw-semibold mb-2"><i className="fas fa-terminal me-1" />{t('backup_rclone_install')}</p>
-                <p className="text-muted mb-1">{t('backup_rclone_install_mac')}</p>
-                <code style={{ fontSize: '0.75rem' }}>brew install rclone</code>
-                <p className="text-muted mt-3 mb-1">{t('backup_rclone_install_synology')}</p>
-                <code style={{ fontSize: '0.75rem', display: 'block', whiteSpace: 'pre-wrap' }}>
-                  {`curl https://rclone.org/install.sh | bash`}
-                </code>
-                <p className="text-muted mt-3 mb-0" style={{ fontSize: '0.75rem' }}>
-                  <i className="fas fa-info-circle me-1" />{t('backup_rclone_token_note')}
-                </p>
+              <div className="d-flex gap-2 align-items-center flex-wrap mb-2">
+                <AdminButton type="submit" variant="outline-secondary" size="sm"
+                  loading={cfgSaving} loadingLabel={t('saving')} icon="fas fa-save">
+                  {t('backup_oauth_save_credentials')}
+                </AdminButton>
+                <AdminButton type="button" size="sm" icon="fas fa-dropbox"
+                  onClick={connectDropbox}
+                  disabled={oauthConnecting || !cfg.clientId.trim()}
+                  loading={oauthConnecting}
+                  loadingLabel={t('backup_oauth_connecting')}>
+                  {t('backup_oauth_connect')}
+                </AdminButton>
               </div>
+            </form>
+
+            <AdminAlert variant="success" message={oauthMsg} />
+            <AdminAlert message={oauthError} />
+          </div>
+
+          {/* Right: info box */}
+          <div className="col-md-5">
+            <div className="p-3 rounded h-100" style={{ background: 'var(--bs-light)', fontSize: '0.8rem' }}>
+              <p className="fw-semibold mb-2">
+                <i className="fas fa-info-circle me-1 text-primary" />{t('backup_oauth_info_title')}
+              </p>
+              <ul className="ps-3 mb-0" style={{ lineHeight: 1.7 }}>
+                <li>{t('backup_oauth_info_1')}</li>
+                <li>{t('backup_oauth_info_2')}</li>
+                <li>{t('backup_oauth_info_3')}</li>
+                <li>{t('backup_oauth_info_4')}</li>
+              </ul>
             </div>
           </div>
-        </AdminCard>
-      </form>
+        </div>
+      </AdminCard>
 
+      {/* ── Status + log row ── */}
       <div className="row">
 
-        {/* ── Left column ── */}
         <div className="col-lg-5">
-
-          {/* Status card */}
           <AdminCard title={t('inspector_backup_status')} className="mb-3">
             {!lastSync && !status?.triggerPending ? (
               <p className="text-muted mb-0" style={{ fontSize: '0.82rem' }}>{t('inspector_backup_never')}</p>
@@ -399,10 +393,8 @@ export default function BackupPage() {
               <>
                 <div className="d-flex align-items-center gap-3 mb-3">
                   {syncState && (
-                    <i
-                      className={STATE_ICON[syncState]}
-                      style={{ fontSize: '1.5rem', color: STATE_COLOR[syncState] }}
-                    />
+                    <i className={STATE_ICON[syncState]}
+                      style={{ fontSize: '1.5rem', color: STATE_COLOR[syncState] }} />
                   )}
                   <div>
                     <div className={`fw-semibold text-${STATE_VARIANT[syncState] ?? 'body'}`} style={{ fontSize: '0.95rem' }}>
@@ -422,10 +414,8 @@ export default function BackupPage() {
                   <Row label={t('inspector_backup_finished')} value={`${fmtDate(lastSync.finished_at)} (${timeAgo(lastSync.finished_at)})`} />
                 )}
                 {lastSync?.trigger && (
-                  <Row
-                    label={t('inspector_backup_trigger')}
-                    value={lastSync.trigger === 'ui' ? t('inspector_backup_trigger_ui') : t('inspector_backup_trigger_scheduled')}
-                  />
+                  <Row label={t('inspector_backup_trigger')}
+                    value={lastSync.trigger === 'ui' ? t('inspector_backup_trigger_ui') : t('inspector_backup_trigger_scheduled')} />
                 )}
                 {lastSync?.error && (
                   <div className="alert alert-danger py-2 px-3 mb-0 mt-2" style={{ fontSize: '0.78rem' }}>
@@ -441,7 +431,6 @@ export default function BackupPage() {
             )}
           </AdminCard>
 
-          {/* Storage usage card */}
           <AdminCard
             title={t('inspector_backup_storage')}
             headerRight={<span className="text-muted" style={{ fontSize: '0.75rem' }}>{fmtBytes(totalBytes || null)} total</span>}
@@ -458,7 +447,6 @@ export default function BackupPage() {
             )}
           </AdminCard>
 
-          {/* DB dumps card */}
           <AdminCard title={t('inspector_backup_db_dumps')} noPadding className="mb-3">
             {!status?.dbDumps?.length ? (
               <p className="text-muted mb-0" style={{ fontSize: '0.82rem', padding: '0.75rem' }}>{t('inspector_backup_no_dumps')}</p>
@@ -478,7 +466,6 @@ export default function BackupPage() {
           </AdminCard>
         </div>
 
-        {/* ── Right column — Log ── */}
         <div className="col-lg-7">
           <AdminCard
             title={t('inspector_backup_log')}
@@ -492,23 +479,13 @@ export default function BackupPage() {
             }
             className="mb-3"
           >
-            <div
-              ref={logRef}
-              style={{
-                height: 'calc(100vh - 260px)',
-                overflowY: 'auto',
-                fontFamily: 'ui-monospace, monospace',
-                fontSize: '0.72rem',
-                lineHeight: 1.6,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-all',
-                background: 'var(--bs-body-bg)',
-                color: 'var(--bs-body-color)',
-                padding: '0.5rem',
-                borderRadius: 4,
-                opacity: 0.9,
-              }}
-            >
+            <div ref={logRef} style={{
+              height: 'calc(100vh - 260px)', overflowY: 'auto',
+              fontFamily: 'ui-monospace, monospace', fontSize: '0.72rem',
+              lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+              background: 'var(--bs-body-bg)', color: 'var(--bs-body-color)',
+              padding: '0.5rem', borderRadius: 4, opacity: 0.9,
+            }}>
               {logs || <span className="text-muted">{t('inspector_backup_no_log')}</span>}
             </div>
           </AdminCard>

@@ -8,8 +8,8 @@
 // apps/api/src/routes/inspector.js — superadmin inspector API (Sprints 16-21)
 // All routes require platformRole = superadmin.
 import { Router }     from 'express';
-import { randomUUID } from 'crypto';
-import { readFile, writeFile, stat, readdir } from 'fs/promises';
+import { randomUUID, randomBytes } from 'crypto';
+import { readFile, writeFile, unlink, stat, readdir } from 'fs/promises';
 import { execFile }   from 'child_process';
 import { promisify }  from 'util';
 import path           from 'path';
@@ -38,7 +38,10 @@ const SYNC_CONFIG_DEFAULTS = {
   syncInternal: true,
   dbRetentionDays: 7,
   bwlimit: '0',
+  clientId: '',
+  clientSecret: '',
 };
+const OAUTH_STATE_FILE = path.join(INTERNAL_ROOT, '.oauth-state');
 
 /** Return total bytes in a directory tree via `du -sb` (Linux/BusyBox). */
 async function getDirSize(dirPath) {
@@ -846,8 +849,104 @@ router.get('/backup/config', async (req, res, next) => {
     try { saved = JSON.parse(await readFile(SYNC_CONFIG_FILE, 'utf8')); } catch {}
     let rcloneConfigured = false;
     try { await stat(RCLONE_CONF_FILE); rcloneConfigured = true; } catch {}
-    res.json({ ...SYNC_CONFIG_DEFAULTS, ...saved, rcloneConfigured });
+    const merged = { ...SYNC_CONFIG_DEFAULTS, ...saved };
+    // Mask the secret — just tell the UI whether it's set
+    const { clientSecret, ...safe } = merged;
+    res.json({ ...safe, clientSecretSet: !!clientSecret, rcloneConfigured });
   } catch (err) { next(err); }
+});
+
+// POST /api/inspector/backup/oauth/start — generate Dropbox OAuth authorization URL
+router.post('/backup/oauth/start', async (req, res, next) => {
+  try {
+    let saved = {};
+    try { saved = JSON.parse(await readFile(SYNC_CONFIG_FILE, 'utf8')); } catch {}
+    const clientId = saved.clientId?.trim();
+    if (!clientId) return res.status(400).json({ error: 'App key (client_id) not configured. Save the config first.' });
+
+    const state = randomBytes(16).toString('hex');
+    const { redirectUri } = req.body;
+    if (!redirectUri) return res.status(400).json({ error: 'redirectUri required' });
+
+    // Persist state + redirectUri so the callback can validate and use it
+    await writeFile(OAUTH_STATE_FILE, JSON.stringify({ state, redirectUri }), 'utf8');
+
+    const url = new URL('https://www.dropbox.com/oauth2/authorize');
+    url.searchParams.set('client_id', clientId);
+    url.searchParams.set('response_type', 'code');
+    url.searchParams.set('redirect_uri', redirectUri);
+    url.searchParams.set('token_access_type', 'offline');
+    url.searchParams.set('state', state);
+
+    res.json({ authUrl: url.toString() });
+  } catch (err) { next(err); }
+});
+
+// GET /api/inspector/backup/oauth/callback — Dropbox redirects here after authorization
+router.get('/backup/oauth/callback', async (req, res) => {
+  const html = (title, body, ok = false) => res.send(
+    `<!DOCTYPE html><html><head><title>${title}</title>
+    <style>body{font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f8f9fa}
+    .box{text-align:center;padding:2rem;max-width:420px}
+    h2{color:${ok ? '#198754' : '#dc3545'}}p{color:#6c757d;font-size:.9rem}
+    code{background:#e9ecef;padding:.2em .4em;border-radius:3px;font-size:.8rem}
+    </style></head><body><div class="box">
+    <h2>${ok ? '✓ ' : '✗ '}${title}</h2>${body}
+    <script>if(window.opener){window.opener.postMessage({type:'dropbox-oauth',ok:${ok}},'*');setTimeout(()=>window.close(),1500);}
+    else{document.write('<p><a href=\\/admin\\/platform\\/backup>← Back to backup settings</a></p>')}</script>
+    </div></body></html>`
+  );
+
+  try {
+    const { code, state, error, error_description } = req.query;
+    if (error) return html('Authorization denied', `<p>${error_description || error}</p><p>You can close this window.</p>`);
+
+    // Validate state
+    let stored = {};
+    try { stored = JSON.parse(await readFile(OAUTH_STATE_FILE, 'utf8')); } catch {}
+    if (!stored.state || stored.state !== state) {
+      return html('Invalid state', '<p>The request may have expired or been tampered with. Try again.</p>');
+    }
+    try { await unlink(OAUTH_STATE_FILE); } catch {}
+
+    // Load credentials
+    let saved = {};
+    try { saved = JSON.parse(await readFile(SYNC_CONFIG_FILE, 'utf8')); } catch {}
+    const { clientId, clientSecret, remote = 'dropbox' } = saved;
+    if (!clientId || !clientSecret) return html('Missing credentials', '<p>App key/secret not found in config.</p>');
+
+    // Exchange code for token
+    const tokenRes = await fetch('https://api.dropboxapi.com/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code, redirect_uri: stored.redirectUri,
+        client_id: clientId, client_secret: clientSecret,
+      }),
+    });
+    const tok = await tokenRes.json();
+    if (!tokenRes.ok || tok.error) {
+      return html('Token exchange failed', `<p><code>${tok.error_description || tok.error}</code></p>`);
+    }
+
+    // Build rclone.conf
+    const expiry = new Date(Date.now() + (tok.expires_in ?? 14400) * 1000).toISOString();
+    const rcloneToken = JSON.stringify({
+      access_token: tok.access_token,
+      token_type: tok.token_type || 'bearer',
+      refresh_token: tok.refresh_token,
+      expiry,
+    });
+    const conf = [`[${remote.trim()}]`, `type = dropbox`, `client_id = ${clientId}`,
+      `client_secret = ${clientSecret}`, `token = ${rcloneToken}`, ''].join('\n');
+    await writeFile(RCLONE_CONF_FILE, conf, 'utf8');
+
+    return html('Connected to Dropbox!',
+      `<p>Your Dropbox account has been linked. This window will close automatically.</p>`, true);
+  } catch (err) {
+    return html('Unexpected error', `<p><code>${err.message}</code></p>`);
+  }
 });
 
 // POST /api/inspector/backup/rclone — save rclone.conf from a token JSON
@@ -870,7 +969,10 @@ router.post('/backup/rclone', async (req, res, next) => {
 // POST /api/inspector/backup/config
 router.post('/backup/config', async (req, res, next) => {
   try {
-    const { remote, remotePath, syncPrivate, syncPublic, syncInternal, dbRetentionDays, bwlimit } = req.body;
+    const { remote, remotePath, syncPrivate, syncPublic, syncInternal, dbRetentionDays, bwlimit, clientId, clientSecret } = req.body;
+    // Preserve existing clientSecret if the request sends an empty string (masked in UI)
+    let existing = {};
+    try { existing = JSON.parse(await readFile(SYNC_CONFIG_FILE, 'utf8')); } catch {}
     const config = {
       remote:          typeof remote      === 'string' ? remote.trim()      : SYNC_CONFIG_DEFAULTS.remote,
       remotePath:      typeof remotePath  === 'string' ? remotePath.trim()  : SYNC_CONFIG_DEFAULTS.remotePath,
@@ -880,10 +982,15 @@ router.post('/backup/config', async (req, res, next) => {
       dbRetentionDays: Number.isInteger(Number(dbRetentionDays)) && Number(dbRetentionDays) > 0
         ? Number(dbRetentionDays) : SYNC_CONFIG_DEFAULTS.dbRetentionDays,
       bwlimit:         typeof bwlimit === 'string' ? bwlimit.trim() : SYNC_CONFIG_DEFAULTS.bwlimit,
+      clientId:        typeof clientId     === 'string' ? clientId.trim()     : (existing.clientId     || ''),
+      clientSecret:    (typeof clientSecret === 'string' && clientSecret.trim())
+                         ? clientSecret.trim() : (existing.clientSecret || ''),
     };
     await writeFile(SYNC_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
     await auditLog(req.userId, 'backup_config_updated', 'system', 'backup');
-    res.json(config);
+    // Don't send the secret back
+    const { clientSecret: _s, ...safeConfig } = config;
+    res.json({ ...safeConfig, clientSecretSet: !!config.clientSecret });
   } catch (err) { next(err); }
 });
 

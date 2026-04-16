@@ -169,7 +169,7 @@ export const api = {
   inspectorBackupLogs:      (lines = 150)          => req('GET',    `/inspector/backup/logs?lines=${lines}`),
   inspectorBackupConfig:    ()                     => req('GET',    `/inspector/backup/config`),
   inspectorBackupSaveConfig:(cfg)                  => req('POST',   `/inspector/backup/config`, cfg),
-  inspectorBackupSaveRclone:(remote, token)        => req('POST',   `/inspector/backup/rclone`, { remote, token }),
+  inspectorBackupOauthStart:(redirectUri)          => req('POST',   `/inspector/backup/oauth/start`, { redirectUri }),
 
   // Photographers (issue #133)
   listPhotographers:        (galleryId)               => req('GET',    `/galleries/${galleryId}/photographers`),
