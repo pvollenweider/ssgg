@@ -56,6 +56,73 @@ async function getDirSize(dirPath) {
 
 const router = Router();
 
+// ── Public route: OAuth callback (Dropbox redirects here — no auth token) ────
+router.get('/backup/oauth/callback', async (req, res) => {
+  const html = (title, body, ok = false) => res.send(
+    `<!DOCTYPE html><html><head><title>${title}</title>
+    <style>body{font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f8f9fa}
+    .box{text-align:center;padding:2rem;max-width:420px}
+    h2{color:${ok ? '#198754' : '#dc3545'}}p{color:#6c757d;font-size:.9rem}
+    code{background:#e9ecef;padding:.2em .4em;border-radius:3px;font-size:.8rem}
+    </style></head><body><div class="box">
+    <h2>${ok ? '✓ ' : '✗ '}${title}</h2>${body}
+    <script>if(window.opener){window.opener.postMessage({type:'dropbox-oauth',ok:${ok}},'*');setTimeout(()=>window.close(),1500);}
+    else{document.write('<p><a href=\\/admin\\/platform\\/backup>← Back to backup settings</a></p>')}</script>
+    </div></body></html>`
+  );
+
+  try {
+    const { code, state, error, error_description } = req.query;
+    if (error) return html('Authorization denied', `<p>${error_description || error}</p><p>You can close this window.</p>`);
+
+    // Validate state
+    let stored = {};
+    try { stored = JSON.parse(await readFile(OAUTH_STATE_FILE, 'utf8')); } catch {}
+    if (!stored.state || stored.state !== state) {
+      return html('Invalid state', '<p>The request may have expired or been tampered with. Try again.</p>');
+    }
+    try { await unlink(OAUTH_STATE_FILE); } catch {}
+
+    // Load credentials
+    let saved = {};
+    try { saved = JSON.parse(await readFile(SYNC_CONFIG_FILE, 'utf8')); } catch {}
+    const { clientId, clientSecret, remote = 'dropbox' } = saved;
+    if (!clientId || !clientSecret) return html('Missing credentials', '<p>App key/secret not found in config.</p>');
+
+    // Exchange code for token
+    const tokenRes = await fetch('https://api.dropboxapi.com/oauth2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        code, redirect_uri: stored.redirectUri,
+        client_id: clientId, client_secret: clientSecret,
+      }),
+    });
+    const tok = await tokenRes.json();
+    if (!tokenRes.ok || tok.error) {
+      return html('Token exchange failed', `<p><code>${tok.error_description || tok.error}</code></p>`);
+    }
+
+    // Build rclone.conf
+    const expiry = new Date(Date.now() + (tok.expires_in ?? 14400) * 1000).toISOString();
+    const rcloneToken = JSON.stringify({
+      access_token: tok.access_token,
+      token_type: tok.token_type || 'bearer',
+      refresh_token: tok.refresh_token,
+      expiry,
+    });
+    const conf = [`[${remote.trim()}]`, `type = dropbox`, `client_id = ${clientId}`,
+      `client_secret = ${clientSecret}`, `token = ${rcloneToken}`, ''].join('\n');
+    await writeFile(RCLONE_CONF_FILE, conf, 'utf8');
+
+    return html('Connected to Dropbox!',
+      `<p>Your Dropbox account has been linked. This window will close automatically.</p>`, true);
+  } catch (err) {
+    return html('Unexpected error', `<p><code>${err.message}</code></p>`);
+  }
+});
+
 // ── Guard: superadmin only ────────────────────────────────────────────────────
 router.use(requireAuth);
 router.use((req, res, next) => {
@@ -880,73 +947,6 @@ router.post('/backup/oauth/start', async (req, res, next) => {
 
     res.json({ authUrl: url.toString() });
   } catch (err) { next(err); }
-});
-
-// GET /api/inspector/backup/oauth/callback — Dropbox redirects here after authorization
-router.get('/backup/oauth/callback', async (req, res) => {
-  const html = (title, body, ok = false) => res.send(
-    `<!DOCTYPE html><html><head><title>${title}</title>
-    <style>body{font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#f8f9fa}
-    .box{text-align:center;padding:2rem;max-width:420px}
-    h2{color:${ok ? '#198754' : '#dc3545'}}p{color:#6c757d;font-size:.9rem}
-    code{background:#e9ecef;padding:.2em .4em;border-radius:3px;font-size:.8rem}
-    </style></head><body><div class="box">
-    <h2>${ok ? '✓ ' : '✗ '}${title}</h2>${body}
-    <script>if(window.opener){window.opener.postMessage({type:'dropbox-oauth',ok:${ok}},'*');setTimeout(()=>window.close(),1500);}
-    else{document.write('<p><a href=\\/admin\\/platform\\/backup>← Back to backup settings</a></p>')}</script>
-    </div></body></html>`
-  );
-
-  try {
-    const { code, state, error, error_description } = req.query;
-    if (error) return html('Authorization denied', `<p>${error_description || error}</p><p>You can close this window.</p>`);
-
-    // Validate state
-    let stored = {};
-    try { stored = JSON.parse(await readFile(OAUTH_STATE_FILE, 'utf8')); } catch {}
-    if (!stored.state || stored.state !== state) {
-      return html('Invalid state', '<p>The request may have expired or been tampered with. Try again.</p>');
-    }
-    try { await unlink(OAUTH_STATE_FILE); } catch {}
-
-    // Load credentials
-    let saved = {};
-    try { saved = JSON.parse(await readFile(SYNC_CONFIG_FILE, 'utf8')); } catch {}
-    const { clientId, clientSecret, remote = 'dropbox' } = saved;
-    if (!clientId || !clientSecret) return html('Missing credentials', '<p>App key/secret not found in config.</p>');
-
-    // Exchange code for token
-    const tokenRes = await fetch('https://api.dropboxapi.com/oauth2/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        code, redirect_uri: stored.redirectUri,
-        client_id: clientId, client_secret: clientSecret,
-      }),
-    });
-    const tok = await tokenRes.json();
-    if (!tokenRes.ok || tok.error) {
-      return html('Token exchange failed', `<p><code>${tok.error_description || tok.error}</code></p>`);
-    }
-
-    // Build rclone.conf
-    const expiry = new Date(Date.now() + (tok.expires_in ?? 14400) * 1000).toISOString();
-    const rcloneToken = JSON.stringify({
-      access_token: tok.access_token,
-      token_type: tok.token_type || 'bearer',
-      refresh_token: tok.refresh_token,
-      expiry,
-    });
-    const conf = [`[${remote.trim()}]`, `type = dropbox`, `client_id = ${clientId}`,
-      `client_secret = ${clientSecret}`, `token = ${rcloneToken}`, ''].join('\n');
-    await writeFile(RCLONE_CONF_FILE, conf, 'utf8');
-
-    return html('Connected to Dropbox!',
-      `<p>Your Dropbox account has been linked. This window will close automatically.</p>`, true);
-  } catch (err) {
-    return html('Unexpected error', `<p><code>${err.message}</code></p>`);
-  }
 });
 
 // POST /api/inspector/backup/rclone — save rclone.conf from a token JSON
