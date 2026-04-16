@@ -73,6 +73,25 @@ function photoRef(p) {
   };
 }
 
+/**
+ * Detect whether a lens is a prime (fixed focal length) or a zoom.
+ * Zoom lenses carry two focal lengths separated by a hyphen/en-dash in their name
+ * (e.g. "24-70mm", "70-200", "Sigma 150-600mm f/5-6.3").
+ * Anything with a single focal length in mm is treated as prime.
+ * Returns 'zoom', 'prime', or null (unknown).
+ *
+ * @param {string} lensName
+ * @returns {'zoom'|'prime'|null}
+ */
+function detectLensType(lensName) {
+  if (!lensName) return null;
+  // Zoom: two numbers (1–3 digits each) separated by - or – representing a focal range
+  if (/\b\d{1,3}[-–]\d{2,3}\b/.test(lensName)) return 'zoom';
+  // Prime: single focal length expressed in mm
+  if (/\b\d{1,3}\s*mm\b/i.test(lensName)) return 'prime';
+  return null;
+}
+
 function processLens(photos) {
   const map = {};
   let withData = 0;
@@ -82,7 +101,7 @@ function processLens(photos) {
     if (!raw) continue;
     const label = raw.trim();
     if (!label) continue;
-    if (!map[label]) map[label] = { count: 0, photos: [] };
+    if (!map[label]) map[label] = { count: 0, photos: [], type: detectLensType(label) };
     map[label].count++;
     map[label].photos.push(photoRef(p));
     withData++;
@@ -95,11 +114,11 @@ function processLens(photos) {
     const top10 = sorted.slice(0, 10);
     const otherCount = sorted.slice(10).reduce((s, [, v]) => s + v.count, 0);
     items = [
-      ...top10.map(([label, v]) => ({ label, count: v.count, pct: pct(v.count, withData), photos: v.photos })),
-      { label: 'Other', count: otherCount, pct: pct(otherCount, withData), photos: [] },
+      ...top10.map(([label, v]) => ({ label, count: v.count, pct: pct(v.count, withData), photos: v.photos, type: v.type })),
+      { label: 'Other', count: otherCount, pct: pct(otherCount, withData), photos: [], type: null },
     ];
   } else {
-    items = sorted.map(([label, v]) => ({ label, count: v.count, pct: pct(v.count, withData), photos: v.photos }));
+    items = sorted.map(([label, v]) => ({ label, count: v.count, pct: pct(v.count, withData), photos: v.photos, type: v.type }));
   }
 
   return { total: photos.length, withData, items };

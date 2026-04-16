@@ -19,16 +19,26 @@
  * Focal-length bins (35 mm equivalent).
  * Each bin has a stable key, a display label, and the inclusive [min, max] range in mm.
  * max = Infinity for the last bucket.
+ *
+ * Boundaries are aligned with standard lens categories:
+ *   ultra_wide  ≤ 17 mm  — fisheye, ultra-wide (10–17 mm primes)
+ *   wide        18–28 mm — wide-angle (18, 20, 21, 24, 28 mm)
+ *   wide_std    29–40 mm — wide-normal (35, 40 mm)
+ *   normal      41–60 mm — normal (50, 55, 58 mm)
+ *   portrait    61–105 mm — portrait telephoto (70, 85, 100, 105 mm)
+ *   short_tele 106–200 mm — short telephoto (135, 150, 180, 200 mm)
+ *   tele       201–400 mm — telephoto (300, 400 mm)
+ *   super_tele  > 400 mm  — super telephoto (500, 600 mm+)
  */
 export const FOCAL_BINS = [
-  { key: 'ultra_wide', label: '≤ 20 mm',    min: 0,   max: 20  },
-  { key: 'wide',       label: '21–28 mm',   min: 21,  max: 28  },
-  { key: 'wide_std',   label: '29–35 mm',   min: 29,  max: 35  },
-  { key: 'normal',     label: '36–50 mm',   min: 36,  max: 50  },
-  { key: 'portrait',   label: '51–85 mm',   min: 51,  max: 85  },
-  { key: 'short_tele', label: '86–135 mm',  min: 86,  max: 135 },
-  { key: 'tele',       label: '136–200 mm', min: 136, max: 200 },
-  { key: 'super_tele', label: '> 200 mm',   min: 201, max: Infinity },
+  { key: 'ultra_wide',  label: '≤ 17 mm',    min: 0,   max: 17  },
+  { key: 'wide',        label: '18–28 mm',   min: 18,  max: 28  },
+  { key: 'wide_std',    label: '29–40 mm',   min: 29,  max: 40  },
+  { key: 'normal',      label: '41–60 mm',   min: 41,  max: 60  },
+  { key: 'portrait',    label: '61–105 mm',  min: 61,  max: 105 },
+  { key: 'short_tele',  label: '106–200 mm', min: 106, max: 200 },
+  { key: 'tele',        label: '201–400 mm', min: 201, max: 400 },
+  { key: 'super_tele',  label: '> 400 mm',   min: 401, max: Infinity },
 ];
 
 /**

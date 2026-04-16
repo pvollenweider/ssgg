@@ -22,21 +22,49 @@ import { AdminCard, AdminAlert, AdminLoader } from '../../../components/ui/index
 
 Chart.register(BubbleController, LinearScale, LogarithmicScale, PointElement, Tooltip, Legend);
 
-// ── Dynamic log-space binning (focal tab) ─────────────────────────────────────
+// ── Semantic focal-length binning ─────────────────────────────────────────────
+//
+// Each precision level maps to a set of lower-bound edges aligned with standard
+// lens categories (ultra-wide, wide, wide-normal, normal, portrait, short-tele,
+// tele, super-tele). Bins are [lo, hi) with the last bin open-ended (→ Infinity).
+//
+// Label conventions:
+//   first bin  (lo = 0): "≤ {hi-1} mm"
+//   middle bins:         "{lo}–{hi-1} mm"
+//   last bin   (open):   "> {lo-1} mm"
 
-function computeDynamicBins(rawPhotos, n) {
-  const LOG_MIN = Math.log(10);
-  const LOG_MAX = Math.log(400);
-  const step = (LOG_MAX - LOG_MIN) / n;
-  const bins = Array.from({ length: n }, (_, i) => {
-    const lo  = Math.exp(LOG_MIN + i * step);
-    const hi  = i === n - 1 ? Infinity : Math.exp(LOG_MIN + (i + 1) * step);
-    const mid = Math.exp(LOG_MIN + (i + 0.5) * step);
-    const loR = Math.round(lo);
-    const hiR = hi === Infinity ? null : Math.round(hi) - 1;
-    const label = hi === Infinity ? `> ${loR} mm` : `${loR}–${hiR} mm`;
-    const hue = Math.round(220 - (i / Math.max(n - 1, 1)) * 220);
-    return { key: `bin_${i}`, label, midMm: mid, lo, hi, color: `hsl(${hue}, 75%, 52%)`, photos: [], count: 0 };
+const SEMANTIC_EDGES = {
+  2:  [0, 106],
+  3:  [0, 41, 201],
+  4:  [0, 41, 106, 201],
+  5:  [0, 29, 61, 201, 401],
+  6:  [0, 29, 61, 106, 201, 401],
+  7:  [0, 18, 29, 61, 106, 201, 401],
+  8:  [0, 18, 29, 41, 61, 106, 201, 401],
+  9:  [0, 18, 29, 41, 61, 86, 106, 201, 401],
+  10: [0, 18, 29, 41, 51, 61, 86, 106, 201, 401],
+  11: [0, 18, 29, 41, 51, 61, 86, 106, 201, 301, 401],
+  12: [0, 18, 29, 41, 51, 61, 86, 106, 136, 201, 301, 401],
+};
+
+function makeBinLabel(lo, hi) {
+  if (lo === 0) return `≤ ${hi - 1} mm`;
+  if (hi === Infinity) return `> ${lo - 1} mm`;
+  return `${lo}–${hi - 1} mm`;
+}
+
+function computeSemanticBins(rawPhotos, n) {
+  const edges = SEMANTIC_EDGES[n] ?? SEMANTIC_EDGES[6];
+  const bins = edges.map((lo, i) => {
+    const hi    = i < edges.length - 1 ? edges[i + 1] : Infinity;
+    const label = makeBinLabel(lo, hi);
+    const midMm = lo === 0
+      ? Math.max(hi / 2, 5)
+      : hi === Infinity
+        ? lo * 1.5
+        : Math.sqrt(lo * hi);
+    const hue = Math.round(220 - (i / Math.max(edges.length - 1, 1)) * 220);
+    return { key: `bin_${i}`, label, midMm, lo, hi, color: `hsl(${hue}, 75%, 52%)`, photos: [], count: 0 };
   });
   for (const photo of rawPhotos) {
     for (const bin of bins) {
@@ -48,9 +76,11 @@ function computeDynamicBins(rawPhotos, n) {
   return bins.filter(b => b.count > 0);
 }
 
+// Representative mm for each server-side FOCAL_BINS key, used to locate the
+// dominant bin within the active semantic bins.
 const DOMINANT_MM = {
-  ultra_wide: 14, wide: 24, wide_std: 32, normal: 43,
-  portrait: 68, short_tele: 110, tele: 168, super_tele: 270,
+  ultra_wide: 14, wide: 24, wide_std: 35, normal: 50,
+  portrait: 85, short_tele: 135, tele: 300, super_tele: 500,
 };
 
 // ── FocalBubbleChart ──────────────────────────────────────────────────────────
@@ -91,7 +121,7 @@ function FocalBubbleChart({ bins, selectedKey, onBinClick, browseLabel = 'click 
         },
         scales: {
           x: {
-            type: 'logarithmic', min: 8, max: 450,
+            type: 'logarithmic', min: 8, max: 1200,
             grid: { color: '#e5e7eb' }, border: { display: false },
             title: { display: true, text: 'Focal length (mm, 35mm eq.)', color: '#6b7280', font: { size: 11 } },
             ticks: { color: '#6b7280', font: { size: 11 }, maxTicksLimit: 8, callback: v => `${v}mm` },
@@ -119,7 +149,7 @@ function FocalBubbleChart({ bins, selectedKey, onBinClick, browseLabel = 'click 
 
 // ── CategoryChart — horizontal bars for discrete metrics ─────────────────────
 
-function CategoryChart({ items, color = '#6366f1', withData, total, selectedLabel, onItemClick, t }) {
+function CategoryChart({ items, color = '#6366f1', withData, total, selectedLabel, onItemClick, t, renderLabel }) {
   if (!items || items.length === 0) return (
     <p className="text-muted small mb-0">{t('insights_no_data')}</p>
   );
@@ -141,9 +171,14 @@ function CategoryChart({ items, color = '#6366f1', withData, total, selectedLabe
             style={{ cursor: hasPhotos ? 'pointer' : 'default' }}>
             <div className="d-flex justify-content-between mb-1" style={{ fontSize: '0.82rem' }}>
               <span className={isOther ? 'text-muted' : (isSelected ? 'fw-semibold' : '')} style={{
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%',
+                display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, maxWidth: '65%',
                 color: isSelected ? color : undefined,
-              }} title={item.label}>{item.label}</span>
+              }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  title={item.label}>
+                  {renderLabel ? renderLabel(item) : item.label}
+                </span>
+              </span>
               <span className="text-muted ms-2" style={{ flexShrink: 0 }}>{item.count} ({item.pct}%)</span>
             </div>
             <div className="progress" style={{ height: isSelected ? 10 : 8 }}>
@@ -319,7 +354,7 @@ export default function GalleryInsightsPage() {
   const focalData = insights?.focal ?? null;
   const activeBins = useMemo(() => {
     if (!focalData?.photos) return [];
-    return computeDynamicBins(focalData.photos, precision);
+    return computeSemanticBins(focalData.photos, precision);
   }, [focalData, precision]);
 
   if (loading) return <AdminLoader label={t('insights_focal_loading')} />;
@@ -490,6 +525,24 @@ export default function GalleryInsightsPage() {
           iso:      'insights_iso_subtitle',
         };
 
+        const lensLabelRenderer = activeTab === 'lens'
+          ? (item) => (
+            <>
+              {item.label}
+              {item.type === 'prime' && (
+                <span style={{ fontSize: '0.68rem', padding: '1px 5px', borderRadius: 8,
+                  background: '#dbeafe', color: '#1d4ed8', marginLeft: 5,
+                  fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>Prime</span>
+              )}
+              {item.type === 'zoom' && (
+                <span style={{ fontSize: '0.68rem', padding: '1px 5px', borderRadius: 8,
+                  background: '#ede9fe', color: '#7c3aed', marginLeft: 5,
+                  fontWeight: 500, whiteSpace: 'nowrap', flexShrink: 0 }}>Zoom</span>
+              )}
+            </>
+          )
+          : undefined;
+
         return (
           <>
             <AdminCard title={t(SUBTITLE_KEYS[activeTab])}>
@@ -500,6 +553,7 @@ export default function GalleryInsightsPage() {
                 total={metric.total}
                 selectedLabel={selectedCatItem?.label ?? null}
                 onItemClick={setSelectedCatItem}
+                renderLabel={lensLabelRenderer}
                 t={t}
               />
             </AdminCard>
