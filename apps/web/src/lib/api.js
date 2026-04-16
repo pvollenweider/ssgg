@@ -167,6 +167,8 @@ export const api = {
   inspectorBackupStatus:    ()                     => req('GET',    `/inspector/backup/status`),
   inspectorBackupSync:      (dbOnly = false)       => req('POST',   `/inspector/backup/sync`, { dbOnly }),
   inspectorBackupLogs:      (lines = 150)          => req('GET',    `/inspector/backup/logs?lines=${lines}`),
+  inspectorBackupConfig:    ()                     => req('GET',    `/inspector/backup/config`),
+  inspectorBackupSaveConfig:(cfg)                  => req('POST',   `/inspector/backup/config`, cfg),
 
   // Photographers (issue #133)
   listPhotographers:        (galleryId)               => req('GET',    `/galleries/${galleryId}/photographers`),

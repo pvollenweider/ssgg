@@ -54,11 +54,28 @@ DB_RETENTION_DAYS="${DB_RETENTION_DAYS:-7}"
 STATUS_FILE="$DATA_ROOT/internal/.sync-status.json"
 TRIGGER_FILE="$DATA_ROOT/internal/.sync-trigger"
 LOG_FILE="$DATA_ROOT/internal/.sync-log"
+SYNC_CONFIG="$DATA_ROOT/internal/sync-config.json"
 MAX_LOG_LINES=2000
 
 TRANSFERS="${RCLONE_TRANSFERS:-4}"
 CHECKERS="${RCLONE_CHECKERS:-8}"
 BWLIMIT="${RCLONE_BWLIMIT:-0}"
+
+# Override with UI-saved config (sync-config.json) if present
+if command -v python3 &>/dev/null && [[ -f "$SYNC_CONFIG" ]]; then
+  _cfg() { python3 -c "import json,sys; d=json.load(open('$SYNC_CONFIG')); print(d.get('$1','$2'))" 2>/dev/null || echo "$2"; }
+  DROPBOX_REMOTE="$(_cfg remote "$DROPBOX_REMOTE")"
+  DROPBOX_ROOT="$(_cfg remotePath "$DROPBOX_ROOT")"
+  BWLIMIT="$(_cfg bwlimit "$BWLIMIT")"
+  DB_RETENTION_DAYS="$(_cfg dbRetentionDays "$DB_RETENTION_DAYS")"
+  SYNC_PRIVATE="$(_cfg syncPrivate True)"
+  SYNC_PUBLIC="$(_cfg syncPublic True)"
+  SYNC_INTERNAL="$(_cfg syncInternal True)"
+else
+  SYNC_PRIVATE="True"
+  SYNC_PUBLIC="True"
+  SYNC_INTERNAL="True"
+fi
 
 # ── Parse args ────────────────────────────────────────────────────────────────
 
@@ -185,24 +202,37 @@ $DB_ONLY && { write_status "success"; log "=== --db-only complete ==="; exit 0; 
 
 # ── 2. private/ — originals ───────────────────────────────────────────────────
 
-log "→ Syncing private/ (originals)..."
-rclone_run sync /data/private "${DROPBOX_REMOTE}:${DROPBOX_ROOT}/private" 2>>"$LOG_FILE"
-log "  ✓ private/ synced"
+if [[ "$SYNC_PRIVATE" != "False" ]]; then
+  log "→ Syncing private/ (originals)..."
+  rclone_run sync /data/private "${DROPBOX_REMOTE}:${DROPBOX_ROOT}/private" 2>>"$LOG_FILE"
+  log "  ✓ private/ synced"
+else
+  log "  (skipped) private/ — disabled in config"
+fi
 
 # ── 3. public/ — built galleries ─────────────────────────────────────────────
 
-log "→ Syncing public/ (built galleries)..."
-rclone_run sync /data/public "${DROPBOX_REMOTE}:${DROPBOX_ROOT}/public" 2>>"$LOG_FILE"
-log "  ✓ public/ synced"
+if [[ "$SYNC_PUBLIC" != "False" ]]; then
+  log "→ Syncing public/ (built galleries)..."
+  rclone_run sync /data/public "${DROPBOX_REMOTE}:${DROPBOX_ROOT}/public" 2>>"$LOG_FILE"
+  log "  ✓ public/ synced"
+else
+  log "  (skipped) public/ — disabled in config"
+fi
 
 # ── 4. internal/ — thumbnails + cache (skip tus upload sessions) ─────────────
 
-log "→ Syncing internal/ (thumbnails + cache, excluding tus/ and state files)..."
-rclone_run sync /data/internal "${DROPBOX_REMOTE}:${DROPBOX_ROOT}/internal" \
-  --exclude "tus/**" \
-  --exclude ".sync-*" \
-  2>>"$LOG_FILE"
-log "  ✓ internal/ synced"
+if [[ "$SYNC_INTERNAL" != "False" ]]; then
+  log "→ Syncing internal/ (thumbnails + cache, excluding tus/ and state files)..."
+  rclone_run sync /data/internal "${DROPBOX_REMOTE}:${DROPBOX_ROOT}/internal" \
+    --exclude "tus/**" \
+    --exclude ".sync-*" \
+    --exclude "sync-config.json" \
+    2>>"$LOG_FILE"
+  log "  ✓ internal/ synced"
+else
+  log "  (skipped) internal/ — disabled in config"
+fi
 
 # ── Done ──────────────────────────────────────────────────────────────────────
 

@@ -8,7 +8,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../../../lib/api.js';
 import { useT } from '../../../lib/I18nContext.jsx';
-import { AdminPage, AdminCard, AdminButton, AdminAlert } from '../../../components/ui/index.js';
+import { AdminPage, AdminCard, AdminButton, AdminAlert, AdminInput, AdminSwitch } from '../../../components/ui/index.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -86,6 +86,16 @@ function Row({ label, value }) {
   );
 }
 
+const CFG_DEFAULTS = {
+  remote: 'dropbox',
+  remotePath: 'gallerypack',
+  syncPrivate: true,
+  syncPublic: true,
+  syncInternal: true,
+  dbRetentionDays: 7,
+  bwlimit: '0',
+};
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function BackupPage() {
@@ -96,6 +106,12 @@ export default function BackupPage() {
   const [syncMsg, setSyncMsg] = useState('');
   const [error, setError]     = useState('');
   const logRef = useRef(null);
+
+  // Config form
+  const [cfg, setCfg]           = useState(CFG_DEFAULTS);
+  const [cfgSaving, setCfgSaving] = useState(false);
+  const [cfgSaved, setCfgSaved]   = useState('');
+  const [cfgError, setCfgError]   = useState('');
 
   const syncState = status?.triggerPending
     ? 'pending'
@@ -113,6 +129,29 @@ export default function BackupPage() {
       setLogs(l.log);
     } catch {}
   }, []);
+
+  // Load config once on mount
+  useEffect(() => {
+    api.inspectorBackupConfig().then(c => setCfg({ ...CFG_DEFAULTS, ...c })).catch(() => {});
+  }, []);
+
+  async function saveConfig(e) {
+    e.preventDefault();
+    setCfgSaving(true); setCfgSaved(''); setCfgError('');
+    try {
+      const saved = await api.inspectorBackupSaveConfig(cfg);
+      setCfg({ ...CFG_DEFAULTS, ...saved });
+      setCfgSaved(t('settings_saved'));
+    } catch (err) {
+      setCfgError(err.message || 'Save failed');
+    } finally {
+      setCfgSaving(false);
+    }
+  }
+
+  function setCfgField(field) {
+    return e => setCfg(c => ({ ...c, [field]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
+  }
 
   // Poll fast when active, slow when idle
   useEffect(() => {
@@ -176,6 +215,86 @@ export default function BackupPage() {
     >
       <AdminAlert variant="success" message={syncMsg} />
       <AdminAlert message={error} />
+
+      {/* ── Configuration ── */}
+      <form onSubmit={saveConfig}>
+        <AdminCard title={t('backup_config_title')} className="mb-3">
+          <div className="row">
+            <div className="col-md-6">
+              <p className="text-muted mb-3" style={{ fontSize: '0.82rem' }}>
+                {t('backup_config_hint')}
+              </p>
+              <div className="row">
+                <div className="col-sm-5">
+                  <AdminInput
+                    label={t('backup_config_remote')}
+                    value={cfg.remote}
+                    onChange={setCfgField('remote')}
+                    placeholder="dropbox"
+                    hint={t('backup_config_remote_hint')}
+                  />
+                </div>
+                <div className="col-sm-7">
+                  <AdminInput
+                    label={t('backup_config_remote_path')}
+                    value={cfg.remotePath}
+                    onChange={setCfgField('remotePath')}
+                    placeholder="gallerypack"
+                    hint={t('backup_config_remote_path_hint')}
+                  />
+                </div>
+              </div>
+              <div className="row">
+                <div className="col-sm-5">
+                  <AdminInput
+                    label={t('backup_config_bwlimit')}
+                    value={cfg.bwlimit}
+                    onChange={setCfgField('bwlimit')}
+                    placeholder="0"
+                    hint={t('backup_config_bwlimit_hint')}
+                  />
+                </div>
+                <div className="col-sm-7">
+                  <AdminInput
+                    label={t('backup_config_db_retention')}
+                    type="number"
+                    value={cfg.dbRetentionDays}
+                    onChange={setCfgField('dbRetentionDays')}
+                    hint={t('backup_config_db_retention_hint')}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="col-md-6">
+              <p className="text-muted mb-2" style={{ fontSize: '0.82rem' }}>{t('backup_config_dirs')}</p>
+              <AdminSwitch
+                label={<><code>private/</code> <span className="text-muted ms-1" style={{ fontSize: '0.78rem' }}>{t('backup_config_dir_private')}</span></>}
+                checked={cfg.syncPrivate}
+                onChange={setCfgField('syncPrivate')}
+              />
+              <AdminSwitch
+                label={<><code>public/</code> <span className="text-muted ms-1" style={{ fontSize: '0.78rem' }}>{t('backup_config_dir_public')}</span></>}
+                checked={cfg.syncPublic}
+                onChange={setCfgField('syncPublic')}
+              />
+              <AdminSwitch
+                label={<><code>internal/</code> <span className="text-muted ms-1" style={{ fontSize: '0.78rem' }}>{t('backup_config_dir_internal')}</span></>}
+                checked={cfg.syncInternal}
+                onChange={setCfgField('syncInternal')}
+              />
+              <div className="mt-3 p-2 rounded" style={{ background: 'var(--bs-light)', fontSize: '0.78rem' }}>
+                <i className="fas fa-info-circle me-1 text-muted" />
+                {t('backup_config_rclone_hint')}
+              </div>
+            </div>
+          </div>
+          <AdminAlert variant="success" message={cfgSaved} />
+          <AdminAlert message={cfgError} />
+          <AdminButton type="submit" loading={cfgSaving} loadingLabel={t('saving')} icon="fas fa-save">
+            {t('save')}
+          </AdminButton>
+        </AdminCard>
+      </form>
 
       <div className="row">
 

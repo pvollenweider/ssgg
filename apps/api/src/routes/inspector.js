@@ -26,7 +26,18 @@ const INTERNAL_ROOT     = path.join(process.env.STORAGE_ROOT ?? process.cwd(), '
 const SYNC_STATUS_FILE  = path.join(INTERNAL_ROOT, '.sync-status.json');
 const SYNC_TRIGGER_FILE = path.join(INTERNAL_ROOT, '.sync-trigger');
 const SYNC_LOG_FILE     = path.join(INTERNAL_ROOT, '.sync-log');
+const SYNC_CONFIG_FILE  = path.join(INTERNAL_ROOT, 'sync-config.json');
 const DB_DUMP_DIR       = path.join(INTERNAL_ROOT, 'db-dumps');
+
+const SYNC_CONFIG_DEFAULTS = {
+  remote: 'dropbox',
+  remotePath: 'gallerypack',
+  syncPrivate: true,
+  syncPublic: true,
+  syncInternal: true,
+  dbRetentionDays: 7,
+  bwlimit: '0',
+};
 
 /** Return total bytes in a directory tree via `du -sb` (Linux/BusyBox). */
 async function getDirSize(dirPath) {
@@ -824,6 +835,35 @@ router.get('/backup/logs', async (req, res, next) => {
       log = all.slice(-lines).join('\n');
     } catch {}
     res.json({ log });
+  } catch (err) { next(err); }
+});
+
+// GET /api/inspector/backup/config
+router.get('/backup/config', async (req, res, next) => {
+  try {
+    let saved = {};
+    try { saved = JSON.parse(await readFile(SYNC_CONFIG_FILE, 'utf8')); } catch {}
+    res.json({ ...SYNC_CONFIG_DEFAULTS, ...saved });
+  } catch (err) { next(err); }
+});
+
+// POST /api/inspector/backup/config
+router.post('/backup/config', async (req, res, next) => {
+  try {
+    const { remote, remotePath, syncPrivate, syncPublic, syncInternal, dbRetentionDays, bwlimit } = req.body;
+    const config = {
+      remote:          typeof remote      === 'string' ? remote.trim()      : SYNC_CONFIG_DEFAULTS.remote,
+      remotePath:      typeof remotePath  === 'string' ? remotePath.trim()  : SYNC_CONFIG_DEFAULTS.remotePath,
+      syncPrivate:     syncPrivate  !== false,
+      syncPublic:      syncPublic   !== false,
+      syncInternal:    syncInternal !== false,
+      dbRetentionDays: Number.isInteger(Number(dbRetentionDays)) && Number(dbRetentionDays) > 0
+        ? Number(dbRetentionDays) : SYNC_CONFIG_DEFAULTS.dbRetentionDays,
+      bwlimit:         typeof bwlimit === 'string' ? bwlimit.trim() : SYNC_CONFIG_DEFAULTS.bwlimit,
+    };
+    await writeFile(SYNC_CONFIG_FILE, JSON.stringify(config, null, 2), 'utf8');
+    await auditLog(req.userId, 'backup_config_updated', 'system', 'backup');
+    res.json(config);
   } catch (err) { next(err); }
 });
 
