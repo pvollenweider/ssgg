@@ -42,8 +42,9 @@ export async function requireAuth(req, res, next) {
     req.studioRole = resolvedRole; // alias — some routes still use studioRole post-rename
 
     // If no role found and org wasn't explicitly chosen, fall back to user's home org.
+    // Superadmins skip this fallback — they can operate in any org via hostname context.
     const hasOverride = !!(req.cookies?.organization_override);
-    if (!req.orgRole && !hasOverride) {
+    if (!req.orgRole && !hasOverride && user.platform_role !== 'superadmin') {
       const homeOrgId = user.organization_id;
       if (homeOrgId && homeOrgId !== req.organizationId) {
         req.organizationId = homeOrgId;

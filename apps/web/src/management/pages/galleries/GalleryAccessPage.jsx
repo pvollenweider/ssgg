@@ -170,6 +170,8 @@ export default function GalleryAccessPage() {
 
   async function createViewerToken(e) {
     e.preventDefault();
+    const galleryPath = galleryMeta.distName || form.slug;
+    if (!galleryPath) { setVtError(t('gal_share_path_unavailable')); return; }
     setVtCreating(true); setVtError('');
     try {
       const data = {};
@@ -177,7 +179,7 @@ export default function GalleryAccessPage() {
       if (vtExpiry) data.expiresAt = new Date(vtExpiry).getTime();
       const vt = await api.createViewerToken(galleryId, data);
       setViewerTokens(ts => [{ id: vt.id, label: vt.label, expires_at: vt.expires_at, created_at: vt.created_at }, ...ts]);
-      setFreshLink({ url: buildShareUrl(vt.token), label: vt.label });
+      setFreshLink({ url: `${window.location.origin}/${galleryPath}/?vt=${vt.token}`, label: vt.label });
       setCopiedVt(false);
       setVtLabel('');
       setVtExpiry('');

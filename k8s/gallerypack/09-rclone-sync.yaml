@@ -29,9 +29,8 @@ spec:
                   ROOT=gallerypack
 
                   # No trigger → silent exit
-                  [ -f "$TRIGGER" ] || exit 0
+                  if [ ! -f "$TRIGGER" ]; then exit 0; fi
 
-                  # Consume trigger + copy conf to writable emptyDir
                   rm -f "$TRIGGER"
                   cp /data/internal/rclone.conf "$CONF"
 
@@ -43,38 +42,27 @@ spec:
                     echo "$MSG" >> "$LOG"
                   }
 
-                  trim_log() {
-                    [ -f "$LOG" ] || return
-                    n=$(wc -l < "$LOG")
-                    if [ "$n" -gt 2000 ]; then
-                      tail -n 2000 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
-                    fi
-                  }
-
-                  on_error() {
+                  fail() {
                     FINISH=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
-                    printf '{"state":"error","started_at":"%s","finished_at":"%s","error":"Sync failed at line %s","trigger":"ui"}\n' \
+                    printf '{"state":"error","started_at":"%s","finished_at":"%s","error":"%s","trigger":"ui"}\n' \
                       "$START" "$FINISH" "$1" > "$STATUS"
-                    log "ERROR: Sync failed at line $1"
+                    log "ERROR: $1"
                     exit 1
                   }
-                  trap 'on_error $LINENO' ERR
-                  set -e
 
-                  trim_log
                   printf '{"state":"running","started_at":"%s","finished_at":null,"error":null,"trigger":"ui"}\n' "$START" > "$STATUS"
                   log "=== GalleryPack → Dropbox sync started (trigger: ui) ==="
 
                   log "→ Syncing private/..."
                   rclone sync /data/private "$REMOTE:$ROOT/private" \
                     --config "$CONF" --transfers=4 --checkers=8 \
-                    --log-level=INFO --stats=0 2>>"$LOG"
+                    --log-level=INFO --stats=0 2>>"$LOG" || fail "private/ sync failed"
                   log "  ✓ private/ synced"
 
                   log "→ Syncing public/..."
                   rclone sync /data/public "$REMOTE:$ROOT/public" \
                     --config "$CONF" --transfers=4 --checkers=8 \
-                    --log-level=INFO --stats=0 2>>"$LOG"
+                    --log-level=INFO --stats=0 2>>"$LOG" || fail "public/ sync failed"
                   log "  ✓ public/ synced"
 
                   log "→ Syncing internal/..."
@@ -82,7 +70,7 @@ spec:
                     --config "$CONF" --transfers=4 --checkers=8 \
                     --exclude "tus/**" --exclude ".sync-*" \
                     --exclude "sync-config.json" --exclude "rclone.conf" \
-                    --log-level=INFO --stats=0 2>>"$LOG"
+                    --log-level=INFO --stats=0 2>>"$LOG" || fail "internal/ sync failed"
                   log "  ✓ internal/ synced"
 
                   FINISH=$(date -u '+%Y-%m-%dT%H:%M:%SZ')

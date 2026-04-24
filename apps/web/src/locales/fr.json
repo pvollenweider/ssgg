@@ -771,6 +771,7 @@
   "gal_upload_th_token": "Token",
   "gal_upload_th_created": "Créé le",
   "gal_upload_unnamed": "Sans nom",
+  "gal_share_path_unavailable": "Chemin de la galerie non disponible, veuillez patienter le chargement de la page.",
   "gal_upload_create_section": "Créer un lien d'upload",
   "gal_upload_label_optional": "(facultatif)",
   "gal_upload_placeholder": "ex. Photographe A",

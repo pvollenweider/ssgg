@@ -617,6 +617,7 @@
   "gal_upload_th_token": "Token",
   "gal_upload_th_created": "Created",
   "gal_upload_unnamed": "Unnamed",
+  "gal_share_path_unavailable": "Gallery path not available yet, please wait for the page to load.",
   "gal_upload_create_section": "Create upload link",
   "gal_upload_label_optional": "(optional)",
   "gal_upload_placeholder": "e.g. Photographer A",

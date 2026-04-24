@@ -248,6 +248,19 @@ export async function runJob(jobId) {
       }
     }
 
+    // Clean up previous hash-based dist directory when dist_name changes on rebuild
+    if (gallery.dist_name && gallery.dist_name !== finalDistName) {
+      const oldHashDir = path.join(DIST_ROOT, gallery.dist_name);
+      try {
+        if (fs.existsSync(oldHashDir)) {
+          fs.rmSync(oldHashDir, { recursive: true, force: true });
+          await appendEvent(jobId, 'log', `Removed stale dist directory: dist/${gallery.dist_name}`);
+        }
+      } catch (e) {
+        await appendEvent(jobId, 'log', `Warning: could not remove stale dist dir: ${e.message}`);
+      }
+    }
+
     // Sprint 13: mark validated photos as published, count newly published ones
     const [newlyPublished] = await query(
       `UPDATE photos SET status = 'published' WHERE gallery_id = ? AND status = 'validated'`,
