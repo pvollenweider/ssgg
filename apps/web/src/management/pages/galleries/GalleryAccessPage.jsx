@@ -73,9 +73,8 @@ export default function GalleryAccessPage() {
   useEffect(() => {
     Promise.all([
       api.getGallery(galleryId),
-      api.getSettings(),
       api.listOrgPhotographers(orgId),
-    ]).then(([g, s, pgs]) => {
+    ]).then(([g, pgs]) => {
       setForm({
         galleryMode: g.mode ?? null,
         access: g.access || 'public', password: '',
@@ -89,10 +88,11 @@ export default function GalleryAccessPage() {
       });
       setWatermarkEnabled(g.watermark?.enabled ?? false);
       setWatermarkText(g.watermark?.text || '');
-      setOrgDefault(s?.defaultAccess ?? null);
       setPhotographers(pgs);
       setGalleryMeta({ distName: g.distName || g.slug, buildStatus: g.buildStatus });
     }).catch(() => {});
+    // Settings is optional (org default access hint) — don't block critical data load
+    api.getSettings().then(s => setOrgDefault(s?.defaultAccess ?? null)).catch(() => {});
     loadViewerTokens();
   }, [galleryId, orgId]);
 
