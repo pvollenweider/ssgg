@@ -143,7 +143,7 @@ router.post('/forgot', async (req, res) => {
   if (!user) return res.json({ ok: true }); // don't reveal whether email exists
 
   const resetRow = await createPasswordResetToken(user.id);
-  const base     = (process.env.BASE_URL || 'http://localhost:4000').replace(/\/$/, '');
+  const base     = `${req.protocol}://${req.hostname}`;
   const resetUrl = `${base}/admin/reset-password/${resetRow.token}`;
 
   let emailSent = false;
@@ -198,8 +198,8 @@ router.post('/magic', async (req, res) => {
   if (!user) return res.json({ ok: true, emailSent: false }); // don't reveal whether email exists
 
   const row  = await createMagicLink(user.id);
-  const base = (process.env.BASE_URL || 'http://localhost:4000').replace(/\/$/, '');
-  const magicUrl = `${base}/magic-login/${row.token}`;
+  const base = `${req.protocol}://${req.hostname}`;
+  const magicUrl = `${base}/admin/magic-login/${row.token}`;
 
   let emailSent = false;
   try {
@@ -252,7 +252,7 @@ router.post('/admin/reset-link', requireAuth, async (req, res) => {
   if (!user || user.organization_id !== req.organizationId)
     return res.status(404).json({ error: 'User not found' });
   const resetRow = await createPasswordResetToken(userId);
-  const base     = (process.env.BASE_URL || 'http://localhost:4000').replace(/\/$/, '');
+  const base     = `${req.protocol}://${req.hostname}`;
   res.json({ resetUrl: `${base}/admin/reset-password/${resetRow.token}` });
 });
 
