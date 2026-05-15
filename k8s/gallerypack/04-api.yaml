@@ -81,6 +81,12 @@ spec:
                 secretKeyRef:
                   name: gallerypack-secrets
                   key: ADMIN_PASSWORD
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gallerypack-secrets
+                  key: ANTHROPIC_API_KEY
+                  optional: true
             - name: STORAGE_ROOT
               value: /srv/gallerypack
           volumeMounts:
