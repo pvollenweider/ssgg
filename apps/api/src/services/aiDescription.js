@@ -32,12 +32,13 @@ const LOCALE_TO_LANG = {
 /**
  * Generate a photo description using Claude Vision.
  *
- * @param {Buffer} imageBuffer - Raw image bytes
- * @param {string} mediaType   - MIME type, e.g. 'image/jpeg'
- * @param {string} locale      - BCP-47 locale string, e.g. 'fr' or 'en-US'
- * @returns {Promise<string>}  - Description text
+ * @param {Buffer} imageBuffer  - Raw image bytes
+ * @param {string} mediaType    - MIME type, e.g. 'image/jpeg'
+ * @param {string} locale       - BCP-47 locale string, e.g. 'fr' or 'en-US'
+ * @param {object} [gallery]    - Optional gallery context: { title, subtitle, description }
+ * @returns {Promise<string>}   - Description text (max 160 chars)
  */
-export async function generateDescription(imageBuffer, mediaType, locale) {
+export async function generateDescription(imageBuffer, mediaType, locale, gallery = {}) {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error('ANTHROPIC_API_KEY is not set');
   }
@@ -45,9 +46,17 @@ export async function generateDescription(imageBuffer, mediaType, locale) {
   const lang   = LOCALE_TO_LANG[locale] || LOCALE_TO_LANG[locale?.split('-')[0]] || 'English';
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+  const contextLines = [];
+  if (gallery.title)       contextLines.push(`Gallery: ${gallery.title}`);
+  if (gallery.subtitle)    contextLines.push(`Subtitle: ${gallery.subtitle}`);
+  if (gallery.description) contextLines.push(`Description: ${gallery.description}`);
+  const contextBlock = contextLines.length
+    ? `Context about this gallery:\n${contextLines.join('\n')}\n\n`
+    : '';
+
   const response = await client.messages.create({
     model:      'claude-sonnet-4-6',
-    max_tokens: 256,
+    max_tokens: 100,
     messages: [{
       role:    'user',
       content: [
@@ -61,7 +70,7 @@ export async function generateDescription(imageBuffer, mediaType, locale) {
         },
         {
           type: 'text',
-          text: `Describe this photo in ${lang}. Write 1-2 sentences suitable as an image caption and alt text. Be specific and descriptive. Return only the description, no preamble.`,
+          text: `${contextBlock}Write a caption for this photo in ${lang}. Maximum 160 characters. Suitable as image alt text and a visible caption. Be specific and descriptive. Return only the caption, no preamble.`,
         },
       ],
     }],
@@ -69,5 +78,5 @@ export async function generateDescription(imageBuffer, mediaType, locale) {
 
   const block = response.content.find(b => b.type === 'text');
   if (!block?.text) throw new Error('No text block in Claude response');
-  return block.text.trim();
+  return block.text.trim().slice(0, 160);
 }

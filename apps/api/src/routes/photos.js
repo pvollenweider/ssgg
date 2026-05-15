@@ -776,7 +776,11 @@ router.post('/:id/photos/:photoId/ai-description', async (req, res) => {
 
   let description;
   try {
-    description = await generateDescription(imageBuffer, mediaType, locale);
+    description = await generateDescription(imageBuffer, mediaType, locale, {
+      title:       gallery.title,
+      subtitle:    gallery.subtitle,
+      description: gallery.description,
+    });
   } catch (err) {
     return res.status(502).json({ error: 'AI generation failed', detail: err.message });
   }
@@ -855,7 +859,11 @@ router.post('/:id/ai-descriptions/bulk', async (req, res) => {
         }
 
         try {
-          const description = await generateDescription(imageBuffer, 'image/webp', locale);
+          const description = await generateDescription(imageBuffer, 'image/webp', locale, {
+            title:       gallery.title,
+            subtitle:    gallery.subtitle,
+            description: gallery.description,
+          });
           await query('UPDATE photos SET ai_description = ? WHERE id = ?', [description, photo.id]);
           done++;
           await appendEvent(job.id, 'log', `✓ [${done}/${photoRows.length}] ${photo.filename}`);
