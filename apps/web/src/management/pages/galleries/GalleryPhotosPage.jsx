@@ -229,6 +229,7 @@ export default function GalleryPhotosPage() {
   const [descGenerating,     setDescGenerating]     = useState(false);
   const [descSaving,         setDescSaving]         = useState(false);
   const [aiKeyMissing,       setAiKeyMissing]       = useState(false);
+  const descPanelRef = useRef(null);
 
   const pollRef = useRef(null);
 
@@ -450,6 +451,7 @@ export default function GalleryPhotosPage() {
     setSelectedPhotoDesc(photo);
     setDescDraft(photo.ai_description || '');
     setAiKeyMissing(false);
+    setTimeout(() => descPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   }
 
   function closePhotoDesc() {
@@ -876,9 +878,9 @@ export default function GalleryPhotosPage() {
 
           {/* AI description panel */}
           {selectedPhotoDesc && canEdit && (
+            <div ref={descPanelRef} style={{ marginTop: '1.5rem' }}>
             <AdminCard
               title={<><i className="fas fa-align-left me-2" />Description — {selectedPhotoDesc.file}</>}
-              style={{ marginTop: '1.5rem' }}
               headerRight={
                 <button className="btn btn-tool" type="button" onClick={closePhotoDesc}>
                   <i className="fas fa-times" />
@@ -923,6 +925,7 @@ export default function GalleryPhotosPage() {
                 </AdminButton>
               </div>
             </AdminCard>
+            </div>
           )}
         </>
       )}
