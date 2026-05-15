@@ -719,6 +719,12 @@ router.patch('/:id/photos/:photoId', async (req, res) => {
 
   const { photographerId, ai_description } = req.body || {};
 
+  const [photoCheck] = await query(
+    'SELECT id FROM photos WHERE id = ? AND gallery_id = ?',
+    [req.params.photoId, gallery.id]
+  );
+  if (!photoCheck[0]) return res.status(404).json({ error: 'Photo not found' });
+
   if (photographerId !== undefined && photographerId !== null) {
     const [urows] = await query('SELECT id FROM users WHERE id = ?', [photographerId]);
     if (!urows[0]) return res.status(400).json({ error: 'User not found' });
@@ -766,12 +772,13 @@ router.post('/:id/photos/:photoId/ai-description', async (req, res) => {
     return res.status(404).json({ error: 'Photo file not found in storage' });
   }
 
-  const ext = photo.filename.split('.').pop().toLowerCase();
+  const ext = photo.filename.includes('.') ? photo.filename.split('.').pop().toLowerCase() : '';
   const MEDIA_TYPES = {
     jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
     webp: 'image/webp', gif: 'image/gif', heic: 'image/heic', heif: 'image/heif',
   };
-  const mediaType = MEDIA_TYPES[ext] ?? 'image/jpeg';
+  const mediaType = MEDIA_TYPES[ext];
+  if (!mediaType) return res.status(400).json({ error: 'Unsupported file type for AI description' });
 
   let description;
   try {
