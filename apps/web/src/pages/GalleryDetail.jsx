@@ -94,6 +94,13 @@ export default function GalleryDetail() {
   const [inbox,           setInbox]           = useState(null); // { photos, counts }
   const [validating,      setValidating]      = useState(false);
 
+  // Photo description state
+  const [selectedPhoto,   setSelectedPhoto]   = useState(null);
+  const [descDraft,       setDescDraft]       = useState('');
+  const [descGenerating,  setDescGenerating]  = useState(false);
+  const [descSaving,      setDescSaving]      = useState(false);
+  const [aiKeyMissing,    setAiKeyMissing]    = useState(false);
+
   useEffect(() => { load(); }, [id]);
 
   async function load() {
@@ -161,6 +168,56 @@ export default function GalleryDetail() {
       setPhotos(p => p.filter(f => f.file !== filename));
       setNeedsRebuild(true);
     } catch (e) { alert(e.message); }
+  }
+
+  function openPhotoDetail(photo) {
+    setSelectedPhoto(photo);
+    setDescDraft(photo.ai_description || '');
+    setAiKeyMissing(false);
+  }
+
+  function closePhotoDetail() {
+    setSelectedPhoto(null);
+    setDescDraft('');
+  }
+
+  async function handleGenerateDescription() {
+    if (!selectedPhoto) return;
+    setDescGenerating(true);
+    try {
+      const result = await api.generatePhotoDescription(id, selectedPhoto.id);
+      setDescDraft(result.description);
+      setPhotos(ps => ps.map(p => p.id === selectedPhoto.id
+        ? { ...p, ai_description: result.description }
+        : p
+      ));
+      setSelectedPhoto(prev => ({ ...prev, ai_description: result.description }));
+    } catch (err) {
+      if (err?.status === 402) {
+        setAiKeyMissing(true);
+      } else {
+        alert('AI generation failed. Please try again.');
+      }
+    } finally {
+      setDescGenerating(false);
+    }
+  }
+
+  async function handleSaveDescription() {
+    if (!selectedPhoto) return;
+    setDescSaving(true);
+    try {
+      await api.updatePhotoDescription(id, selectedPhoto.id, descDraft.trim() || null);
+      setPhotos(ps => ps.map(p => p.id === selectedPhoto.id
+        ? { ...p, ai_description: descDraft.trim() || null }
+        : p
+      ));
+      setSelectedPhoto(prev => ({ ...prev, ai_description: descDraft.trim() || null }));
+    } catch {
+      alert('Failed to save description.');
+    } finally {
+      setDescSaving(false);
+    }
   }
 
   async function handleDeleteGallery() {
@@ -539,22 +596,94 @@ export default function GalleryDetail() {
               {photos.map((p, i) => (
                 <div
                   key={p.file}
-                  style={{ ...s.photoCard, opacity: dragIdx === i ? 0.5 : 1, cursor:'grab' }}
+                  style={{ ...s.photoCard, opacity: dragIdx === i ? 0.5 : 1, cursor:'grab', position:'relative' }}
                   draggable
                   onDragStart={() => onDragStart(i)}
                   onDragOver={e => onDragOver(e, i)}
                   onDragEnd={onDragEnd}
                 >
+                  {p.ai_description && (
+                    <span style={{
+                      position:'absolute', top:3, left:3,
+                      background:'rgba(0,120,212,0.85)',
+                      borderRadius:'50%', width:8, height:8, display:'block',
+                      zIndex:1,
+                    }} title="Has AI description" />
+                  )}
                   <img
                     src={p.thumb
                       ? `${publicPath}/img/grid/${p.thumb}.webp`
                       : `/api/galleries/${id}/photos/${encodeURIComponent(p.file)}/preview`}
                     style={s.thumb} alt={p.file} />
                   <div style={s.photoName}>{p.file}</div>
+                  {CAN_BUILD && (
+                    <button
+                      style={{ ...s.deleteBtn, right:26 }}
+                      title="Edit description"
+                      onClick={e => { e.stopPropagation(); openPhotoDetail(p); }}
+                    >
+                      <i className="fas fa-align-left" />
+                    </button>
+                  )}
                   {CAN_BUILD && <button style={s.deleteBtn} onClick={() => handleDeletePhoto(p.file)}><i className="fas fa-times" /></button>}
                 </div>
               ))}
             </div>
+
+            {selectedPhoto && CAN_BUILD && (
+              <div className="card card-primary card-outline mb-4" style={{ marginTop:'1.5rem' }}>
+                <div className="card-header">
+                  <h3 className="card-title">
+                    <i className="fas fa-align-left me-2" />
+                    Description — {selectedPhoto.file}
+                  </h3>
+                  <div className="card-tools">
+                    <button className="btn btn-tool" type="button" onClick={closePhotoDetail}>
+                      <i className="fas fa-times" />
+                    </button>
+                  </div>
+                </div>
+                <div className="card-body">
+                  <p style={{ fontSize:'0.8rem', color:'#666', margin:'0 0 0.5rem' }}>
+                    Used as <code>alt</code> text and lightbox caption in the built gallery.
+                  </p>
+                  <textarea
+                    style={{ width:'100%', minHeight:80, resize:'vertical', fontFamily:'inherit', fontSize:'0.9rem', padding:'0.4rem', border:'1px solid #ccc', borderRadius:4 }}
+                    value={descDraft}
+                    onChange={e => setDescDraft(e.target.value)}
+                    placeholder="No description yet. Click Generate to create one with AI."
+                  />
+                  <div style={{ display:'flex', gap:'0.5rem', marginTop:'0.5rem', alignItems:'center' }}>
+                    <button
+                      className="btn btn-sm btn-secondary"
+                      onClick={handleGenerateDescription}
+                      disabled={descGenerating || aiKeyMissing}
+                      title={aiKeyMissing ? 'Set ANTHROPIC_API_KEY to enable AI generation' : undefined}
+                    >
+                      {descGenerating
+                        ? <><i className="fas fa-spinner fa-spin me-1" />Generating…</>
+                        : selectedPhoto.ai_description
+                          ? <><i className="fas fa-redo me-1" />Regenerate</>
+                          : <><i className="fas fa-magic me-1" />Generate with AI</>
+                      }
+                    </button>
+                    {aiKeyMissing && (
+                      <span style={{ fontSize:'0.78rem', color:'#c00' }}>
+                        ANTHROPIC_API_KEY not configured on the server.
+                      </span>
+                    )}
+                    <button
+                      className="btn btn-sm btn-primary"
+                      style={{ marginLeft:'auto' }}
+                      onClick={handleSaveDescription}
+                      disabled={descSaving}
+                    >
+                      {descSaving ? <><i className="fas fa-spinner fa-spin me-1" />Saving…</> : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

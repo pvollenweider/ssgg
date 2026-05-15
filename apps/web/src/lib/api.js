@@ -55,6 +55,10 @@ export const api = {
   listInbox:      (galleryId)         => req('GET',    `/galleries/${galleryId}/photos/inbox`),
   validatePhotos: (galleryId, data)   => req('POST',   `/galleries/${galleryId}/photos/validate`, data),
   rejectPhotos:   (galleryId, data)   => req('POST',   `/galleries/${galleryId}/photos/reject`, data),
+  generatePhotoDescription: (galleryId, photoId) =>
+    req('POST', `/galleries/${galleryId}/photos/${photoId}/ai-description`),
+  updatePhotoDescription:   (galleryId, photoId, description) =>
+    req('PATCH', `/galleries/${galleryId}/photos/${photoId}`, { ai_description: description }),
 
   // Upload links (photographer access)
   listUploadLinks:   (galleryId)         => req('GET',    `/galleries/${galleryId}/upload-links`),
