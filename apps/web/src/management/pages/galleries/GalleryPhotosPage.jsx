@@ -48,6 +48,7 @@ function SortablePhotoCard({
   onToggleSelect,
   onDelete,
   onSetCover,
+  onEditDescription,
 }) {
   const {
     attributes,
@@ -139,6 +140,22 @@ function SortablePhotoCard({
               ? <i className="fas fa-spinner fa-spin" />
               : <i className="fas fa-star" />}
           </button>
+          {/* AI description */}
+          <button
+            onClick={e => { e.stopPropagation(); onEditDescription(); }}
+            onPointerDown={e => e.stopPropagation()}
+            title="Edit AI description"
+            style={{
+              position: 'absolute', top: 4, right: 32,
+              background: photo.ai_description ? 'rgba(0,120,212,0.75)' : 'rgba(0,0,0,0.55)',
+              border: 'none', color: '#fff', borderRadius: 4, width: 24, height: 24,
+              cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem',
+              touchAction: 'auto',
+            }}
+          >
+            <i className="fas fa-align-left" />
+          </button>
           {/* Delete */}
           <button
             onClick={e => { e.stopPropagation(); onDelete(); }}
@@ -205,6 +222,13 @@ export default function GalleryPhotosPage() {
   // Multi-select + drag state
   const [selected,     setSelected]     = useState(new Set()); // Set<photo.id>
   const [activeDragId, setActiveDragId] = useState(null);      // file of card being dragged
+
+  // AI description panel
+  const [selectedPhotoDesc,  setSelectedPhotoDesc]  = useState(null);
+  const [descDraft,          setDescDraft]          = useState('');
+  const [descGenerating,     setDescGenerating]     = useState(false);
+  const [descSaving,         setDescSaving]         = useState(false);
+  const [aiKeyMissing,       setAiKeyMissing]       = useState(false);
 
   const pollRef = useRef(null);
 
@@ -420,6 +444,57 @@ export default function GalleryPhotosPage() {
     const next  = position === 'front' ? [...sel, ...rest] : [...rest, ...sel];
     setPhotos(next);
     await saveOrder(next);
+  }
+
+  function openPhotoDesc(photo) {
+    setSelectedPhotoDesc(photo);
+    setDescDraft(photo.ai_description || '');
+    setAiKeyMissing(false);
+  }
+
+  function closePhotoDesc() {
+    setSelectedPhotoDesc(null);
+    setDescDraft('');
+  }
+
+  async function handleGenerateDesc() {
+    if (!selectedPhotoDesc) return;
+    setDescGenerating(true);
+    try {
+      const result = await api.generatePhotoDescription(galleryId, selectedPhotoDesc.id);
+      setDescDraft(result.description);
+      setPhotos(ps => ps.map(p => p.id === selectedPhotoDesc.id
+        ? { ...p, ai_description: result.description }
+        : p
+      ));
+      setSelectedPhotoDesc(prev => ({ ...prev, ai_description: result.description }));
+    } catch (err) {
+      if (err?.status === 402) {
+        setAiKeyMissing(true);
+      } else {
+        setToast('AI generation failed. Please try again.');
+      }
+    } finally {
+      setDescGenerating(false);
+    }
+  }
+
+  async function handleSaveDesc() {
+    if (!selectedPhotoDesc) return;
+    setDescSaving(true);
+    try {
+      await api.updatePhotoDescription(galleryId, selectedPhotoDesc.id, descDraft.trim() || null);
+      setPhotos(ps => ps.map(p => p.id === selectedPhotoDesc.id
+        ? { ...p, ai_description: descDraft.trim() || null }
+        : p
+      ));
+      setSelectedPhotoDesc(prev => ({ ...prev, ai_description: descDraft.trim() || null }));
+      setToast('Description saved.');
+    } catch {
+      setToast('Failed to save description.');
+    } finally {
+      setDescSaving(false);
+    }
   }
 
   // ── dnd-kit drag handlers ───────────────────────────────────────────────────
@@ -789,6 +864,7 @@ export default function GalleryPhotosPage() {
                           onToggleSelect={e => toggleSelect(p.id, e)}
                           onDelete={() => handleDelete(p.file)}
                           onSetCover={() => { if (gallery?.coverPhoto !== p.file) setCover(p.file); }}
+                          onEditDescription={() => openPhotoDesc(p)}
                         />
                       ))}
                     </div>
@@ -797,6 +873,57 @@ export default function GalleryPhotosPage() {
               </>
             )}
           </AdminCard>
+
+          {/* AI description panel */}
+          {selectedPhotoDesc && canEdit && (
+            <AdminCard
+              title={<><i className="fas fa-align-left me-2" />Description — {selectedPhotoDesc.file}</>}
+              style={{ marginTop: '1.5rem' }}
+              headerRight={
+                <button className="btn btn-tool" type="button" onClick={closePhotoDesc}>
+                  <i className="fas fa-times" />
+                </button>
+              }
+            >
+              <p style={{ fontSize: '0.8rem', color: '#666', margin: '0 0 0.5rem' }}>
+                Used as <code>alt</code> text and lightbox caption in the built gallery.
+              </p>
+              <textarea
+                style={{ width: '100%', minHeight: 80, resize: 'vertical', fontFamily: 'inherit', fontSize: '0.9rem', padding: '0.4rem', border: '1px solid #ccc', borderRadius: 4 }}
+                value={descDraft}
+                onChange={e => setDescDraft(e.target.value)}
+                placeholder="No description yet. Click Generate to create one with AI."
+              />
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', alignItems: 'center' }}>
+                <AdminButton
+                  variant="outline-secondary"
+                  size="sm"
+                  icon={descGenerating ? 'fas fa-spinner fa-spin' : 'fas fa-magic'}
+                  loading={descGenerating}
+                  loadingLabel="Generating…"
+                  disabled={descGenerating || aiKeyMissing}
+                  title={aiKeyMissing ? 'Set ANTHROPIC_API_KEY to enable AI generation' : undefined}
+                  onClick={handleGenerateDesc}
+                >
+                  {selectedPhotoDesc.ai_description ? 'Regenerate' : 'Generate with AI'}
+                </AdminButton>
+                {aiKeyMissing && (
+                  <span style={{ fontSize: '0.78rem', color: '#c00' }}>
+                    ANTHROPIC_API_KEY not configured on the server.
+                  </span>
+                )}
+                <AdminButton
+                  size="sm"
+                  style={{ marginLeft: 'auto' }}
+                  loading={descSaving}
+                  loadingLabel="Saving…"
+                  onClick={handleSaveDesc}
+                >
+                  Save
+                </AdminButton>
+              </div>
+            </AdminCard>
+          )}
         </>
       )}
     </AdminPage>
