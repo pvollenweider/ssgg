@@ -498,7 +498,7 @@ export function buildHTML(cfg, photos, fontCss = '', standalone = false, customL
   if (customLegal.html) projectWithLegal.legalHtml = customLegal.html;
   if (customLegal.txt)  projectWithLegal.legalTxt  = customLegal.txt;
 
-  const photosJson  = JSON.stringify(photos.map((p, i) => ({ name: p.name, dlName: p.dlName || p.name, role: BIG_POSITIONS.has(i % 12) ? 'big' : 'small', isDark: p.isDark, exif: p.exif, credit: p.credit || null })));
+  const photosJson  = JSON.stringify(photos.map((p, i) => ({ name: p.name, dlName: p.dlName || p.name, role: BIG_POSITIONS.has(i % 12) ? 'big' : 'small', isDark: p.isDark, exif: p.exif, credit: p.credit || null, desc: p.description || null })));
 
   // Build a deduplicated list of photographers for the credits section (issue #133)
   const photographerSet = new Map(); // name → true (preserves first-seen order)
@@ -1001,6 +1001,27 @@ body.glightbox-open #gl-dl-btn{display:flex}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis
 }
 body.glightbox-open:hover #gl-title{opacity:1}
+#gl-caption{
+  position:fixed;z-index:1000001;
+  bottom:108px;left:24px;
+  font-family:'Poppins',sans-serif;
+  font-size:11px;font-weight:300;letter-spacing:.04em;
+  color:rgba(255,255,255,.70);
+  background:rgba(0,0,0,.32);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:4px;
+  padding:3px 9px;
+  opacity:0;
+  transition:opacity .35s;
+  pointer-events:none;
+  max-width:calc(100vw - 140px);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  display:none
+}
+body.glightbox-open:hover #gl-caption{opacity:1}
+body.glightbox-open.sw-playing #gl-caption{opacity:1}
+body.sw-idle #gl-caption{opacity:0 !important;pointer-events:none !important}
 /* During active slideshow: title visible (not just on hover) */
 body.glightbox-open.sw-playing #gl-title{opacity:1}
 
@@ -1234,6 +1255,8 @@ ${[2,3,5,8,10].map(s => {
 
 <!-- Title overlay (bottom-left) -->
 <div id="gl-title"></div>
+<!-- AI caption overlay (above title, shown when photo has a description) -->
+<div id="gl-caption"></div>
 
 <!-- Modale mentions légales -->
 <div id="legal-overlay">
@@ -1362,6 +1385,16 @@ function exifHTML(exif) {
 /* Pill with frosted-glass backdrop — always legible regardless of what is
    behind it (photo or black letterbox bars). */
 const glTitle = document.getElementById('gl-title');
+const glCaption = document.getElementById('gl-caption');
+function updateCaption(idx) {
+  const desc = PHOTOS[idx]?.desc;
+  if (desc) {
+    glCaption.textContent = desc;
+    glCaption.style.display = 'block';
+  } else {
+    glCaption.style.display = 'none';
+  }
+}
 function updateTitleColor(idx) {
   const exif = PHOTOS[idx]?.exif || {};
   const photoDate = exif.date
@@ -1419,7 +1452,7 @@ function makeTile(photo, idx) {
   img.sizes   = isBig
     ? '(max-width: 767px) 66vw, 1400px'
     : '(max-width: 767px) 33vw, 800px';
-  img.alt     = photo.name;
+  img.alt     = photo.desc || photo.name;
   img.loading = idx < 20 ? 'eager' : 'lazy';
   img.decoding= idx < 20 ? 'sync'  : 'async';
   if (idx === 0) img.fetchPriority = 'high';
@@ -1777,6 +1810,7 @@ lb.on('open', () => {
   syncOverlays(idx);
   syncThumb(idx);
   updateTitleColor(idx);
+  updateCaption(idx);
   history.replaceState(null, '', '#' + PHOTOS[idx].name);
 });
 
@@ -1786,6 +1820,7 @@ lb.on('slide_changed', ({ current }) => {
   syncOverlays(idx);
   syncThumb(idx);
   updateTitleColor(idx);
+  updateCaption(idx);
   if (exifOpen) showExif(idx);
   if (swActive) swScheduleNext();  // reset countdown on every slide (swipe or auto)
   history.replaceState(null, '', '#' + PHOTOS[idx].name);
