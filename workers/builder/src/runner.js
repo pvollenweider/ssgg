@@ -152,6 +152,7 @@ export async function runJob(jobId) {
     // This excludes 'uploaded' photos that are still pending review.
     const [validatedRows] = await query(
       `SELECT ph.filename,
+              ph.ai_description,
               COALESCE(u.name,  pu.name)  AS photographer_name,
               COALESCE(u.email, pu.email) AS photographer_email
        FROM photos ph
@@ -192,6 +193,17 @@ export async function runJob(jobId) {
       const creditCount = Object.keys(attribution).length;
       if (creditCount > 0) {
         await appendEvent(jobId, 'log', `Photo attribution: ${creditCount} photo(s) with photographer credits`);
+      }
+
+      // photo_descriptions.json — filename → AI description text (written only when at least one exists)
+      const descriptions = {};
+      for (const r of validatedRows) {
+        if (r.ai_description) descriptions[r.filename] = r.ai_description;
+      }
+      if (Object.keys(descriptions).length > 0) {
+        const descFile = path.join(galSrcDir, 'photo_descriptions.json');
+        fs.writeFileSync(descFile, JSON.stringify(descriptions));
+        await appendEvent(jobId, 'log', `AI descriptions: ${Object.keys(descriptions).length} photo(s) with descriptions`);
       }
     }
 
