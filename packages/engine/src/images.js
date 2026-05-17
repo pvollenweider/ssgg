@@ -87,6 +87,13 @@ export function listPhotos(srcDir) {
     try { descriptions = JSON.parse(fs.readFileSync(descFile, 'utf8')); } catch {}
   }
 
+  // Load AI locations (photo_locations.json) — maps filename → { location, lat, lng }
+  const locFile = path.join(galDir, 'photo_locations.json');
+  let locations = {};
+  if (fs.existsSync(locFile)) {
+    try { locations = JSON.parse(fs.readFileSync(locFile, 'utf8')); } catch {}
+  }
+
   let ordered;
   if (savedOrder && Array.isArray(savedOrder)) {
     const available = new Set(allFiles);
@@ -100,8 +107,11 @@ export function listPhotos(srcDir) {
   return ordered.map(f => ({
     file:        f,
     full:        path.join(srcDir, f),
-    credit:      attribution[f] ?? null,  // photographer name or null
+    credit:      attribution[f] ?? null,
     description: descriptions[f] ?? null,
+    location:    locations[f]?.location ?? null,
+    lat:         locations[f]?.lat ?? null,
+    lng:         locations[f]?.lng ?? null,
   }));
 }
 
@@ -333,10 +343,13 @@ export async function processPhotos(photos, cfg, paths, FORCE = false) {
         role:        BIG_POSITIONS.has(i % 12) ? 'big' : 'small',
         isDark:      dims.isDark,
         exif:        exifFull,
-        credit:      photo.credit ?? null,  // photographer name (issue #133)
+        credit:      photo.credit ?? null,
         description: photo.description ?? null,
+        location:    photo.location ?? null,
+        lat:         photo.lat ?? null,
+        lng:         photo.lng ?? null,
       };
-      results.push({ ...dims, exif: exifFull, credit: photo.credit ?? null, description: photo.description ?? null });
+      results.push({ ...dims, exif: exifFull, credit: photo.credit ?? null, description: photo.description ?? null, location: photo.location ?? null, lat: photo.lat ?? null, lng: photo.lng ?? null });
     } catch (e) {
       fail(`Erreur sur ${photo.file} : ${e.message}`);
     }

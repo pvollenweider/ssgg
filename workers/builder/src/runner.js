@@ -154,6 +154,9 @@ export async function runJob(jobId) {
     const [validatedRows] = await query(
       `SELECT ph.filename,
               ph.ai_description,
+              ph.ai_location,
+              ph.ai_lat,
+              ph.ai_lng,
               COALESCE(u.name,  pu.name)  AS photographer_name,
               COALESCE(u.email, pu.email) AS photographer_email
        FROM photos ph
@@ -205,6 +208,23 @@ export async function runJob(jobId) {
         const descFile = path.join(galSrcDir, 'photo_descriptions.json');
         fs.writeFileSync(descFile, JSON.stringify(descriptions));
         await appendEvent(jobId, 'log', `AI descriptions: ${Object.keys(descriptions).length} photo(s) with descriptions`);
+      }
+
+      // photo_locations.json — filename → { location, lat, lng } (written only when at least one exists)
+      const locations = {};
+      for (const r of validatedRows) {
+        if (r.ai_location || r.ai_lat != null) {
+          locations[r.filename] = {
+            location: r.ai_location || null,
+            lat:      r.ai_lat != null ? parseFloat(r.ai_lat) : null,
+            lng:      r.ai_lng != null ? parseFloat(r.ai_lng) : null,
+          };
+        }
+      }
+      if (Object.keys(locations).length > 0) {
+        const locFile = path.join(galSrcDir, 'photo_locations.json');
+        fs.writeFileSync(locFile, JSON.stringify(locations));
+        await appendEvent(jobId, 'log', `AI locations: ${Object.keys(locations).length} photo(s) with geolocation`);
       }
     }
 

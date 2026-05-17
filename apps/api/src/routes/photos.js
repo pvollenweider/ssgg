@@ -31,6 +31,7 @@ import { decrementStorageUsed } from '../services/tusService.js';
 import { extractExif } from '../../../../packages/engine/src/exif.js';
 import { runSharp } from '../services/sharpProcess.js';
 import { generateDescription } from '../services/aiDescription.js';
+import { geocode } from '../services/geocoding.js';
 import { createJob, updateJobStatus, appendEvent } from '../db/helpers.js';
 
 // Storage adapter — resolved once at startup from env
@@ -774,9 +775,9 @@ router.post('/:id/photos/:photoId/ai-description', async (req, res) => {
   }
   const mediaType = 'image/webp';
 
-  let description;
+  let result;
   try {
-    description = await generateDescription(imageBuffer, mediaType, locale, {
+    result = await generateDescription(imageBuffer, mediaType, locale, {
       title:       gallery.title,
       subtitle:    gallery.subtitle,
       description: gallery.description,
@@ -785,12 +786,18 @@ router.post('/:id/photos/:photoId/ai-description', async (req, res) => {
     return res.status(502).json({ error: 'AI generation failed', detail: err.message });
   }
 
+  const { description, location } = result;
+  let lat = null, lng = null;
+  if (location) {
+    try { ({ lat, lng } = (await geocode(location)) || {}); } catch {}
+  }
+
   await query(
-    'UPDATE photos SET ai_description = ? WHERE id = ?',
-    [description, photo.id]
+    'UPDATE photos SET ai_description = ?, ai_location = ?, ai_lat = ?, ai_lng = ? WHERE id = ?',
+    [description, location || null, lat ?? null, lng ?? null, photo.id]
   );
 
-  res.json({ description });
+  res.json({ description, location: location || null, lat: lat ?? null, lng: lng ?? null });
 });
 
 // POST /api/galleries/:id/ai-descriptions/bulk — generate descriptions for all photos without one
@@ -859,14 +866,23 @@ router.post('/:id/ai-descriptions/bulk', async (req, res) => {
         }
 
         try {
-          const description = await generateDescription(imageBuffer, 'image/webp', locale, {
+          const result = await generateDescription(imageBuffer, 'image/webp', locale, {
             title:       gallery.title,
             subtitle:    gallery.subtitle,
             description: gallery.description,
           });
-          await query('UPDATE photos SET ai_description = ? WHERE id = ?', [description, photo.id]);
+          const { description, location } = result;
+          let lat = null, lng = null;
+          if (location) {
+            try { ({ lat, lng } = (await geocode(location)) || {}); } catch {}
+          }
+          await query(
+            'UPDATE photos SET ai_description = ?, ai_location = ?, ai_lat = ?, ai_lng = ? WHERE id = ?',
+            [description, location || null, lat ?? null, lng ?? null, photo.id]
+          );
           done++;
-          await appendEvent(job.id, 'log', `✓ [${done}/${photoRows.length}] ${photo.filename}`);
+          const locNote = location ? ` 📍 ${location}` : '';
+          await appendEvent(job.id, 'log', `✓ [${done}/${photoRows.length}] ${photo.filename}${locNote}`);
         } catch (err) {
           errors++;
           await appendEvent(job.id, 'log', `✗ ${photo.filename}: ${err.message}`);

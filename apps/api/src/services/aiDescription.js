@@ -31,12 +31,13 @@ const LOCALE_TO_LANG = {
 
 /**
  * Generate a photo description using Claude Vision.
+ * Returns description text and optional location name if Claude recognizes one.
  *
  * @param {Buffer} imageBuffer  - Raw image bytes
  * @param {string} mediaType    - MIME type, e.g. 'image/jpeg'
  * @param {string} locale       - BCP-47 locale string, e.g. 'fr' or 'en-US'
  * @param {object} [gallery]    - Optional gallery context: { title, subtitle, description }
- * @returns {Promise<string>}   - Description text (max 160 chars)
+ * @returns {Promise<{description: string, location: string|null}>}
  */
 export async function generateDescription(imageBuffer, mediaType, locale, gallery = {}) {
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -56,7 +57,7 @@ export async function generateDescription(imageBuffer, mediaType, locale, galler
 
   const response = await client.messages.create({
     model:      'claude-sonnet-4-6',
-    max_tokens: 100,
+    max_tokens: 200,
     messages: [{
       role:    'user',
       content: [
@@ -70,7 +71,11 @@ export async function generateDescription(imageBuffer, mediaType, locale, galler
         },
         {
           type: 'text',
-          text: `${contextBlock}Write a caption for this photo in ${lang}. Maximum 160 characters. Suitable as image alt text and a visible caption. Be specific and descriptive. Return only the caption, no preamble.`,
+          text: `${contextBlock}Analyze this photo and respond with a JSON object (no markdown, no code block) with exactly these two fields:
+- "description": a caption in ${lang}, maximum 160 characters, suitable as image alt text. Be specific and descriptive.
+- "location": if you can confidently identify a specific place (city, landmark, country), provide it in English as "City, Country" format. Otherwise null.
+
+Example: {"description":"Athletes compete on a track at Stade de Gerland","location":"Lyon, France"}`,
         },
       ],
     }],
@@ -78,5 +83,18 @@ export async function generateDescription(imageBuffer, mediaType, locale, galler
 
   const block = response.content.find(b => b.type === 'text');
   if (!block?.text) throw new Error('No text block in Claude response');
-  return block.text.trim().slice(0, 160);
+
+  let parsed;
+  try {
+    const raw = block.text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+    parsed = JSON.parse(raw);
+  } catch {
+    // Fallback: treat entire response as description if JSON parse fails
+    return { description: block.text.trim().slice(0, 160), location: null };
+  }
+
+  return {
+    description: (parsed.description || '').trim().slice(0, 160),
+    location:    parsed.location || null,
+  };
 }

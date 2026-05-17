@@ -1,0 +1,5 @@
+-- 008_photos_ai_location.sql
+ALTER TABLE photos
+  ADD COLUMN ai_location VARCHAR(512) NULL DEFAULT NULL,
+  ADD COLUMN ai_lat      DECIMAL(9,6) NULL DEFAULT NULL,
+  ADD COLUMN ai_lng      DECIMAL(9,6) NULL DEFAULT NULL;

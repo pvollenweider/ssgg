@@ -498,7 +498,7 @@ export function buildHTML(cfg, photos, fontCss = '', standalone = false, customL
   if (customLegal.html) projectWithLegal.legalHtml = customLegal.html;
   if (customLegal.txt)  projectWithLegal.legalTxt  = customLegal.txt;
 
-  const photosJson  = JSON.stringify(photos.map((p, i) => ({ name: p.name, dlName: p.dlName || p.name, role: BIG_POSITIONS.has(i % 12) ? 'big' : 'small', isDark: p.isDark, exif: p.exif, credit: p.credit || null, desc: p.description || null })));
+  const photosJson  = JSON.stringify(photos.map((p, i) => ({ name: p.name, dlName: p.dlName || p.name, role: BIG_POSITIONS.has(i % 12) ? 'big' : 'small', isDark: p.isDark, exif: p.exif, credit: p.credit || null, desc: p.description || null, loc: p.location || null, lat: p.lat ?? null, lng: p.lng ?? null })));
 
   // Build a deduplicated list of photographers for the credits section (issue #133)
   const photographerSet = new Map(); // name → true (preserves first-seen order)
@@ -594,6 +594,9 @@ ${!project.private ? `<script type="application/ld+json">${_escJsonLd({
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>${escHtml(project.title)}</title>
 ${project.description ? `<meta name="description" content="${escHtml(project.description)}">` : ''}
+<meta name="geo.position" content="">
+<meta name="ICBM" content="">
+<meta name="geo.placename" content="">
 ${_seoBlock}
 <script>const _p=location.pathname;const _s=_p.slice(_p.lastIndexOf('/')+1);if(!_p.endsWith('/')&&_s.indexOf('.')<0)location.replace(_p+'/'+location.search+location.hash)</script>
 ${preloadLinks}
@@ -1352,9 +1355,13 @@ const EXIF_KEYS = ['camera','lens','date','location','shutter','aperture','iso',
 const lang = (PROJECT.locale || navigator.language || 'en').slice(0,2).toLowerCase();
 const L = EXIF_I18N[lang] || EXIF_I18N.en;
 
-function exifHTML(exif) {
-  // Merge EXIF location (GPS) with project location as fallback.
+function exifHTML(exif, photo) {
+  // Merge EXIF location (GPS) with AI location or project location as fallback.
   const merged = { ...exif };
+  if (merged.location === undefined && photo?.loc) {
+    merged.location = photo.loc;
+    if (photo.lat != null && photo.lng != null) merged.gps = { lat: photo.lat, lng: photo.lng };
+  }
   if (merged.location === undefined && PROJECT.location) merged.location = PROJECT.location;
 
   const rows = EXIF_KEYS
@@ -1673,11 +1680,12 @@ function syncOverlays(idx) {
     dlCurrentPath = 'img/full/' + p.name + '.webp';
     dlCurrentName = (p.dlName || p.name) + '.webp';
   }
-  if (exifOpen) exifInner.innerHTML = exifHTML(p.exif || {});
+  if (exifOpen) exifInner.innerHTML = exifHTML(p.exif || {}, p);
 }
 
 function showExif(idx) {
-  exifInner.innerHTML = exifHTML(PHOTOS[idx].exif || {});
+  const p = PHOTOS[idx];
+  exifInner.innerHTML = exifHTML(p.exif || {}, p);
   exifOverlay.style.display = '';
   exifOpen = true;
   infoBtn.classList.add('active');
@@ -1812,6 +1820,9 @@ const _origTitle   = document.title;
 const _origDesc    = _metaDesc?.getAttribute('content') || null;
 const _origOgImg   = _metaOgImg?.getAttribute('content') || null;
 const _origOgUrl   = _metaOgUrl?.getAttribute('content') || null;
+const _metaGeoPos  = document.querySelector('meta[name="geo.position"]');
+const _metaICBM    = document.querySelector('meta[name="ICBM"]');
+const _metaGeoName = document.querySelector('meta[name="geo.placename"]');
 function _setMeta(el, val) { if (el && val !== null) el.setAttribute('content', val); }
 function updatePageMeta(idx) {
   const photo  = PHOTOS[idx];
@@ -1829,6 +1840,11 @@ function updatePageMeta(idx) {
     _setMeta(_metaOgDesc, photo.desc);
     _setMeta(_metaTwDesc, photo.desc);
   }
+  if (photo.lat != null && photo.lng != null) {
+    _setMeta(_metaGeoPos,  photo.lat + ';' + photo.lng);
+    _setMeta(_metaICBM,    photo.lat + ', ' + photo.lng);
+  }
+  if (photo.loc) _setMeta(_metaGeoName, photo.loc);
 }
 function restorePageMeta() {
   document.title = _origTitle;
@@ -1838,6 +1854,9 @@ function restorePageMeta() {
   _setMeta(_metaOgImg,   _origOgImg);
   _setMeta(_metaTwImg,   _origOgImg);
   if (_origDesc) { _setMeta(_metaDesc, _origDesc); _setMeta(_metaOgDesc, _origDesc); _setMeta(_metaTwDesc, _origDesc); }
+  _setMeta(_metaGeoPos,  '');
+  _setMeta(_metaICBM,    '');
+  _setMeta(_metaGeoName, '');
 }
 
 lb.on('open', () => {
