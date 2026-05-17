@@ -310,11 +310,11 @@ export default function GalleryPhotosPage() {
     }
   }
 
-  async function handleGenerateAll() {
+  async function handleGenerateAll(force = false) {
     setBulkDescRunning(true);
     setBulkDescJobId(null);
     try {
-      const job = await api.generateAllDescriptions(galleryId);
+      const job = await api.generateAllDescriptions(galleryId, force);
       setBulkDescJobId(job.id);
     } catch (err) {
       if (err?.status === 402) {
@@ -641,8 +641,16 @@ export default function GalleryPhotosPage() {
             loading={bulkDescRunning}
             loadingLabel="…"
             disabled={loading || bulkDescRunning}
-            onClick={handleGenerateAll}
-            title="Generate AI descriptions for all photos without one"
+            onClick={() => handleGenerateAll(false)}
+            title="Generate AI descriptions for photos without one"
+          />
+          <AdminButton
+            variant="outline-secondary"
+            size="sm"
+            icon="fas fa-redo"
+            disabled={loading || bulkDescRunning}
+            onClick={() => handleGenerateAll(true)}
+            title="Regenerate AI descriptions for ALL photos (force)"
           />
         </div>
       }

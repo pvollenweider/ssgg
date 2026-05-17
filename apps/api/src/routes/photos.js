@@ -800,7 +800,8 @@ router.post('/:id/photos/:photoId/ai-description', async (req, res) => {
   res.json({ description, location: location || null, lat: lat ?? null, lng: lng ?? null });
 });
 
-// POST /api/galleries/:id/ai-descriptions/bulk — generate descriptions for all photos without one
+// POST /api/galleries/:id/ai-descriptions/bulk — generate descriptions for photos
+// Body: { force: boolean } — when force=true, regenerate even photos that already have a description
 router.post('/:id/ai-descriptions/bulk', async (req, res) => {
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(402).json({ error: 'ANTHROPIC_API_KEY is not configured' });
@@ -812,6 +813,8 @@ router.post('/:id/ai-descriptions/bulk', async (req, res) => {
   if (!can(req.user, 'upload', 'photo', { studioRole: req.studioRole, galleryRole })) {
     return res.status(403).json({ error: 'Forbidden' });
   }
+
+  const force = req.body?.force === true;
 
   // Prevent duplicate jobs
   const [runningRows] = await query(
@@ -826,7 +829,7 @@ router.post('/:id/ai-descriptions/bulk', async (req, res) => {
     galleryId:      gallery.id,
     organizationId: gallery.organization_id,
     triggeredBy:    'ai-description-bulk',
-    force:          false,
+    force,
   });
 
   res.status(202).json({ id: job.id });
@@ -835,11 +838,13 @@ router.post('/:id/ai-descriptions/bulk', async (req, res) => {
   (async () => {
     try {
       await updateJobStatus(job.id, 'running');
-      await appendEvent(job.id, 'log', 'Starting AI description generation…');
+      await appendEvent(job.id, 'log', force ? 'Starting AI description regeneration (force)…' : 'Starting AI description generation…');
 
       const [photoRows] = await query(
-        'SELECT id, filename FROM photos WHERE gallery_id = ? AND (ai_description IS NULL OR ai_description = ?) ORDER BY sort_order ASC',
-        [gallery.id, '']
+        force
+          ? 'SELECT id, filename FROM photos WHERE gallery_id = ? ORDER BY sort_order ASC'
+          : 'SELECT id, filename FROM photos WHERE gallery_id = ? AND (ai_description IS NULL OR ai_description = ?) ORDER BY sort_order ASC',
+        force ? [gallery.id] : [gallery.id, '']
       );
 
       if (photoRows.length === 0) {
