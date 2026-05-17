@@ -73,9 +73,9 @@ export async function generateDescription(imageBuffer, mediaType, locale, galler
           type: 'text',
           text: `${contextBlock}Analyze this photo and respond with a JSON object (no markdown, no code block) with exactly these two fields:
 - "description": a caption in ${lang}, maximum 160 characters, suitable as image alt text. Be specific and descriptive.
-- "location": if you can confidently identify a specific place (city, landmark, country), provide it in English as "City, Country" format. Otherwise null.
+- "location": if you can confidently identify a place, provide the most specific searchable address in English — prefer "Venue Name, City, Country" or "Landmark, District, City, Country" over just "City, Country". The string will be used as a geocoding query, so specificity matters. Otherwise null.
 
-Example: {"description":"Athletes compete on a track at Stade de Gerland","location":"Lyon, France"}`,
+Example: {"description":"Athletes compete on a track at Stade de Gerland","location":"Stade de Gerland, Lyon, France"}`,
         },
       ],
     }],
