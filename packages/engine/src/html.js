@@ -1799,6 +1799,47 @@ function blurOverlays() {
   OVERLAY_BTNS.forEach(b => { if (document.activeElement === b) b.blur(); });
 }
 
+/* ── Per-photo SEO meta (helps Googlebot index individual photos) ── */
+const _metaDesc    = document.querySelector('meta[name="description"]');
+const _metaOgDesc  = document.querySelector('meta[property="og:description"]');
+const _metaOgImg   = document.querySelector('meta[property="og:image"]');
+const _metaOgTitle = document.querySelector('meta[property="og:title"]');
+const _metaOgUrl   = document.querySelector('meta[property="og:url"]');
+const _metaTwDesc  = document.querySelector('meta[name="twitter:description"]');
+const _metaTwImg   = document.querySelector('meta[name="twitter:image"]');
+const _metaTwTitle = document.querySelector('meta[name="twitter:title"]');
+const _origTitle   = document.title;
+const _origDesc    = _metaDesc?.getAttribute('content') || null;
+const _origOgImg   = _metaOgImg?.getAttribute('content') || null;
+const _origOgUrl   = _metaOgUrl?.getAttribute('content') || null;
+function _setMeta(el, val) { if (el && val !== null) el.setAttribute('content', val); }
+function updatePageMeta(idx) {
+  const photo  = PHOTOS[idx];
+  if (!photo) return;
+  const imgUrl = location.origin + location.pathname + 'img/full/' + photo.name + '.webp';
+  const title  = (photo.desc || photo.name) + (PROJECT.title ? ' — ' + PROJECT.title : '');
+  document.title = title;
+  _setMeta(_metaOgTitle, title);
+  _setMeta(_metaTwTitle, title);
+  _setMeta(_metaOgUrl,   location.origin + location.pathname + '#' + photo.name);
+  _setMeta(_metaOgImg,   imgUrl);
+  _setMeta(_metaTwImg,   imgUrl);
+  if (photo.desc) {
+    _setMeta(_metaDesc,   photo.desc);
+    _setMeta(_metaOgDesc, photo.desc);
+    _setMeta(_metaTwDesc, photo.desc);
+  }
+}
+function restorePageMeta() {
+  document.title = _origTitle;
+  _setMeta(_metaOgTitle, _origTitle);
+  _setMeta(_metaTwTitle, _origTitle);
+  _setMeta(_metaOgUrl,   _origOgUrl);
+  _setMeta(_metaOgImg,   _origOgImg);
+  _setMeta(_metaTwImg,   _origOgImg);
+  if (_origDesc) { _setMeta(_metaDesc, _origDesc); _setMeta(_metaOgDesc, _origDesc); _setMeta(_metaTwDesc, _origDesc); }
+}
+
 lb.on('open', () => {
   lbOpen = true;
   blurOverlays();
@@ -1812,6 +1853,7 @@ lb.on('open', () => {
   updateTitleColor(idx);
   updateCaption(idx);
   history.replaceState(null, '', '#' + PHOTOS[idx].name);
+  updatePageMeta(idx);
 });
 
 lb.on('slide_changed', ({ current }) => {
@@ -1824,6 +1866,7 @@ lb.on('slide_changed', ({ current }) => {
   if (exifOpen) showExif(idx);
   if (swActive) swScheduleNext();  // reset countdown on every slide (swipe or auto)
   history.replaceState(null, '', '#' + PHOTOS[idx].name);
+  updatePageMeta(idx);
 });
 
 lb.on('close', () => {
@@ -1834,6 +1877,7 @@ lb.on('close', () => {
   hideExif();
   swStop();
   history.replaceState(null, '', location.pathname);
+  restorePageMeta();
 });
 
 /* ── Deep-link: open lightbox at photo from URL hash on page load ── */
